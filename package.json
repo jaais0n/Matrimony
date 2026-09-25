@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter @workspace/pentecostal-matrimony run dev",
     "dev:server": "pnpm --filter @workspace/api-server run dev",
-    "build": "pnpm --filter @workspace/pentecostal-matrimony run build && node scripts/prepare-deploy.mjs",
+    "build": "pnpm --filter @workspace/pentecostal-matrimony run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
