@@ -1,13 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import * as ClerkReal from '@clerk/react';
 import { AlertCircle, ArrowRight, CheckCircle2, Lock, ShieldCheck, User } from 'lucide-react';
-
-const rawKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
-// Check if a real, valid Clerk publishable key is supplied
-const isRealClerk = Boolean(
-  rawKey &&
-  (rawKey.startsWith('pk_live_') || (rawKey.startsWith('pk_test_') && !rawKey.includes('dGVzdC5jbGVyay')))
-);
 
 export interface AuthUser {
   id: string;
@@ -108,10 +100,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: () => {},
 });
 
-export function ClerkProvider(props: React.ComponentProps<typeof ClerkReal.ClerkProvider> & { children: React.ReactNode }) {
-  if (isRealClerk) {
-    return <ClerkReal.ClerkProvider {...props} />;
-  }
+export function ClerkProvider(props: { children: React.ReactNode; publishableKey?: string }) {
 
   // Sync users from backend API server on startup
   React.useEffect(() => {
@@ -246,9 +235,6 @@ export function ClerkProvider(props: React.ComponentProps<typeof ClerkReal.Clerk
 }
 
 export function useAuth() {
-  if (isRealClerk) {
-    return ClerkReal.useAuth();
-  }
   const { isSignedIn, user } = useContext(AuthContext);
   return {
     isLoaded: true,
@@ -260,9 +246,6 @@ export function useAuth() {
 }
 
 export function useUser() {
-  if (isRealClerk) {
-    return ClerkReal.useUser();
-  }
   const { isSignedIn, user } = useContext(AuthContext);
   return {
     isLoaded: true,
@@ -276,9 +259,6 @@ export function useAuthActions() {
 }
 
 export function useClerk(): any {
-  if (isRealClerk) {
-    return ClerkReal.useClerk();
-  }
   const { signOut, signInAs, signIn } = useContext(AuthContext);
   return {
     signOut: async (options?: { redirectUrl?: string }) => {
@@ -294,9 +274,6 @@ export function useClerk(): any {
 }
 
 export function SignIn(props: { routing?: string; path?: string; signUpUrl?: string }) {
-  if (isRealClerk) {
-    return <ClerkReal.SignIn {...(props as any)} />;
-  }
   const { signIn } = useContext(AuthContext);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -416,9 +393,6 @@ export function SignIn(props: { routing?: string; path?: string; signUpUrl?: str
 }
 
 export function SignUp(props: { routing?: string; path?: string; signInUrl?: string }) {
-  if (isRealClerk) {
-    return <ClerkReal.SignUp {...(props as any)} />;
-  }
   const { signIn } = useContext(AuthContext);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
