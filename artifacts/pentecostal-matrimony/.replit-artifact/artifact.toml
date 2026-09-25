@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Pentecostal Matrimony"
+description = "A faith-focused matrimonial platform for Pentecostal Christian communities, built around genuine profiles, transparent preferences, private contact details, and meaningful connections."
+version = "1.0.0"
+id = "artifacts/pentecostal-matrimony"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20457
+
+[services.development]
+run = "pnpm --filter @workspace/pentecostal-matrimony run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pentecostal-matrimony", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/pentecostal-matrimony/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20457"
+BASE_PATH = "/"

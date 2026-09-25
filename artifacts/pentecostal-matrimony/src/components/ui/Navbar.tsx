@@ -1,0 +1,94 @@
+import { Link, useLocation } from 'wouter';
+import { Bell, User } from 'lucide-react';
+import { useUser } from '../../auth';
+
+export function Navbar({ activeRole, onToggleRole }: { activeRole?: string; onToggleRole?: (role: string) => void }) {
+  const [location] = useLocation();
+  const { user } = useUser();
+
+  const currentRole = String(activeRole || (user?.publicMetadata?.role as string) || 'user');
+  const isAdmin = currentRole === 'admin' || currentRole === 'moderator';
+
+  const navLinks = [
+    { label: 'Discover', href: '/discover' },
+    { label: 'Matches', href: '/matches' },
+    { label: 'Search', href: '/search' },
+    { label: 'Interests', href: '/interests' },
+    { label: 'Messages', href: '/messages' },
+    { label: 'My Profile', href: '/my-profile' },
+  ];
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-[#ebdcd0]/80 bg-[#fdfbf9]/95 backdrop-blur-md shadow-xs">
+      {/* Top Banner with warm burgundy & gold elegance */}
+      <div className="bg-gradient-to-r from-rose-900 via-rose-950 to-slate-900 px-4 py-1.5 text-center text-[11px] font-semibold text-rose-100/90">
+        <span className="text-amber-300 font-bold">Faith. Values. A Life Together.</span>
+        <span className="mx-2 text-rose-400/40">|</span>
+        <span className="hidden sm:inline">A dedicated matrimonial community for Pentecostal Christian believers</span>
+      </div>
+
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Brand / Logo */}
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-rose-700 via-rose-800 to-rose-950 font-extrabold text-sm text-amber-200 shadow-md border border-rose-600/30 tracking-widest group-hover:scale-105 transition-transform">
+              PM
+            </div>
+            <div>
+              <span className="block font-black text-sm uppercase tracking-[0.16em] text-slate-900 group-hover:text-rose-700 transition">
+                Pentecostal Matrimony
+              </span>
+              <span className="block text-[10px] uppercase font-semibold tracking-wider text-rose-600">
+                Verified Covenant Fellowship
+              </span>
+            </div>
+          </Link>
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-6" aria-label="Main Navigation">
+            {navLinks.map((item) => {
+              const active = location === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`text-xs font-bold tracking-wide transition py-1 ${
+                    active
+                      ? 'border-b-2 border-rose-600 text-rose-700'
+                      : 'text-slate-600 hover:text-rose-700'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Right Actions */}
+        <div className="flex items-center gap-3">
+          {/* Notifications Link with unread badge */}
+          <Link
+            href="/notifications"
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition"
+            title="Notifications"
+          >
+            <Bell size={16} />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-600 shadow-xs animate-pulse"></span>
+            </span>
+          </Link>
+
+          {/* Desktop Only My Profile Button */}
+          <Link
+            href="/my-profile"
+            className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 transition shadow-2xs"
+          >
+            <User size={13} className="text-rose-700" />
+            <span>My Profile</span>
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}

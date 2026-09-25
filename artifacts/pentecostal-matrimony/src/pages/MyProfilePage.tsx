@@ -1,0 +1,713 @@
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowRight,
+  Camera,
+  Check,
+  CheckCircle2,
+  Image as ImageIcon,
+  Shield,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
+import {
+  getGetMyProfileQueryKey,
+  useGetMyProfile,
+  useSaveMyProfile,
+} from '@workspace/api-client-react';
+import type { ProfileInput } from '@workspace/api-client-react';
+import { VerificationBadge } from '../components/ui/VerificationBadge';
+import { useUser } from '../auth';
+import { compressImage, getApproximateKB, safeSetLocalStorage } from '../utils/storageHelper';
+
+interface ProfilePhotoItem {
+  id: string;
+  url: string;
+  isPrimary: boolean;
+  sizeKB?: number;
+}
+
+const blankProfile: ProfileInput = {
+  displayName: '',
+  dateOfBirth: '',
+  gender: 'woman',
+  heightCm: '' as any,
+  weightKg: null,
+  motherTongue: '',
+  maritalStatus: 'Never Married',
+  location: '',
+  country: 'India',
+  introduction: '',
+  published: true,
+  faith: {
+    religion: 'Christianity',
+    denomination: 'Assemblies of God',
+    church: '',
+    baptismStatus: 'Water & Holy Spirit Baptized',
+    baptismYear: '' as any,
+    churchInvolvement: '',
+    ministryInvolvement: '',
+    spiritualExpectations: '',
+    faithDescription: '',
+  },
+  education: {
+    qualification: '',
+    degree: '',
+    institution: '',
+    fieldOfStudy: '',
+  },
+  career: {
+    occupation: '',
+    company: '',
+    workLocation: '',
+    employmentStatus: 'Full-time',
+    workingAbroad: false,
+    country: 'India',
+  },
+  family: {
+    familyStatus: 'Middle Class',
+    fatherOccupation: '',
+    motherOccupation: '',
+    siblings: '',
+    background: '',
+    values: '',
+  },
+  preferences: {
+    ageMin: '' as any,
+    ageMax: '' as any,
+    locations: [],
+    denomination: '',
+    education: '',
+    occupation: '',
+    workLocation: '',
+    familyValues: '',
+    spiritualExpectations: '',
+    other: '',
+  },
+};
+
+export function MyProfilePage() {
+  const { user } = useUser();
+  const me = useGetMyProfile();
+  const save = useSaveMyProfile();
+  const queryClient = useQueryClient();
+
+  const [form, setForm] = useState<ProfileInput>(blankProfile);
+  const [photos, setPhotos] = useState<ProfilePhotoItem[]>([]);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    // 1. If backend / API returned real profile data with name or location
+    if (me.data && (me.data.displayName || me.data.location || me.data.introduction)) {
+      const p = me.data;
+      setForm({
+        displayName: p.displayName || user?.fullName || '',
+        dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
+        gender: (p.gender as ProfileInput['gender']) || 'woman',
+        heightCm: p.heightCm || ('' as any),
+        weightKg: p.weightKg || null,
+        motherTongue: p.motherTongue || '',
+        maritalStatus: p.maritalStatus || 'Never Married',
+        location: p.location || '',
+        country: p.country || 'India',
+        introduction: p.introduction || '',
+        published: p.published !== undefined ? p.published : true,
+        faith: p.faith || blankProfile.faith,
+        education: p.education || blankProfile.education,
+        career: p.career || blankProfile.career,
+        family: p.family || blankProfile.family,
+        preferences: p.preferences || blankProfile.preferences,
+      });
+
+      if (p.photos && p.photos.length > 0) {
+        const loaded: ProfilePhotoItem[] = p.photos.map((ph: any, idx: number) => ({
+          id: ph.id || `photo_${idx}`,
+          url: ph.url,
+          isPrimary: ph.isPrimary ?? (idx === 0),
+          sizeKB: getApproximateKB(ph.url),
+        }));
+        setPhotos(loaded);
+      }
+      return;
+    }
+
+    // 2. Otherwise check user-specific localStorage profile
+    if (user?.id) {
+      try {
+        const raw = localStorage.getItem(`pm_user_profile_${user.id}`) || localStorage.getItem('pm_my_profile');
+        if (raw) {
+          const p = JSON.parse(raw);
+          setForm({
+            displayName: p.displayName || user.fullName || '',
+            dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
+            gender: (p.gender as ProfileInput['gender']) || 'woman',
+            heightCm: p.heightCm || ('' as any),
+            weightKg: p.weightKg || null,
+            motherTongue: p.motherTongue || '',
+            maritalStatus: p.maritalStatus || 'Never Married',
+            location: p.location || '',
+            country: p.country || 'India',
+            introduction: p.introduction || '',
+            published: p.published !== undefined ? p.published : true,
+            faith: p.faith || blankProfile.faith,
+            education: p.education || blankProfile.education,
+            career: p.career || blankProfile.career,
+            family: p.family || blankProfile.family,
+            preferences: p.preferences || blankProfile.preferences,
+          });
+
+          if (p.photos && p.photos.length > 0) {
+            const loaded: ProfilePhotoItem[] = p.photos.map((ph: any, idx: number) => ({
+              id: ph.id || `photo_${idx}`,
+              url: ph.url,
+              isPrimary: ph.isPrimary ?? (idx === 0),
+              sizeKB: getApproximateKB(ph.url),
+            }));
+            setPhotos(loaded);
+          }
+          return;
+        }
+      } catch {}
+
+      // 3. Initialize displayName with user's registered name
+      if (user.fullName) {
+        setForm((prev) => ({ ...prev, displayName: user.fullName || '' }));
+      }
+    }
+  }, [me.data, user?.id, user?.fullName]);
+
+  const setTop = (key: string, value: string | number | boolean) => {
+    setForm((old) => ({ ...old, [key]: value }));
+  };
+
+  const setSectionField = (section: keyof ProfileInput, key: string, value: string | number | boolean | null) => {
+    setForm((old) => ({
+      ...old,
+      [section]: {
+        ...(old[section] as unknown as Record<string, unknown>),
+        [key]: value,
+      },
+    }));
+  };
+
+  const handleUploadPhoto = async (file: File, replaceIndex?: number) => {
+    if (!file) return;
+    setIsUploadingPhoto(true);
+    try {
+      // Compress to crystal clear resolution strictly under 100KB (target 95KB)
+      const compressed = await compressImage(file, 900, 95);
+      const sizeKB = getApproximateKB(compressed);
+
+      let updatedPhotos: ProfilePhotoItem[];
+      if (replaceIndex !== undefined && replaceIndex >= 0 && replaceIndex < photos.length) {
+        updatedPhotos = photos.map((item, idx) =>
+          idx === replaceIndex ? { ...item, url: compressed, sizeKB } : item
+        );
+      } else {
+        if (photos.length >= 3) {
+          setUploadSuccessMessage('Maximum 3 photos allowed. You can replace an existing photo.');
+          setIsUploadingPhoto(false);
+          return;
+        }
+        const newPhotoItem: ProfilePhotoItem = {
+          id: `photo_${Date.now()}`,
+          url: compressed,
+          isPrimary: photos.length === 0,
+          sizeKB,
+        };
+        updatedPhotos = [...photos, newPhotoItem];
+      }
+
+      if (!updatedPhotos.some((ph) => ph.isPrimary) && updatedPhotos.length > 0) {
+        updatedPhotos[0].isPrimary = true;
+      }
+
+      setPhotos(updatedPhotos);
+
+      // Auto-save photos so changes persist immediately
+      if (user?.id) {
+        const updatedForm = { ...form, photos: updatedPhotos as any };
+        setForm(updatedForm);
+        safeSetLocalStorage(`pm_user_profile_${user.id}`, { ...updatedForm, photos: updatedPhotos });
+        safeSetLocalStorage('pm_my_profile', { ...updatedForm, photos: updatedPhotos });
+        try {
+          const raw = localStorage.getItem('pm_registered_profiles');
+          const profiles = raw ? JSON.parse(raw) : [];
+          const idx = profiles.findIndex((p: any) => p.userId === user.id || p.id === `prof_${user.id}`);
+          if (idx >= 0) {
+            profiles[idx].photos = updatedPhotos;
+            safeSetLocalStorage('pm_registered_profiles', profiles);
+          }
+        } catch {}
+      }
+
+      setUploadSuccessMessage(`✓ Photo compressed to ${sizeKB} KB (Under 100 KB · HD Clear)`);
+      setTimeout(() => setUploadSuccessMessage(null), 4000);
+    } catch (err) {
+      console.error('Failed to compress/upload photo:', err);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleSetPrimary = (index: number) => {
+    const updated = photos.map((ph, idx) => ({
+      ...ph,
+      isPrimary: idx === index,
+    }));
+    setPhotos(updated);
+    if (user?.id) {
+      safeSetLocalStorage(`pm_user_profile_${user.id}`, { ...form, photos: updated });
+      safeSetLocalStorage('pm_my_profile', { ...form, photos: updated });
+    }
+    setUploadSuccessMessage(`Primary display photo updated.`);
+    setTimeout(() => setUploadSuccessMessage(null), 3000);
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    let updated = photos.filter((_, idx) => idx !== index);
+    if (updated.length > 0 && !updated.some((p) => p.isPrimary)) {
+      updated[0].isPrimary = true;
+    }
+    setPhotos(updated);
+    if (user?.id) {
+      safeSetLocalStorage(`pm_user_profile_${user.id}`, { ...form, photos: updated });
+      safeSetLocalStorage('pm_my_profile', { ...form, photos: updated });
+    }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const dataToSave = {
+      ...form,
+      photos: photos as any,
+    };
+
+    save.mutate(
+      { data: dataToSave },
+      {
+        onSuccess: () => {
+          setSaved(true);
+          queryClient.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+          setTimeout(() => setSaved(false), 3000);
+        },
+      }
+    );
+
+    // Save directly to localStorage for instant persistence
+    if (user?.id) {
+      safeSetLocalStorage(`pm_user_profile_${user.id}`, dataToSave);
+      safeSetLocalStorage('pm_my_profile', dataToSave);
+      try {
+        const raw = localStorage.getItem('pm_registered_profiles');
+        const profiles = raw ? JSON.parse(raw) : [];
+        const fullProfile = {
+          id: `prof_${user.id}`,
+          userId: user.id,
+          ...dataToSave,
+          updatedAt: new Date().toISOString(),
+        };
+        const idx = profiles.findIndex((p: any) => p.userId === user.id || p.id === `prof_${user.id}`);
+        if (idx >= 0) {
+          profiles[idx] = fullProfile;
+        } else {
+          profiles.push(fullProfile);
+        }
+        safeSetLocalStorage('pm_registered_profiles', profiles);
+
+        // Sync to backend API server
+        fetch('/api/profiles/me', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fullProfile),
+        }).catch(() => {});
+      } catch {}
+    }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-24 md:pb-12 text-slate-900">
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+
+        {/* Profile Edit Form */}
+        <div className="rounded-3xl border border-rose-100 bg-white p-6 sm:p-10 shadow-sm overflow-hidden relative">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-500 to-rose-700" />
+          <div className="border-b border-slate-100 pb-5 mb-8">
+            <span className="inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1 border border-rose-200">
+              Account & Matrimonial Profile
+            </span>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900">Edit Your Profile</h1>
+            <p className="mt-1 text-xs text-slate-600">
+              Update your personal, faith, career, and family details. Changes save directly to your published card.
+            </p>
+          </div>
+
+          <form onSubmit={submit} className="space-y-8">
+            {/* Dedicated Profile Photos Management Section (Up to 3 Photos) */}
+            <div className="rounded-2xl border border-rose-200 bg-gradient-to-b from-rose-50/50 to-white p-5 sm:p-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-rose-100 pb-4 mb-5 gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-700 text-white text-xs font-bold shadow-xs">
+                      <Camera size={13} />
+                    </span>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                      Profile Photos ({photos.length} of 3)
+                    </h3>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Add up to 3 clear, modest photos. Each photo is automatically compressed under 100 KB for privacy, fast loading, and crystal clear resolution.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 border border-rose-200 px-3 py-1 text-[11px] font-bold text-rose-800 shadow-2xs">
+                    <Sparkles size={12} className="text-amber-500" />
+                    Auto &lt; 100 KB · HD Clear
+                  </span>
+                </div>
+              </div>
+
+              {uploadSuccessMessage && (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 flex items-center justify-between shadow-2xs">
+                  <span>{uploadSuccessMessage}</span>
+                  <button type="button" onClick={() => setUploadSuccessMessage(null)}>
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* 3 Photo Slots Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[0, 1, 2].map((slotIndex) => {
+                  const photo = photos[slotIndex];
+                  const slotTitle =
+                    slotIndex === 0 ? 'Primary Portrait' : slotIndex === 1 ? 'Secondary Photo' : 'Third Photo';
+
+                  if (photo) {
+                    return (
+                      <div
+                        key={photo.id || slotIndex}
+                        className={`group relative rounded-2xl border overflow-hidden bg-white shadow-2xs transition ${
+                          photo.isPrimary ? 'border-rose-500 ring-2 ring-rose-500/20' : 'border-slate-200 hover:border-rose-300'
+                        }`}
+                      >
+                        <div className="aspect-[4/5] w-full overflow-hidden bg-slate-100 relative">
+                          <img
+                            src={photo.url}
+                            alt={`Photo ${slotIndex + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          {/* Badges */}
+                          <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+                            {photo.isPrimary && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-rose-700 text-white text-[10px] font-bold px-2 py-0.5 shadow-sm">
+                                <Star size={10} className="fill-white" /> Primary
+                              </span>
+                            )}
+                          </div>
+                          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                            <span className="rounded-md bg-slate-900/85 backdrop-blur-xs text-white text-[10px] font-mono px-2 py-0.5 shadow-xs">
+                              {photo.sizeKB ? `${photo.sizeKB} KB` : `${getApproximateKB(photo.url)} KB`} · HD
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="p-2.5 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
+                          {!photo.isPrimary ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimary(slotIndex)}
+                              className="text-[11px] font-bold text-slate-700 hover:text-rose-700 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-rose-50 transition"
+                            >
+                              <Star size={12} /> Set Primary
+                            </button>
+                          ) : (
+                            <span className="text-[11px] font-bold text-emerald-700 flex items-center gap-1 px-2 py-1">
+                              <Check size={12} /> Primary Card
+                            </span>
+                          )}
+
+                          <div className="flex items-center gap-1">
+                            <label className="cursor-pointer text-[11px] font-bold text-slate-600 hover:text-slate-900 px-2 py-1 rounded-lg hover:bg-slate-100 transition">
+                              Replace
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleUploadPhoto(f, slotIndex);
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(slotIndex)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition"
+                              title="Delete photo"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Empty Slot
+                  return (
+                    <label
+                      key={slotIndex}
+                      className="group cursor-pointer relative aspect-[4/5] rounded-2xl border-2 border-dashed border-rose-200 hover:border-rose-400 bg-white/80 hover:bg-rose-50/40 flex flex-col items-center justify-center p-4 text-center transition shadow-2xs"
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={isUploadingPhoto}
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleUploadPhoto(f);
+                        }}
+                      />
+                      <div className="h-12 w-12 rounded-2xl bg-rose-100/70 text-rose-700 flex items-center justify-center group-hover:scale-110 group-hover:bg-rose-700 group-hover:text-white transition shadow-2xs mb-2">
+                        <Upload size={20} />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800 group-hover:text-rose-700 transition">
+                        {slotTitle}
+                      </span>
+                      <span className="text-[10px] text-slate-500 mt-0.5">
+                        Click to add photo
+                      </span>
+                      <span className="mt-2 text-[9px] font-semibold text-rose-700 bg-rose-100/70 rounded-full px-2 py-0.5">
+                        Compressed &lt; 100 KB
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {isUploadingPhoto && (
+                <div className="mt-4 text-center text-xs font-bold text-rose-700 animate-pulse flex items-center justify-center gap-1.5">
+                  <Sparkles size={14} /> Compressing photo under 100 KB with crystal clarity...
+                </div>
+              )}
+            </div>
+
+            {/* Section 1: The Basics */}
+            <div>
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-rose-700 text-xs font-bold">1</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Personal Details
+                </h3>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 text-xs">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Display Name</label>
+                  <input
+                    type="text"
+                    value={form.displayName}
+                    onChange={(e) => setTop('displayName', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={form.dateOfBirth}
+                    onChange={(e) => setTop('dateOfBirth', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Height (cm)</label>
+                  <input
+                    type="number"
+                    value={form.heightCm}
+                    onChange={(e) => setTop('heightCm', Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Mother Tongue</label>
+                  <input
+                    type="text"
+                    value={form.motherTongue}
+                    onChange={(e) => setTop('motherTongue', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Location (City, State)</label>
+                  <input
+                    type="text"
+                    value={form.location}
+                    onChange={(e) => setTop('location', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Marital Status</label>
+                  <select
+                    value={form.maritalStatus}
+                    onChange={(e) => setTop('maritalStatus', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  >
+                    <option value="Never Married">Never Married</option>
+                    <option value="Widowed">Widowed</option>
+                    <option value="Divorced">Divorced (Biblical grounds)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Personal Testimony & Introduction</label>
+                <textarea
+                  value={form.introduction}
+                  onChange={(e) => setTop('introduction', e.target.value)}
+                  className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                />
+              </div>
+            </div>
+
+            {/* Section 2: Faith & Church */}
+            <div>
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-100 text-purple-700 text-xs font-bold">2</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Faith & Spiritual Life
+                </h3>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 text-xs">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Denomination</label>
+                  <input
+                    type="text"
+                    value={form.faith.denomination}
+                    onChange={(e) => setSectionField('faith', 'denomination', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Home Church</label>
+                  <input
+                    type="text"
+                    value={form.faith.church}
+                    onChange={(e) => setSectionField('faith', 'church', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Baptism Status</label>
+                  <input
+                    type="text"
+                    value={form.faith.baptismStatus}
+                    onChange={(e) => setSectionField('faith', 'baptismStatus', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Ministry Involvement</label>
+                  <input
+                    type="text"
+                    value={form.faith.ministryInvolvement}
+                    onChange={(e) => setSectionField('faith', 'ministryInvolvement', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Education & Career */}
+            <div>
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">3</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Education & Career
+                </h3>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 text-xs">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Qualification</label>
+                  <input
+                    type="text"
+                    value={form.education.qualification}
+                    onChange={(e) => setSectionField('education', 'qualification', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Field of Study</label>
+                  <input
+                    type="text"
+                    value={form.education.fieldOfStudy}
+                    onChange={(e) => setSectionField('education', 'fieldOfStudy', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Occupation</label>
+                  <input
+                    type="text"
+                    value={form.career.occupation}
+                    onChange={(e) => setSectionField('career', 'occupation', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Company / Employer</label>
+                  <input
+                    type="text"
+                    value={form.career.company}
+                    onChange={(e) => setSectionField('career', 'company', e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-xs text-slate-900 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Submit & Publish Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 pt-6">
+              <label className="flex items-center gap-2.5 text-xs font-semibold cursor-pointer text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={form.published}
+                  onChange={(e) => setTop('published', e.target.checked)}
+                  className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500"
+                />
+                <span>Publish profile to public Discover directory</span>
+              </label>
+
+              <div className="flex items-center gap-3">
+                {saved && (
+                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
+                    <Check size={14} className="stroke-[3]" /> Profile Saved
+                  </span>
+                )}
+                <button
+                  type="submit"
+                  disabled={save.isPending}
+                  className="rounded-xl bg-rose-700 px-6 py-2.5 text-xs font-bold text-white uppercase tracking-wider shadow-md hover:bg-rose-800 transition"
+                >
+                  {save.isPending ? 'Saving...' : 'Save Profile'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

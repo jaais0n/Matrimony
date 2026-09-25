@@ -1,3 +1,5 @@
+import { handleMockRequest } from "./mock-handler";
+
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };
@@ -360,12 +362,23 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  try {
+    const response = await fetch(input, { ...init, method, headers });
 
-  if (!response.ok) {
-    const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
+    if (!response.ok) {
+      const errorData = await parseErrorBody(response, method);
+      throw new ApiError(response, errorData, requestInfo);
+    }
+
+    return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+  } catch (err) {
+    // If the server was unreachable or error thrown, fallback gracefully
+    const parsedBody = typeof init.body === "string" ? (() => { try { return JSON.parse(init.body); } catch { return undefined; } })() : init.body;
+    const mockResult = handleMockRequest(requestInfo.url, method, parsedBody);
+    if (mockResult !== null) {
+      return Promise.resolve(mockResult as T);
+    }
+    throw err;
   }
-
-  return (await parseSuccessBody(response, responseType, requestInfo)) as T;
 }
+

@@ -44,6 +44,17 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
+# Secrets and Environment Variables
+.env
+*.env
+*.env.local
+
+# Databases & Local Data
+*.db
+*.sqlite
+database/*.db
+artifacts/api-server/data/
+
 # Replit
 .cache/
 .local/

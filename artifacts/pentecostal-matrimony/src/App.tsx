@@ -1,0 +1,358 @@
+import { useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
+import { Heart } from 'lucide-react';
+import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from './auth';
+
+import { Navbar } from './components/ui/Navbar';
+import { BottomNav } from './components/ui/BottomNav';
+import { Footer } from './components/ui/Footer';
+
+import { LandingPage } from './pages/LandingPage';
+import { OnboardingPage } from './pages/OnboardingPage';
+import { DiscoverPage } from './pages/DiscoverPage';
+import { MatchesPage } from './pages/MatchesPage';
+import { SearchPage } from './pages/SearchPage';
+import { ProfileDetailPage } from './pages/ProfileDetailPage';
+import { InterestsPage } from './pages/InterestsPage';
+import { MessagesPage } from './pages/MessagesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { MyProfilePage } from './pages/MyProfilePage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { SubscriptionPage } from './pages/SubscriptionPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import NotFound from './pages/not-found';
+import { ErrorBoundary } from './components/error-boundary';
+
+import { safeSetLocalStorage } from './utils/storageHelper';
+
+import './index.css';
+
+function DataSyncEffect() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const syncData = async () => {
+      try {
+        // 1. Collect all local profiles from this device
+        let localProfiles: any[] = [];
+        const raw = localStorage.getItem('pm_registered_profiles');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) localProfiles = parsed;
+        }
+        const myProfRaw = localStorage.getItem('pm_my_profile');
+        if (myProfRaw) {
+          const myProf = JSON.parse(myProfRaw);
+          if (myProf && !localProfiles.some((p) => p.id === myProf.id || p.userId === myProf.userId)) {
+            localProfiles.push(myProf);
+          }
+        }
+
+        // 2. If this client has profiles, push them to the backend server
+        if (localProfiles.length > 0) {
+          await fetch('/api/profiles/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localProfiles),
+          }).catch(() => {});
+        }
+
+        // 3. Fetch server's consolidated profiles to ensure local cache has all devices' profiles
+        const res = await fetch('/api/profiles');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            const serverProfiles = data.items;
+            const existingRaw = localStorage.getItem('pm_registered_profiles');
+            const existing = existingRaw ? JSON.parse(existingRaw) : [];
+            const merged = [...existing];
+            for (const sp of serverProfiles) {
+              if (!merged.some((m) => m.id === sp.id || m.userId === sp.userId)) {
+                merged.push(sp);
+              }
+            }
+            safeSetLocalStorage('pm_registered_profiles', merged);
+            queryClient.invalidateQueries({ queryKey: ['/api/profiles'] });
+          }
+        }
+      } catch (err) {
+        console.warn('Sync notice:', err);
+      }
+    };
+
+    syncData();
+  }, [queryClient]);
+
+  return null;
+}
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+const basePath = import.meta.env.BASE_URL ? import.meta.env.BASE_URL.replace(/\/$/, '') : '';
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+
+function AppShell({
+  children,
+  activeRole,
+  onToggleRole,
+}: {
+  children: React.ReactNode;
+  activeRole: string;
+  onToggleRole: (r: string) => void;
+}) {
+  return (
+    <div className="min-h-screen flex flex-col bg-[#ffffff] text-black">
+      <Navbar activeRole={activeRole} onToggleRole={onToggleRole} />
+      <main className="flex-1">{children}</main>
+      <Footer />
+      <BottomNav />
+    </div>
+  );
+}
+
+function SignInPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#fdfbf9] via-[#f8f1ea] to-[#fbf4ee] px-4 py-12 relative overflow-hidden">
+      {/* Warm Ambient Glows */}
+      <div className="pointer-events-none absolute -top-24 left-1/4 h-80 w-80 rounded-full bg-rose-200/25 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 right-10 h-72 w-72 rounded-full bg-amber-200/25 blur-3xl" />
+
+      <div className="w-full max-w-[440px] relative z-10">
+        <div className="mb-6 flex justify-center">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-700 text-white shadow-sm transition-transform group-hover:scale-105">
+              <Heart size={18} className="fill-white" />
+            </div>
+            <span className="font-serif-fancy text-xl font-bold tracking-tight text-slate-900 group-hover:text-rose-600 transition-colors">
+              Pentecostal <span className="font-script-fancy text-3xl font-normal text-rose-600 -ml-0.5">Matrimony</span>
+            </span>
+          </Link>
+        </div>
+        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+      </div>
+    </div>
+  );
+}
+
+function SignUpPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#fdfbf9] via-[#f8f1ea] to-[#fbf4ee] px-4 py-12 relative overflow-hidden">
+      {/* Warm Ambient Glows */}
+      <div className="pointer-events-none absolute -top-24 left-1/4 h-80 w-80 rounded-full bg-rose-200/25 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 right-10 h-72 w-72 rounded-full bg-amber-200/25 blur-3xl" />
+
+      <div className="w-full max-w-[440px] relative z-10">
+        <div className="mb-6 flex justify-center">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-700 text-white shadow-sm transition-transform group-hover:scale-105">
+              <Heart size={18} className="fill-white" />
+            </div>
+            <span className="font-serif-fancy text-xl font-bold tracking-tight text-slate-900 group-hover:text-rose-600 transition-colors">
+              Pentecostal <span className="font-script-fancy text-3xl font-normal text-rose-600 -ml-0.5">Matrimony</span>
+            </span>
+          </Link>
+        </div>
+        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+      </div>
+    </div>
+  );
+}
+
+function ClerkCacheInvalidator() {
+  const { addListener } = useClerk();
+  const client = useQueryClient();
+  useEffect(() => addListener(() => { client.clear(); }), [addListener, client]);
+  return null;
+}
+
+function ProtectedMemberArea({
+  children,
+  activeRole,
+  onToggleRole,
+}: {
+  children: React.ReactNode;
+  activeRole: string;
+  onToggleRole: (r: string) => void;
+}) {
+  const { isSignedIn } = useAuth();
+  if (!isSignedIn) {
+    return <Redirect to="/sign-in" />;
+  }
+  return (
+    <AppShell activeRole={activeRole} onToggleRole={onToggleRole}>
+      {children}
+    </AppShell>
+  );
+}
+
+function ProtectedAdminArea({ children }: { children: React.ReactNode }) {
+  const { isSignedIn } = useAuth();
+  const { user } = useUser();
+  const isAdmin = user?.publicMetadata?.role === 'admin';
+
+  if (!isSignedIn || !isAdmin) {
+    return <Redirect to="/sign-in" />;
+  }
+
+  // Completely standalone admin portal - No consumer header, footer, or bottom nav
+  return <div className="min-h-screen bg-slate-900 text-slate-900">{children}</div>;
+}
+
+function Router() {
+  const [location] = useLocation();
+  const { isSignedIn, isLoaded } = useAuth();
+  const { user } = useUser();
+  const [activeRole, setActiveRole] = useState<'user' | 'admin' | 'moderator'>(() => {
+    return user?.publicMetadata?.role === 'admin' ? 'admin' : 'user';
+  });
+
+  useEffect(() => {
+    if (user?.publicMetadata?.role === 'admin') {
+      setActiveRole('admin');
+    } else {
+      setActiveRole('user');
+    }
+  }, [user]);
+
+  const toggleRole = (newRole: string) => {
+    setActiveRole(newRole as 'user' | 'admin' | 'moderator');
+  };
+
+  return (
+    <ErrorBoundary resetKey={location}>
+      <Switch>
+        {/* Public Landing & Auth */}
+        <Route path="/" component={LandingPage} />
+        <Route path="/onboarding" component={OnboardingPage} />
+        <Route path="/sign-in/*?" component={SignInPage} />
+        <Route path="/sign-up/*?" component={SignUpPage} />
+
+        {/* Member Space - Only Registered Customers Can See Profiles */}
+        <Route path="/discover">
+          <AppShell activeRole={activeRole} onToggleRole={toggleRole}>
+            <DiscoverPage />
+          </AppShell>
+        </Route>
+
+        <Route path="/matches">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <MatchesPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/search">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <SearchPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/profiles/:id">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <ProfileDetailPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/interests">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <InterestsPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/messages">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <MessagesPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/saved">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <MatchesPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/notifications">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <NotificationsPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/my-profile">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <MyProfilePage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/settings/privacy">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <PrivacyPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/subscription">
+          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+            <SubscriptionPage />
+          </ProtectedMemberArea>
+        </Route>
+
+        <Route path="/admin">
+          <ProtectedAdminArea>
+            <AdminDashboardPage activeRole={activeRole} />
+          </ProtectedAdminArea>
+        </Route>
+
+        {/* Fallback */}
+        <Route component={NotFound} />
+      </Switch>
+    </ErrorBoundary>
+  );
+}
+
+function App() {
+  return (
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      proxyUrl={clerkProxyUrl}
+      signInUrl={`${basePath}/sign-in`}
+      signUpUrl={`${basePath}/sign-up`}
+      appearance={{
+        variables: {
+          colorPrimary: '#000000',
+          colorForeground: '#000000',
+          colorBackground: '#ffffff',
+          colorInput: '#ffffff',
+          colorInputForeground: '#000000',
+          colorNeutral: '#000000',
+          fontFamily: 'Inter, sans-serif',
+          borderRadius: '0px',
+        },
+      }}
+      routerPush={(to: string) => {
+        window.history.pushState({}, '', to);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }}
+      routerReplace={(to: string) => {
+        window.history.replaceState({}, '', to);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }}
+    >
+      <QueryClientProvider client={queryClient}>
+        <DataSyncEffect />
+        <ClerkCacheInvalidator />
+        <WouterRouter base={basePath}>
+          <Router />
+        </WouterRouter>
+      </QueryClientProvider>
+    </ClerkProvider>
+  );
+}
+
+export default App;
