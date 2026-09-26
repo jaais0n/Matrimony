@@ -30,7 +30,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { customFetch } from '@workspace/api-client-react';
+import { customFetch, DEFAULT_SEED_PROFILES } from '@workspace/api-client-react';
 import { useClerk, useUser } from '../auth';
 import { deduplicateProfiles } from '../utils/storageHelper';
 
@@ -128,7 +128,9 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
       const res = await customFetch<any>('/api/profiles').catch(() => null);
       const apiItems = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
 
-      return deduplicateProfiles([...localItems, ...apiItems]);
+      // Always show DEFAULT_SEED_PROFILES in admin view as reference data
+      const allItems = deduplicateProfiles([...DEFAULT_SEED_PROFILES, ...localItems, ...apiItems]);
+      return allItems;
     },
   });
 

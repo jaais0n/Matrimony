@@ -503,11 +503,12 @@ export const DEFAULT_SEED_PROFILES: any[] = [
 ];
 
 // Stored profiles list (only real registered profiles created by users)
-function getRegisteredProfiles(): MyProfile[] {
-  const existing = getBrowserStorage<MyProfile[]>('pm_registered_profiles', []);
+function getRegisteredProfiles(): any[] {
+  const existing = getBrowserStorage<any[]>('pm_registered_profiles', []);
   if (!existing || existing.length === 0) {
-    setBrowserStorage('pm_registered_profiles', DEFAULT_SEED_PROFILES);
-    return DEFAULT_SEED_PROFILES;
+    // Do NOT auto-seed demo profiles into real users' discover/search/matches views.
+    // Demo profiles are only visible in Admin Dashboard via DEFAULT_SEED_PROFILES.
+    return [];
   }
   return existing;
 }
