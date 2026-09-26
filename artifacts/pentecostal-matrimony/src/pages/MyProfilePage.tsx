@@ -24,7 +24,7 @@ import {
 import type { ProfileInput } from '@workspace/api-client-react';
 import { VerificationBadge } from '../components/ui/VerificationBadge';
 import { useUser } from '../auth';
-import { compressImage, getApproximateKB, safeSetLocalStorage, uploadPhotoToCloud } from '../utils/storageHelper';
+import { compressImage, getApproximateKB, safeSetLocalStorage } from '../utils/storageHelper';
 
 interface ProfilePhotoItem {
   id: string;
@@ -231,15 +231,14 @@ export function MyProfilePage() {
     if (!file) return;
     setIsUploadingPhoto(true);
     try {
-      // Compress and upload to Cloudinary CDN (or fallback to local compressed <50KB)
-      const cloudResult = await uploadPhotoToCloud(file, 720, 48);
-      const photoUrl = cloudResult.url;
-      const sizeKB = cloudResult.sizeKB;
+      // Compress to crystal clear resolution strictly under 50KB (target 48KB)
+      const compressed = await compressImage(file, 720, 48);
+      const sizeKB = getApproximateKB(compressed);
 
       let updatedPhotos: ProfilePhotoItem[];
       if (replaceIndex !== undefined && replaceIndex >= 0 && replaceIndex < photos.length) {
         updatedPhotos = photos.map((item, idx) =>
-          idx === replaceIndex ? { ...item, url: photoUrl, sizeKB } : item
+          idx === replaceIndex ? { ...item, url: compressed, sizeKB } : item
         );
       } else {
         if (photos.length >= 3) {
@@ -249,7 +248,7 @@ export function MyProfilePage() {
         }
         const newPhotoItem: ProfilePhotoItem = {
           id: `photo_${Date.now()}`,
-          url: photoUrl,
+          url: compressed,
           isPrimary: photos.length === 0,
           sizeKB,
         };
