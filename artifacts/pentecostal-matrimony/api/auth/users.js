@@ -5,7 +5,7 @@
 
 import { get, list } from '@vercel/blob';
 
-import { defaultStore } from '../default-store.js';
+import { defaultStore } from '../_lib/default-store.js';
 
 function getFallbackUsers() {
   try {

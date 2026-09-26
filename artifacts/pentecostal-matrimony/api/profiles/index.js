@@ -93,7 +93,7 @@ function isSeedProfile(p) {
   return false;
 }
 
-import { defaultStore } from './default-store.js';
+import { defaultStore } from '../_lib/default-store.js';
 
 function getFallbackStore() {
   try {
