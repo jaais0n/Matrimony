@@ -121,6 +121,26 @@ function DataSyncEffect() {
               }
               const finalMerged = merged.filter((p) => !isSeedProfile(p));
               safeSetLocalStorage('pm_registered_profiles', finalMerged);
+
+              // Automatically restore My Profile for the currently logged-in user on this device
+              try {
+                const authUserRaw = localStorage.getItem('pm_auth_user');
+                if (authUserRaw) {
+                  const au = JSON.parse(authUserRaw);
+                  const myMatch = finalMerged.find((p) => 
+                    p.userId === au.id || 
+                    p.id === `prof_${au.id}` || 
+                    (au.primaryEmailAddress?.emailAddress && p.email === au.primaryEmailAddress.emailAddress) ||
+                    (au.email && p.email === au.email)
+                  );
+                  if (myMatch) {
+                    safeSetLocalStorage('pm_my_profile', myMatch);
+                    safeSetLocalStorage(`pm_user_profile_${au.id}`, myMatch);
+                    queryClient.invalidateQueries({ queryKey: ['/api/profiles/me'] });
+                  }
+                }
+              } catch {}
+
               queryClient.invalidateQueries({ queryKey: ['/api/profiles'] });
             }
           }

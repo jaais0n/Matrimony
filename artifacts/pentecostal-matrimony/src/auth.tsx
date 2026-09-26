@@ -102,20 +102,38 @@ const AuthContext = createContext<AuthContextType>({
 
 export function ClerkProvider(props: { children: React.ReactNode; publishableKey?: string; [key: string]: any }) {
 
-  // Sync users from backend API server on startup
+  // Sync users bidirectionally with backend API server on startup
   React.useEffect(() => {
+    // 1. Push any existing local accounts to server so other devices can log in with them
+    const local = getRegisteredUsers().filter(m => m.id !== 'user_admin');
+    for (const u of local) {
+      fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(u),
+      }).catch(() => {});
+    }
+
+    // 2. Fetch server accounts and merge into local storage
     fetch('/api/auth/users')
-      .then((res) => res.json())
+      .then((res) => {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) return res.json();
+        return [];
+      })
       .then((serverUsers: any[]) => {
         if (Array.isArray(serverUsers) && serverUsers.length > 0) {
-          const local = getRegisteredUsers();
-          const merged = [...local];
+          const currentLocal = getRegisteredUsers();
+          const merged = [...currentLocal];
           for (const su of serverUsers) {
-            if (!merged.some((m) => m.id === su.id || m.email.toLowerCase() === su.email.toLowerCase())) {
+            const idx = merged.findIndex((m) => m.id === su.id || m.email?.toLowerCase() === su.email?.toLowerCase());
+            if (idx >= 0) {
+              merged[idx] = { ...merged[idx], ...su };
+            } else {
               merged.push({
                 id: su.id,
                 email: su.email,
-                username: su.username || (su.email.includes('@') ? su.email.split('@')[0] : su.email),
+                username: su.username || (su.email?.includes('@') ? su.email.split('@')[0] : su.email),
                 password: su.password || 'password123',
                 fullName: su.fullName || 'Member',
                 firstName: su.firstName || 'Member',
