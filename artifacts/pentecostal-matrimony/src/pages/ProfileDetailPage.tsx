@@ -16,6 +16,7 @@ import {
   Heart,
   Lock,
   MapPin,
+  MessageCircle,
   ShieldCheck,
   Sparkles,
   User,
@@ -207,20 +208,22 @@ export function ProfileDetailPage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons: Express Interest & Message (Equally Finished) */}
               <div className="mt-6 border-t border-slate-100 pt-5 flex flex-wrap items-center gap-3">
                 <button
                   onClick={handleInterest}
-                  className="flex-1 min-w-[160px] flex items-center justify-center gap-2 rounded-xl bg-rose-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-rose-800 shadow-md transition active:scale-[0.98]"
+                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl bg-rose-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-rose-800 shadow-md transition active:scale-[0.98]"
                 >
-                  <Heart size={15} className="text-rose-200" /> Express Interest
+                  <Heart size={15} className="text-rose-200" />
+                  <span>Express Interest</span>
                 </button>
-                <button
-                  onClick={handleSave}
-                  className="flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-amber-900 hover:bg-amber-100 transition"
+                <Link
+                  href={`/messages?user=${p.id}&name=${encodeURIComponent(p.displayName)}`}
+                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 py-3 text-xs font-bold uppercase tracking-wider text-rose-800 shadow-xs transition text-center"
                 >
-                  <Bookmark size={15} className="text-amber-700" /> Save
-                </button>
+                  <MessageCircle size={15} className="text-rose-700" />
+                  <span>Message</span>
+                </Link>
                 <button
                   onClick={() => setReportModalOpen(true)}
                   className="p-3 rounded-xl border border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-800 transition"

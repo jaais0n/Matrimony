@@ -1,14 +1,67 @@
+import { useMemo } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Bell, Shield, User } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { customFetch } from '@workspace/api-client-react';
 import { useUser } from '../../auth';
 
-export function Navbar({ activeRole, onToggleRole }: { activeRole?: string; onToggleRole?: (role: string) => void }) {
+export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (role: string) => void }) {
   const [location] = useLocation();
   const { user } = useUser();
 
   const demoRole = typeof window !== 'undefined' ? localStorage.getItem('pm_demo_role') : null;
   const currentRole = String(activeRole || (user?.publicMetadata?.role as string) || demoRole || 'user');
   const isAdmin = currentRole === 'admin' || currentRole === 'moderator' || user?.id === 'user_admin';
+
+  // Fetch notifications to show red dot only when real unread notifications exist
+  const { data: notifications = [] } = useQuery<any[]>({
+    queryKey: ['notifications'],
+    queryFn: () => customFetch('/api/notifications').catch(() => []),
+    staleTime: 1000 * 30,
+  });
+
+  const unreadCount = useMemo(() => {
+    let count = (notifications || []).filter((n: any) => !n.read).length;
+    try {
+      const raw = localStorage.getItem('pm_user_notifications');
+      if (raw) {
+        const localNotifs = JSON.parse(raw);
+        if (Array.isArray(localNotifs)) {
+          count += localNotifs.filter((n: any) => !n.read).length;
+        }
+      }
+    } catch {}
+    return count;
+  }, [notifications]);
+
+  // Fetch logged-in user's profile photo for the My Profile header button
+  const userPhotoUrl = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const myProfRaw = localStorage.getItem('pm_my_profile');
+      if (myProfRaw) {
+        const p = JSON.parse(myProfRaw);
+        if (p?.photos && Array.isArray(p.photos) && p.photos.length > 0) {
+          const primary = p.photos.find((ph: any) => ph.isPrimary) || p.photos[0];
+          if (primary?.url) return primary.url;
+        }
+      }
+      if (user?.id) {
+        const userProfRaw = localStorage.getItem(`pm_user_profile_${user.id}`);
+        if (userProfRaw) {
+          const p = JSON.parse(userProfRaw);
+          if (p?.photos && Array.isArray(p.photos) && p.photos.length > 0) {
+            const primary = p.photos.find((ph: any) => ph.isPrimary) || p.photos[0];
+            if (primary?.url) return primary.url;
+          }
+        }
+      }
+      if (user?.imageUrl && !user.imageUrl.includes('gravatar') && !user.imageUrl.includes('default')) {
+        return user.imageUrl;
+      }
+    } catch {}
+    return null;
+  }, [user]);
 
   const navLinks = [
     { label: 'Discover', href: '/discover' },
@@ -68,19 +121,21 @@ export function Navbar({ activeRole, onToggleRole }: { activeRole?: string; onTo
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
-          {/* Notifications Link with unread badge */}
+          {/* Notifications Link with conditional unread badge */}
           <Link
             href="/notifications"
             className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition"
-            title="Notifications"
+            title={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : "Notifications"}
           >
             <Bell size={16} />
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-600 shadow-xs animate-pulse"></span>
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-600 shadow-xs animate-pulse"></span>
+              </span>
+            )}
           </Link>
 
-          {/* Desktop Right Button: Admin Portal for Admin, My Profile for Member */}
+          {/* Desktop Right Button: Admin Portal for Admin, My Profile with Photo for Member */}
           {isAdmin ? (
             <Link
               href="/admin"
@@ -92,9 +147,21 @@ export function Navbar({ activeRole, onToggleRole }: { activeRole?: string; onTo
           ) : (
             <Link
               href="/my-profile"
-              className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 transition shadow-2xs"
+              className="hidden md:inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs"
             >
-              <User size={13} className="text-rose-700" />
+              {userPhotoUrl ? (
+                <div className="h-6 w-6 rounded-full overflow-hidden border border-rose-300 shadow-2xs shrink-0">
+                  <img
+                    src={userPhotoUrl}
+                    alt="My Profile"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-200/60 text-rose-700 shrink-0">
+                  <User size={13} className="text-rose-700" />
+                </div>
+              )}
               <span>My Profile</span>
             </Link>
           )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { Bookmark, Briefcase, Church, Globe, GraduationCap, Heart, MapPin } from 'lucide-react';
+import { Briefcase, Church, Globe, GraduationCap, Heart, MapPin, MessageCircle } from 'lucide-react';
 import { VerificationBadge } from './VerificationBadge';
 
 export interface ProfileCardData {
@@ -26,9 +26,8 @@ interface ProfileCardProps {
   onToggleSave?: (id: string, currentSaved: boolean) => void;
 }
 
-export function ProfileCard({ profile, onSendInterest, onToggleSave }: ProfileCardProps) {
+export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
   const [interestSent, setInterestSent] = useState(false);
-  const [isSaved, setIsSaved] = useState(Boolean(profile.saved));
 
   const handleInterest = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -37,14 +36,6 @@ export function ProfileCard({ profile, onSendInterest, onToggleSave }: ProfileCa
       setInterestSent(true);
       onSendInterest?.(profile.id);
     }
-  };
-
-  const handleSave = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const nextSaved = !isSaved;
-    setIsSaved(nextSaved);
-    onToggleSave?.(profile.id, isSaved);
   };
 
   const initials = profile.displayName
@@ -77,20 +68,6 @@ export function ProfileCard({ profile, onSendInterest, onToggleSave }: ProfileCa
             <VerificationBadge size="sm" />
           </div>
         )}
-
-        {/* Bookmark Action */}
-        <button
-          onClick={handleSave}
-          className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition ${
-            isSaved
-              ? 'border-amber-400 bg-amber-500 text-white'
-              : 'border-white/80 bg-white/90 text-slate-700 hover:bg-white hover:text-amber-600'
-          }`}
-          title={isSaved ? 'Remove bookmark' : 'Save profile'}
-          aria-label="Save profile"
-        >
-          <Bookmark size={15} fill={isSaved ? 'currentColor' : 'none'} />
-        </button>
       </Link>
 
       {/* Profile Information */}
@@ -155,26 +132,28 @@ export function ProfileCard({ profile, onSendInterest, onToggleSave }: ProfileCa
           </div>
         )}
 
-        {/* Bottom Actions */}
-        <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3">
+        {/* Bottom Actions: Equally Finished Balanced Buttons */}
+        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
           <button
             onClick={handleInterest}
             disabled={interestSent}
-            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold tracking-wide transition shadow-sm ${
+            className={`w-full flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold tracking-wide transition shadow-xs ${
               interestSent
                 ? 'border border-slate-200 bg-slate-100 text-slate-500 cursor-default'
                 : 'bg-rose-700 text-white hover:bg-rose-800 active:scale-[0.98]'
             }`}
           >
-            <Heart size={14} fill={interestSent ? 'currentColor' : 'none'} className={interestSent ? 'text-rose-500' : 'text-rose-200'} />
-            <span>{interestSent ? 'Interest Sent' : 'Express Interest'}</span>
+            <Heart size={13} fill={interestSent ? 'currentColor' : 'none'} className={interestSent ? 'text-rose-500' : 'text-rose-200'} />
+            <span className="truncate">{interestSent ? 'Sent' : 'Interest'}</span>
           </button>
 
           <Link
-            href={`/profiles/${profile.id}`}
-            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+            href={`/messages?user=${profile.id}&name=${encodeURIComponent(profile.displayName)}`}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 text-rose-800 py-2.5 text-xs font-bold tracking-wide transition shadow-2xs text-center"
           >
-            View
+            <MessageCircle size={13} className="text-rose-600 shrink-0" />
+            <span className="truncate">Message</span>
           </Link>
         </div>
       </div>
