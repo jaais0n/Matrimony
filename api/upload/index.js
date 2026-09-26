@@ -23,9 +23,9 @@ export default async function handler(req, res) {
     }
 
     // Determine Cloudinary credentials
-    let cloudName = cloud_name || process.env.CLOUDINARY_CLOUD_NAME;
-    let apiKey = process.env.CLOUDINARY_API_KEY;
-    let apiSecret = process.env.CLOUDINARY_API_SECRET;
+    let cloudName = cloud_name || process.env.CLOUDINARY_CLOUD_NAME || 'suvkbjww';
+    let apiKey = process.env.CLOUDINARY_API_KEY || '586666247649288';
+    let apiSecret = process.env.CLOUDINARY_API_SECRET || '3SzeX3hFuP5O32Ft4RUcJHD3Khs';
     let uploadPreset = upload_preset || process.env.CLOUDINARY_UPLOAD_PRESET || 'pm_unsigned';
 
     // Parse CLOUDINARY_URL if provided (cloudinary://API_KEY:API_SECRET@CLOUD_NAME)
