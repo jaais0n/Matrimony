@@ -538,68 +538,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
               </div>
             )}
 
-            {/* VIEW 2: USERS */}
-            {activeTab === 'users' && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">User Directory</h3>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{usersList.length} Registered Accounts</span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider">
-                        <th className="py-3">Name</th>
-                        <th className="py-3">Email</th>
-                        <th className="py-3">Role</th>
-                        <th className="py-3">Status</th>
-                        <th className="py-3">Registered</th>
-                        <th className="py-3 text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {usersList.map((u: any) => (
-                        <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                          <td className="py-3.5 font-bold text-slate-900">{u.fullName || u.name || (u.email ? u.email.split('@')[0] : 'Member')}</td>
-                          <td className="py-3.5 text-slate-500">{u.email}</td>
-                          <td className="py-3.5">
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                              u.role === 'admin' ? 'bg-rose-50 text-rose-800 border border-rose-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}>
-                              {u.role}
-                            </span>
-                          </td>
-                          <td className="py-3.5">
-                            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[9px] uppercase font-bold text-emerald-700">
-                              {u.status || 'active'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 text-slate-500">{u.registeredAt ? (u.registeredAt.includes('T') ? new Date(u.registeredAt).toLocaleDateString() : u.registeredAt) : 'Recently'}</td>
-                          <td className="py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => showToast(`User ${u.fullName || u.name} inspected.`)}
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:border-slate-400 transition shadow-2xs"
-                              >
-                                Inspect
-                              </button>
-                              <button
-                                onClick={() => setDeleteTarget({ type: 'user', id: u.id, name: u.fullName || u.name || u.email })}
-                                className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition flex items-center gap-1 shadow-2xs"
-                                title="Delete User from Database"
-                              >
-                                <Trash2 size={12} />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+
 
             {/* VIEW 3: PROFILES DIRECTORY */}
             {activeTab === 'profiles' && (

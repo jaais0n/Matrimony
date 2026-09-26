@@ -1,15 +1,22 @@
 import { Link, useLocation } from 'wouter';
-import { Compass, Flame, Heart, MessageSquare, User } from 'lucide-react';
+import { Compass, Flame, Heart, MessageSquare, Shield, User } from 'lucide-react';
+import { useUser } from '../../auth';
 
 export function BottomNav() {
   const [location] = useLocation();
+  const { user } = useUser();
+
+  const demoRole = typeof window !== 'undefined' ? localStorage.getItem('pm_demo_role') : null;
+  const isAdmin = user?.publicMetadata?.role === 'admin' || demoRole === 'admin' || user?.id === 'user_admin';
 
   const items = [
     { label: 'Discover', href: '/discover', icon: Compass },
     { label: 'Matches', href: '/matches', icon: Flame },
     { label: 'Interests', href: '/interests', icon: Heart },
     { label: 'Messages', href: '/messages', icon: MessageSquare },
-    { label: 'Profile', href: '/my-profile', icon: User },
+    ...(isAdmin
+      ? [{ label: 'Admin', href: '/admin', icon: Shield }]
+      : [{ label: 'Profile', href: '/my-profile', icon: User }]),
   ];
 
   return (

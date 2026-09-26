@@ -1,13 +1,14 @@
 import { Link, useLocation } from 'wouter';
-import { Bell, User } from 'lucide-react';
+import { Bell, Shield, User } from 'lucide-react';
 import { useUser } from '../../auth';
 
 export function Navbar({ activeRole, onToggleRole }: { activeRole?: string; onToggleRole?: (role: string) => void }) {
   const [location] = useLocation();
   const { user } = useUser();
 
-  const currentRole = String(activeRole || (user?.publicMetadata?.role as string) || 'user');
-  const isAdmin = currentRole === 'admin' || currentRole === 'moderator';
+  const demoRole = typeof window !== 'undefined' ? localStorage.getItem('pm_demo_role') : null;
+  const currentRole = String(activeRole || (user?.publicMetadata?.role as string) || demoRole || 'user');
+  const isAdmin = currentRole === 'admin' || currentRole === 'moderator' || user?.id === 'user_admin';
 
   const navLinks = [
     { label: 'Discover', href: '/discover' },
@@ -15,7 +16,7 @@ export function Navbar({ activeRole, onToggleRole }: { activeRole?: string; onTo
     { label: 'Search', href: '/search' },
     { label: 'Interests', href: '/interests' },
     { label: 'Messages', href: '/messages' },
-    { label: 'My Profile', href: '/my-profile' },
+    ...(isAdmin ? [{ label: 'Admin Hub', href: '/admin' }] : []),
   ];
 
   return (
@@ -79,14 +80,24 @@ export function Navbar({ activeRole, onToggleRole }: { activeRole?: string; onTo
             </span>
           </Link>
 
-          {/* Desktop Only My Profile Button */}
-          <Link
-            href="/my-profile"
-            className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 transition shadow-2xs"
-          >
-            <User size={13} className="text-rose-700" />
-            <span>My Profile</span>
-          </Link>
+          {/* Desktop Right Button: Admin Portal for Admin, My Profile for Member */}
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-2xs"
+            >
+              <Shield size={13} className="text-rose-400" />
+              <span>Admin Portal</span>
+            </Link>
+          ) : (
+            <Link
+              href="/my-profile"
+              className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 transition shadow-2xs"
+            >
+              <User size={13} className="text-rose-700" />
+              <span>My Profile</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>

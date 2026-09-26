@@ -100,7 +100,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: () => {},
 });
 
-export function ClerkProvider(props: { children: React.ReactNode; publishableKey?: string }) {
+export function ClerkProvider(props: { children: React.ReactNode; publishableKey?: string; [key: string]: any }) {
 
   // Sync users from backend API server on startup
   React.useEffect(() => {
