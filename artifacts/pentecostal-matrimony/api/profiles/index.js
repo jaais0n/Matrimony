@@ -160,22 +160,26 @@ async function readStore() {
 
 async function writeStore(data) {
   const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
-  let newBlob = null;
+  const newBlob = await put(BLOB_KEY, body, {
+    access: 'private',
+    contentType: 'application/json',
+    addRandomSuffix: true,
+  });
+
   try {
-    newBlob = await put(BLOB_KEY, body, {
-      access: 'private',
-      contentType: 'application/json',
-      addRandomSuffix: false,
-    });
-  } catch (privErr) {
-    newBlob = await put(BLOB_KEY, body, {
-      access: 'public',
-      contentType: 'application/json',
-      addRandomSuffix: false,
-    });
+    const { blobs } = await list({ prefix: 'pm-profiles-store' });
+    for (const b of blobs) {
+      if (b.url !== newBlob.url) {
+        try { await del(b.url); } catch {}
+      }
+    }
+  } catch (cleanErr) {
+    console.warn('Old blob cleanup non-fatal:', cleanErr);
   }
+
   return newBlob;
 }
+
 
 
 
