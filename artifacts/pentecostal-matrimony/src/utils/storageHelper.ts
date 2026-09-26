@@ -88,6 +88,49 @@ export async function compressImage(
   });
 }
 
+/**
+ * Uploads an image to Cloudinary CDN via /api/upload.
+ * If Cloudinary is configured, stores only the CDN URL in the database (reducing DB transfer to ~50 bytes).
+ * If Cloudinary is not configured or offline, safely falls back to local compressed base64 (<50KB).
+ */
+export async function uploadPhotoToCloud(
+  file: File,
+  maxDimension = 720,
+  targetMaxKB = 48
+): Promise<{ url: string; sizeKB: number; provider: 'cloudinary' | 'local_compressed' }> {
+  // 1. Pre-compress image to ensure fast network upload
+  const compressed = await compressImage(file, maxDimension, targetMaxKB);
+  const localSizeKB = getApproximateKB(compressed);
+
+  try {
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: compressed, folder: 'pm_profiles' }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.url && (data.url.startsWith('http://') || data.url.startsWith('https://'))) {
+        return {
+          url: data.url,
+          sizeKB: data.bytes ? Math.round(data.bytes / 1024) : localSizeKB,
+          provider: 'cloudinary',
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Storage] Cloudinary upload fallback to local compressed:', err);
+  }
+
+  return {
+    url: compressed,
+    sizeKB: localSizeKB,
+    provider: 'local_compressed',
+  };
+}
+
+
 export function notifySync() {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('pm:sync'));
