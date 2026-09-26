@@ -76,8 +76,10 @@ Pentecostal-Matrimony/
 - **Pastoral Broadcast**: Composer to dispatch platform announcements with full broadcast audit history.
 - **Analytics & Settings**: Real-time progress bars for denominational distribution, gender ratio, verification pass rates, and platform policy switches.
 
-### 4. Ultra-Robust Self-Profile Exclusion
-- Excludes logged-in user profiles across **Discover**, **Search**, and **Matches** by checking multiple identifier formats (`userId`, `id`, `prof_user_`, `pm_auth_user`, `email`).
+### 5. Streamlined Post-Publish UX & Discovery Flow
+- **Direct Route to Discover**: Completing profile publication directly transitions the user to the `/discover` directory to immediately explore candidate matches rather than looping back to the profile edit form.
+- **Welcoming Celebration Banner**: Automatically displays an encouraging confirmation banner upon arrival at `/discover`.
+- **Smooth Step Transitions**: Auto-scrolls to top (`window.scrollTo({ top: 0, behavior: 'smooth' })`) across wizard steps on both mobile and desktop viewports.
 
 ---
 
