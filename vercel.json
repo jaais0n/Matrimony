@@ -4,9 +4,9 @@
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/profiles/sync", "destination": "/api/profiles/sync" },
+    { "source": "/api/profiles/me", "destination": "/api/profiles/me" },
+    { "source": "/api/profiles", "destination": "/api/profiles" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

@@ -238,6 +238,12 @@ export function OnboardingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newProfile),
       });
+      // Push to shared sync store for cross-device visibility
+      await fetch('/api/profiles/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([newProfile]),
+      });
     } catch (err) {
       console.warn('Backend profile sync error (non-fatal):', err);
     }

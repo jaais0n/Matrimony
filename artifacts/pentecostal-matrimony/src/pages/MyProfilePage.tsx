@@ -321,11 +321,18 @@ export function MyProfilePage() {
         }
         safeSetLocalStorage('pm_registered_profiles', profiles);
 
-        // Sync to backend API server
+        // Sync to backend API server (cross-device)
         fetch('/api/profiles/me', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(fullProfile),
+        }).catch(() => {});
+
+        // Also push to shared profiles store so all devices can see it
+        fetch('/api/profiles/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([fullProfile]),
         }).catch(() => {});
       } catch {}
     }

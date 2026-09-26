@@ -38,57 +38,75 @@ function DataSyncEffect() {
         let localProfiles: any[] = [];
         const raw = localStorage.getItem('pm_registered_profiles');
         if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) localProfiles = parsed;
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) localProfiles = parsed;
+          } catch {}
         }
         const myProfRaw = localStorage.getItem('pm_my_profile');
         if (myProfRaw) {
-          const myProf = JSON.parse(myProfRaw);
-          if (myProf && !localProfiles.some((p) => p.id === myProf.id || p.userId === myProf.userId)) {
-            localProfiles.push(myProf);
-          }
+          try {
+            const myProf = JSON.parse(myProfRaw);
+            if (myProf && !localProfiles.some((p) => p.id === myProf.id || p.userId === myProf.userId)) {
+              localProfiles.push(myProf);
+            }
+          } catch {}
         }
 
-        // 2. Fetch server's consolidated profiles only if a real API backend exists (not a static HTML rewrite)
+        // 2. Push local profiles to server (so other devices can see them)
+        if (localProfiles.length > 0) {
+          fetch('/api/profiles/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localProfiles),
+          }).catch(() => {});
+        }
+
+        // 3. Pull ALL server profiles and merge into local storage
         const res = await fetch('/api/profiles').catch(() => null);
         if (res && res.ok) {
           const contentType = res.headers.get('content-type') || '';
           if (contentType.includes('application/json')) {
             const data = await res.json().catch(() => null);
-            if (data && Array.isArray(data.items) && data.items.length > 0) {
-              const serverProfiles = data.items;
+            const serverProfiles: any[] = (data && Array.isArray(data.items)) ? data.items : (Array.isArray(data) ? data : []);
+
+            if (serverProfiles.length > 0) {
+              // Merge: server wins for existing IDs, add new ones from server
               const existingRaw = localStorage.getItem('pm_registered_profiles');
-              const existing = existingRaw ? JSON.parse(existingRaw) : [];
+              const existing: any[] = existingRaw ? JSON.parse(existingRaw) : [];
               const merged = [...existing];
               for (const sp of serverProfiles) {
-                if (!merged.some((m) => m.id === sp.id || m.userId === sp.userId)) {
+                const idx = merged.findIndex((m) => m.id === sp.id || m.userId === sp.userId);
+                if (idx >= 0) {
+                  // Keep server version if it's newer
+                  const serverTime = sp.updatedAt ? new Date(sp.updatedAt).getTime() : 0;
+                  const localTime = merged[idx].updatedAt ? new Date(merged[idx].updatedAt).getTime() : 0;
+                  if (serverTime >= localTime) {
+                    merged[idx] = { ...merged[idx], ...sp };
+                  }
+                } else {
                   merged.push(sp);
                 }
               }
               safeSetLocalStorage('pm_registered_profiles', merged);
               queryClient.invalidateQueries({ queryKey: ['/api/profiles'] });
             }
-
-            // Sync local profiles to real backend
-            if (localProfiles.length > 0) {
-              await fetch('/api/profiles/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(localProfiles),
-              }).catch(() => {});
-            }
           }
         }
-      } catch (err) {
+      } catch {
         // Silently ignore sync errors on static hosting
       }
     };
 
     syncData();
+    // Re-sync every 30 seconds to pick up changes from other devices
+    const interval = setInterval(syncData, 30000);
+    return () => clearInterval(interval);
   }, [queryClient]);
 
   return null;
 }
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
