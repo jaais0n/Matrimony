@@ -887,7 +887,7 @@ export function OnboardingPage() {
               <p className="text-xs font-bold text-rose-700 uppercase tracking-wider mb-1">Step 9</p>
               <h2 className="text-2xl font-bold text-slate-900">Profile Photography</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Upload up to 3 clear, modest portrait photos. Each photo is automatically compressed to <strong>under 100 KB</strong> with crystal clarity.
+                Upload up to 3 clear, modest portrait photos for your profile.
               </p>
 
               {photoError && (
@@ -900,7 +900,7 @@ export function OnboardingPage() {
               {isCompressingPhoto && (
                 <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-center gap-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
-                  <span>Compressing and optimizing photo for HD clarity under 100 KB...</span>
+                  <span>Uploading photo...</span>
                 </div>
               )}
 
@@ -910,7 +910,7 @@ export function OnboardingPage() {
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
                       Profile Photos ({photos.length}/3)
                     </label>
-                    <span className="text-[11px] text-slate-500">Max 3 photos · &lt; 100 KB each</span>
+                    <span className="text-[11px] text-slate-500">Max 3 photos</span>
                   </div>
 
                   {/* 3 Photo Grid Slots */}
@@ -937,11 +937,6 @@ export function OnboardingPage() {
                               Primary
                             </span>
                           )}
-
-                          {/* Size Indicator Badge */}
-                          <span className="absolute top-2 right-2 rounded-full bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 backdrop-blur-xs">
-                            ✓ {photo.sizeKB || getApproximateKB(photo.url)} KB
-                          </span>
                         </div>
 
                         {/* Actions footer */}
@@ -992,9 +987,6 @@ export function OnboardingPage() {
                         </div>
                         <span className="mt-3 text-xs font-bold text-slate-700 group-hover:text-rose-700">
                           {photos.length === 0 && slotIdx === 0 ? 'Upload Primary Photo' : '+ Add Photo'}
-                        </span>
-                        <span className="mt-1 text-[10px] text-slate-400">
-                          Under 100 KB · HD Clear
                         </span>
                         <input
                           type="file"

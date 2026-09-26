@@ -277,7 +277,7 @@ export function MyProfilePage() {
         } catch {}
       }
 
-      setUploadSuccessMessage(`✓ Photo compressed to ${sizeKB} KB (Under 100 KB · HD Clear)`);
+      setUploadSuccessMessage(`✓ Photo uploaded successfully`);
       setTimeout(() => setUploadSuccessMessage(null), 4000);
     } catch (err) {
       console.error('Failed to compress/upload photo:', err);
@@ -401,14 +401,8 @@ export function MyProfilePage() {
                     </h3>
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
-                    Add up to 3 clear, modest photos. Each photo is automatically compressed under 100 KB for privacy, fast loading, and crystal clear resolution.
+                    Add up to 3 clear, modest photos for your profile.
                   </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 border border-rose-200 px-3 py-1 text-[11px] font-bold text-rose-800 shadow-2xs">
-                    <Sparkles size={12} className="text-amber-500" />
-                    Auto &lt; 100 KB · HD Clear
-                  </span>
                 </div>
               </div>
 
@@ -449,11 +443,6 @@ export function MyProfilePage() {
                                 <Star size={10} className="fill-white" /> Primary
                               </span>
                             )}
-                          </div>
-                          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                            <span className="rounded-md bg-slate-900/85 backdrop-blur-xs text-white text-[10px] font-mono px-2 py-0.5 shadow-xs">
-                              {photo.sizeKB ? `${photo.sizeKB} KB` : `${getApproximateKB(photo.url)} KB`} · HD
-                            </span>
                           </div>
                         </div>
 
@@ -525,9 +514,6 @@ export function MyProfilePage() {
                       <span className="text-[10px] text-slate-500 mt-0.5">
                         Click to add photo
                       </span>
-                      <span className="mt-2 text-[9px] font-semibold text-rose-700 bg-rose-100/70 rounded-full px-2 py-0.5">
-                        Compressed &lt; 100 KB
-                      </span>
                     </label>
                   );
                 })}
@@ -535,7 +521,7 @@ export function MyProfilePage() {
 
               {isUploadingPhoto && (
                 <div className="mt-4 text-center text-xs font-bold text-rose-700 animate-pulse flex items-center justify-center gap-1.5">
-                  <Sparkles size={14} /> Compressing photo under 100 KB with crystal clarity...
+                  <Sparkles size={14} /> Uploading photo...
                 </div>
               )}
             </div>
