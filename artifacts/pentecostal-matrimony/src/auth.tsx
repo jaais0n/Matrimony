@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { AlertCircle, ArrowRight, CheckCircle2, Lock, ShieldCheck, User } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, User } from 'lucide-react';
 import { INITIAL_REGISTERED_USERS } from '@workspace/api-client-react';
 
 export interface AuthUser {
@@ -371,22 +371,24 @@ export function SignIn(props: { routing?: string; path?: string; signUpUrl?: str
     setError(null);
     setIsLoading(true);
 
-    try {
-      const result = signIn(identifier, password);
-      setIsLoading(false);
-      if (result.success) {
-        if (result.user?.publicMetadata?.role === 'admin') {
-          window.location.href = '/admin';
+    setTimeout(() => {
+      try {
+        const result = signIn(identifier, password);
+        if (result.success) {
+          if (result.user?.publicMetadata?.role === 'admin') {
+            window.location.href = '/admin';
+          } else {
+            window.location.href = '/discover';
+          }
         } else {
-          window.location.href = '/discover';
+          setIsLoading(false);
+          setError(result.error || 'Invalid credentials. Please try again.');
         }
-      } else {
-        setError(result.error || 'Invalid credentials. Please try again.');
+      } catch {
+        setIsLoading(false);
+        setError('Login failed. Please check your credentials.');
       }
-    } catch {
-      setIsLoading(false);
-      setError('Login failed. Please check your credentials.');
-    }
+    }, 450);
   };
 
   return (
@@ -455,9 +457,18 @@ export function SignIn(props: { routing?: string; path?: string; signUpUrl?: str
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full min-h-11 flex items-center justify-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 !text-white text-xs font-bold uppercase tracking-wider shadow-md transition active:scale-[0.99] cursor-pointer disabled:opacity-50"
+          className="w-full min-h-11 flex items-center justify-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 !text-white text-xs font-bold uppercase tracking-wider shadow-md transition active:scale-[0.99] cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Signing In...' : 'Sign In'} <ArrowRight size={14} />
+          {isLoading ? (
+            <>
+              <Loader2 className="animate-spin text-rose-200" size={16} />
+              <span>Signing In...</span>
+            </>
+          ) : (
+            <>
+              <span>Sign In</span> <ArrowRight size={14} />
+            </>
+          )}
         </button>
       </form>
 
@@ -487,6 +498,7 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,17 +511,24 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
       return;
     }
 
-    // Register user
-    registerNewUser({
-      fullName: name,
-      email: email,
-      password: password,
-      role: 'member',
-    });
+    setIsLoading(true);
 
-    // Sign in and direct to discover
-    signIn(email, password);
-    window.location.href = '/discover';
+    setTimeout(() => {
+      try {
+        registerNewUser({
+          fullName: name,
+          email: email,
+          password: password,
+          role: 'member',
+        });
+
+        signIn(email, password);
+        window.location.href = '/discover';
+      } catch {
+        setIsLoading(false);
+        setError('Registration failed. Please try again.');
+      }
+    }, 450);
   };
 
   return (
@@ -568,9 +587,19 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
         </div>
         <button
           type="submit"
-          className="w-full min-h-11 flex items-center justify-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 !text-white text-xs font-bold uppercase tracking-wider shadow-md transition active:scale-[0.99] cursor-pointer"
+          disabled={isLoading}
+          className="w-full min-h-11 flex items-center justify-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 !text-white text-xs font-bold uppercase tracking-wider shadow-md transition active:scale-[0.99] cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
         >
-          Register & Continue <ArrowRight size={14} />
+          {isLoading ? (
+            <>
+              <Loader2 className="animate-spin text-rose-200" size={16} />
+              <span>Registering...</span>
+            </>
+          ) : (
+            <>
+              <span>Register & Continue</span> <ArrowRight size={14} />
+            </>
+          )}
         </button>
       </form>
 
