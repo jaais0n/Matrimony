@@ -53,6 +53,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    assetsInlineLimit: 65536,
   },
   server: {
     port,

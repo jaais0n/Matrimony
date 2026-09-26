@@ -34,6 +34,7 @@
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/assets/(.*)", "destination": "/assets/$1" },
+    { "source": "/((?!assets/|api/|.*\\.[\\w]+$).*)", "destination": "/index.html" }
   ]
 }
