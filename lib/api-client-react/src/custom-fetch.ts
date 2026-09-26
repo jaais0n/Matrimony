@@ -365,9 +365,19 @@ export async function customFetch<T = unknown>(
   try {
     const response = await fetch(input, { ...init, method, headers });
 
-    if (!response.ok) {
-      const errorData = await parseErrorBody(response, method);
-      throw new ApiError(response, errorData, requestInfo);
+    const mediaType = getMediaType(response.headers);
+    const isHtmlForApi = requestInfo.url.includes('/api/') && (mediaType?.includes('text/html') || mediaType?.includes('text/plain'));
+
+    if (!response.ok || isHtmlForApi) {
+      const parsedBody = typeof init.body === "string" ? (() => { try { return JSON.parse(init.body); } catch { return undefined; } })() : init.body;
+      const mockResult = handleMockRequest(requestInfo.url, method, parsedBody);
+      if (mockResult !== null) {
+        return Promise.resolve(mockResult as T);
+      }
+      if (!response.ok) {
+        const errorData = await parseErrorBody(response, method);
+        throw new ApiError(response, errorData, requestInfo);
+      }
     }
 
     return (await parseSuccessBody(response, responseType, requestInfo)) as T;

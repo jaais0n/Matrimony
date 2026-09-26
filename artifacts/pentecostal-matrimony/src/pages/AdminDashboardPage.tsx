@@ -56,17 +56,19 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
     queryFn: () => customFetch<any>('/api/admin/overview'),
   });
 
-  const { data: queue = [], refetch: refetchQueue } = useQuery({
+  const { data: rawQueue = [], refetch: refetchQueue } = useQuery({
     queryKey: ['admin-queue'],
     queryFn: () => customFetch<any[]>('/api/admin/verification-queue'),
   });
+  const queue = Array.isArray(rawQueue) ? rawQueue : [];
 
-  const { data: reports = [], refetch: refetchReports } = useQuery({
+  const { data: rawReports = [], refetch: refetchReports } = useQuery({
     queryKey: ['admin-reports'],
     queryFn: () => customFetch<any[]>('/api/admin/reports'),
   });
+  const reports = Array.isArray(rawReports) ? rawReports : [];
 
-  const { data: usersList = [], refetch: refetchUsers } = useQuery({
+  const { data: rawUsersList = [], refetch: refetchUsers } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => {
       const res = await customFetch<any[]>('/api/admin/users');
@@ -91,16 +93,19 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
       return res || [];
     },
   });
+  const usersList = Array.isArray(rawUsersList) ? rawUsersList : [];
 
-  const { data: churchesList = [] } = useQuery({
+  const { data: rawChurchesList = [] } = useQuery({
     queryKey: ['admin-churches'],
     queryFn: () => customFetch<any[]>('/api/admin/churches'),
   });
+  const churchesList = Array.isArray(rawChurchesList) ? rawChurchesList : [];
 
-  const { data: denominationsList = [] } = useQuery({
+  const { data: rawDenominationsList = [] } = useQuery({
     queryKey: ['admin-denominations'],
     queryFn: () => customFetch<any[]>('/api/admin/denominations'),
   });
+  const denominationsList = Array.isArray(rawDenominationsList) ? rawDenominationsList : [];
 
   const { data: profilesData, refetch: refetchProfiles } = useQuery<any>({
     queryKey: ['admin-profiles'],

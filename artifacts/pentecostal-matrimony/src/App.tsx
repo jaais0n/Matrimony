@@ -49,35 +49,38 @@ function DataSyncEffect() {
           }
         }
 
-        // 2. If this client has profiles, push them to the backend server
-        if (localProfiles.length > 0) {
-          await fetch('/api/profiles/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(localProfiles),
-          }).catch(() => {});
-        }
-
-        // 3. Fetch server's consolidated profiles to ensure local cache has all devices' profiles
-        const res = await fetch('/api/profiles');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && Array.isArray(data.items) && data.items.length > 0) {
-            const serverProfiles = data.items;
-            const existingRaw = localStorage.getItem('pm_registered_profiles');
-            const existing = existingRaw ? JSON.parse(existingRaw) : [];
-            const merged = [...existing];
-            for (const sp of serverProfiles) {
-              if (!merged.some((m) => m.id === sp.id || m.userId === sp.userId)) {
-                merged.push(sp);
+        // 2. Fetch server's consolidated profiles only if a real API backend exists (not a static HTML rewrite)
+        const res = await fetch('/api/profiles').catch(() => null);
+        if (res && res.ok) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const data = await res.json().catch(() => null);
+            if (data && Array.isArray(data.items) && data.items.length > 0) {
+              const serverProfiles = data.items;
+              const existingRaw = localStorage.getItem('pm_registered_profiles');
+              const existing = existingRaw ? JSON.parse(existingRaw) : [];
+              const merged = [...existing];
+              for (const sp of serverProfiles) {
+                if (!merged.some((m) => m.id === sp.id || m.userId === sp.userId)) {
+                  merged.push(sp);
+                }
               }
+              safeSetLocalStorage('pm_registered_profiles', merged);
+              queryClient.invalidateQueries({ queryKey: ['/api/profiles'] });
             }
-            safeSetLocalStorage('pm_registered_profiles', merged);
-            queryClient.invalidateQueries({ queryKey: ['/api/profiles'] });
+
+            // Sync local profiles to real backend
+            if (localProfiles.length > 0) {
+              await fetch('/api/profiles/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(localProfiles),
+              }).catch(() => {});
+            }
           }
         }
       } catch (err) {
-        console.warn('Sync notice:', err);
+        // Silently ignore sync errors on static hosting
       }
     };
 
