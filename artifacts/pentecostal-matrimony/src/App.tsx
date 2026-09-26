@@ -29,27 +29,34 @@ import { isSeedProfile, INITIAL_REGISTERED_PROFILES } from '@workspace/api-clien
 
 import './index.css';
 
-// Purge any legacy dummy / seed profiles from client localStorage on any device, and ensure real profiles exist
+// One-time clean startup wipe for fresh testing across all devices
 export function purgeLocalSeedProfiles() {
   try {
+    const FRESH_KEY = 'pm_fresh_startup_v2';
+    if (!localStorage.getItem(FRESH_KEY)) {
+      localStorage.removeItem('pm_registered_profiles');
+      localStorage.removeItem('pm_my_profile');
+      // Remove any leftover profile caches
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem('pm_registered_profiles', '[]');
+      localStorage.setItem(FRESH_KEY, 'true');
+      return;
+    }
+
     const raw = localStorage.getItem('pm_registered_profiles');
     if (!raw) {
-      const initial = (Array.isArray(INITIAL_REGISTERED_PROFILES) ? INITIAL_REGISTERED_PROFILES : []).filter((p: any) => !isSeedProfile(p));
-      safeSetLocalStorage('pm_registered_profiles', initial);
+      safeSetLocalStorage('pm_registered_profiles', []);
     } else {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        let cleaned = parsed.filter((p: any) => !isSeedProfile(p));
-        if (cleaned.length === 0 && Array.isArray(INITIAL_REGISTERED_PROFILES) && INITIAL_REGISTERED_PROFILES.length > 0) {
-          cleaned = INITIAL_REGISTERED_PROFILES.filter((p: any) => !isSeedProfile(p));
-        } else if (Array.isArray(INITIAL_REGISTERED_PROFILES)) {
-          const existingIds = new Set(cleaned.map((p: any) => p.id));
-          for (const initP of INITIAL_REGISTERED_PROFILES) {
-            if (!existingIds.has(initP.id) && !isSeedProfile(initP)) {
-              cleaned.push(initP);
-            }
-          }
-        }
+        const cleaned = parsed.filter((p: any) => !isSeedProfile(p));
         safeSetLocalStorage('pm_registered_profiles', cleaned);
       }
     }
@@ -65,6 +72,7 @@ export function purgeLocalSeedProfiles() {
 
 // Immediate run when module loads
 purgeLocalSeedProfiles();
+
 
 
 function DataSyncEffect() {

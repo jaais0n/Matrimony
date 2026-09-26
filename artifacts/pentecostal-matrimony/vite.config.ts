@@ -13,33 +13,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    {
-      name: 'local-store-sync',
-      configureServer(server) {
-        server.middlewares.use((req, res, next) => {
-          if (req.url === '/api/profiles/sync' && req.method === 'POST') {
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', () => {
-              try {
-                const incoming = JSON.parse(body);
-                const profiles = Array.isArray(incoming) ? incoming : (incoming.profiles || []);
-                const targetPath = path.resolve(import.meta.dirname, '../../local_desktop_profiles.json');
-                fs.writeFileSync(targetPath, JSON.stringify(profiles, null, 2));
-                console.log('[LOCAL SYNC] Captured', profiles.length, 'profiles from desktop browser!');
-              } catch (e) {
-                console.error('[LOCAL SYNC ERROR]', e);
-              }
-              // Also forward to proxy or return 200
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: true, localSaved: true }));
-            });
-            return;
-          }
-          next();
-        });
-      },
-    },
+
     {
       name: 'sync-dist',
       closeBundle() {
