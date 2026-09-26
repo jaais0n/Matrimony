@@ -1,4 +1,4 @@
-import { list, put } from '@vercel/blob';
+import { get, list, put } from '@vercel/blob';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,15 +22,25 @@ export default async function handler(req, res) {
 
   if (req.query && req.query.testPut === '1') {
     try {
-      const putRes = await put('pm-test-blob.json', JSON.stringify({ test: true }), {
-        access: 'public',
-        addRandomSuffix: true
+      const putRes = await put('pm-test-private.json', JSON.stringify({ testPrivate: true, time: Date.now() }), {
+        access: 'private',
+        addRandomSuffix: false
       });
-      putTest = { success: true, url: putRes.url };
+      let readData = null;
+      try {
+        const getRes = await get(putRes.url, { access: 'private' });
+        if (getRes && getRes.body) {
+          readData = await new Response(getRes.body).json();
+        }
+      } catch (ge) {
+        readData = { getError: ge.message || String(ge) };
+      }
+      putTest = { success: true, url: putRes.url, readData };
     } catch (e) {
       putTest = { success: false, error: e.message || String(e) };
     }
   }
+
 
   res.status(200).json({
     status: 'ok',
