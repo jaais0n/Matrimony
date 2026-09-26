@@ -107,7 +107,7 @@ export function SubscriptionPage() {
                     ★ Recommended
                   </span>
                 </div>
-                <h3 className="mt-3 text-2xl font-extrabold text-slate-900">Premium Stewardship</h3>
+                <h3 className="mt-3 text-2xl font-extrabold text-slate-900">Premium Membership</h3>
                 <p className="mt-1 text-xs text-slate-600">
                   Advanced search filters, priority pastoral verification, and unmetered communication.
                 </p>

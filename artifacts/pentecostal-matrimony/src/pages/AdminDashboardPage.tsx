@@ -39,7 +39,6 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState<
     | 'dashboard'
-    | 'users'
     | 'profiles'
     | 'verification'
     | 'reports'
@@ -49,7 +48,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
     | 'messages'
     | 'analytics'
     | 'settings'
-  >('dashboard');
+  >('profiles');
 
   const { data: overview, refetch: refetchOverview } = useQuery({
     queryKey: ['admin-overview'],
@@ -295,11 +294,9 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   };
 
   const sidebarLinks = [
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'profiles', label: 'Profiles', icon: UserCheck },
-    { id: 'verification', label: 'Verification', icon: FileCheck },
-    { id: 'reports', label: 'Reports', icon: Flag },
+    { id: 'profiles', label: 'Profiles Directory', icon: UserCheck },
+    { id: 'verification', label: 'Verification Queue', icon: FileCheck },
+    { id: 'reports', label: 'Reports & Complaints', icon: Flag },
     { id: 'churches', label: 'Churches', icon: Building },
     { id: 'denominations', label: 'Denominations', icon: Layers },
     { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
@@ -322,7 +319,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
                 Pentecostal Matrimony <span className="font-semibold text-xs ml-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">Admin Hub</span>
               </span>
               <span className="block text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
-                Stewardship & Governance
+                Platform Administration
               </span>
             </div>
           </div>
@@ -374,12 +371,12 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
           <div>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-rose-700 px-3 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider shadow-xs">
-                Steward Administration
+                Administrator Portal
               </span>
-              <span className="text-xs text-slate-400">Role: {activeRole || 'Steward Admin'}</span>
+              <span className="text-xs text-slate-400">Role: {activeRole || 'System Admin'}</span>
             </div>
             <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-3xl">
-              Platform Stewardship Hub
+              Profile Management Hub
             </h1>
             <p className="mt-1 text-xs text-slate-400 max-w-md">
               Review identity verifications, pastoral records, moderation complaints, and directory health.
