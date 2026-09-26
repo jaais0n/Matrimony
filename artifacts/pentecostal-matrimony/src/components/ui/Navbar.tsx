@@ -75,13 +75,6 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
 
   return (
     <header className="sticky top-0 z-40 border-b border-[#ebdcd0]/80 bg-[#fdfbf9]/95 backdrop-blur-md shadow-xs">
-      {/* Top Banner with warm burgundy & gold elegance */}
-      <div className="bg-gradient-to-r from-rose-900 via-rose-950 to-slate-900 px-4 py-1.5 text-center text-[11px] font-semibold text-rose-100/90">
-        <span className="text-amber-300 font-bold">Faith. Values. A Life Together.</span>
-        <span className="mx-2 text-rose-400/40">|</span>
-        <span className="hidden sm:inline">A dedicated matrimonial community for Pentecostal Christian believers</span>
-      </div>
-
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand / Logo */}
         <div className="flex items-center gap-8">
