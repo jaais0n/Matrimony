@@ -64,17 +64,26 @@ async function readStore() {
 
 
 async function writeStore(data) {
+  const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
+  const newBlob = await put(BLOB_KEY, body, {
+    access: 'public',
+    contentType: 'application/json',
+    addRandomSuffix: true,
+  });
+
   try {
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
     for (const b of blobs) {
-      try { await del(b.url); } catch {}
+      if (b.url !== newBlob.url) {
+        try { await del(b.url); } catch {}
+      }
     }
-    const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
-    await put(BLOB_KEY, body, { access: 'public', contentType: 'application/json', addRandomSuffix: false });
-  } catch (e) {
-    console.error('writeStore error', e);
+  } catch (cleanErr) {
+    console.warn('Old blob cleanup non-fatal:', cleanErr);
   }
+  return newBlob;
 }
+
 
 function dedup(list) {
   const result = [];

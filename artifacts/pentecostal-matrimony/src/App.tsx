@@ -97,12 +97,17 @@ function DataSyncEffect() {
         // 2. Push real local profiles to server (so other devices can see them)
         const payload = localProfiles.filter((p) => !isSeedProfile(p));
         if (payload.length > 0) {
-          fetch('/api/profiles/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          }).catch(() => {});
+          try {
+            await fetch('/api/profiles/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+          } catch (syncErr) {
+            console.warn('Sync push error (non-fatal):', syncErr);
+          }
         }
+
 
         // 3. Pull ALL server profiles and merge into local storage
         const res = await fetch('/api/profiles').catch(() => null);

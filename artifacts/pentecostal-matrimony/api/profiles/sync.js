@@ -138,20 +138,24 @@ async function readStore() {
 
 
 async function writeStore(data) {
+  const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
+  const newBlob = await put(BLOB_KEY, body, {
+    access: 'public',
+    contentType: 'application/json',
+    addRandomSuffix: true,
+  });
+
   try {
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
     for (const b of blobs) {
-      try { await del(b.url); } catch {}
+      if (b.url !== newBlob.url) {
+        try { await del(b.url); } catch {}
+      }
     }
-    const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
-    try {
-      await put(BLOB_KEY, body, { access: 'private', contentType: 'application/json', addRandomSuffix: false });
-    } catch {
-      await put(BLOB_KEY, body, { access: 'public', contentType: 'application/json', addRandomSuffix: false });
-    }
-  } catch (e) {
-    console.error('writeStore error in sync.js', e);
+  } catch (cleanErr) {
+    console.warn('Old blob cleanup non-fatal:', cleanErr);
   }
+  return newBlob;
 }
 
 function dedup(list) {
@@ -186,16 +190,22 @@ export default async function handler(req, res) {
     return;
   }
 
-  const rawIncoming = Array.isArray(req.body) ? req.body : (req.body?.profiles || []);
-  const incoming = (Array.isArray(rawIncoming) ? rawIncoming : []).filter(p => !isSeedProfile(p));
-  if (incoming.length === 0) {
-    res.status(200).json({ success: true, count: 0, message: 'No non-seed profiles to sync' });
-    return;
+  try {
+    const rawIncoming = Array.isArray(req.body) ? req.body : (req.body?.profiles || []);
+    const incoming = (Array.isArray(rawIncoming) ? rawIncoming : []).filter(p => !isSeedProfile(p));
+    if (incoming.length === 0) {
+      res.status(200).json({ success: true, count: 0, message: 'No non-seed profiles to sync' });
+      return;
+    }
+
+    const store = await readStore();
+    store.profiles = dedup([...store.profiles, ...incoming]).filter(p => !isSeedProfile(p));
+    await writeStore(store);
+
+    res.status(200).json({ success: true, count: store.profiles.length });
+  } catch (err) {
+    console.error('Error in sync.js handler:', err);
+    res.status(500).json({ success: false, error: err.message || String(err) });
   }
-
-  const store = await readStore();
-  store.profiles = dedup([...store.profiles, ...incoming]).filter(p => !isSeedProfile(p));
-  await writeStore(store);
-
-  res.status(200).json({ success: true, count: store.profiles.length });
 }
+
