@@ -156,8 +156,9 @@ export async function readStore() {
       const rawProfiles = Array.isArray(data.profiles) ? data.profiles : [];
       const cleaned = rawProfiles.filter((p) => !isSeedProfile(p));
       const users = Array.isArray(data.users) ? data.users : [];
-      memoryStore = { profiles: cleaned, users };
-      return { profiles: cleaned, users };
+      const conversations = Array.isArray(data.conversations) ? data.conversations : [];
+      memoryStore = { profiles: cleaned, users, conversations };
+      return { profiles: cleaned, users, conversations };
     }
   } catch (err) {
     console.warn('readStore Neon error:', err);
@@ -167,13 +168,15 @@ export async function readStore() {
   return {
     profiles: (memoryStore.profiles || []).filter((p) => !isSeedProfile(p)),
     users: memoryStore.users || [],
+    conversations: memoryStore.conversations || [],
   };
 }
 
 export async function writeStore(data) {
   const profiles = (Array.isArray(data?.profiles) ? data.profiles : []).filter((p) => !isSeedProfile(p));
   const users = Array.isArray(data?.users) ? data.users : [];
-  const cleanData = { profiles, users, savedAt: new Date().toISOString() };
+  const conversations = Array.isArray(data?.conversations) ? data.conversations : [];
+  const cleanData = { profiles, users, conversations, savedAt: new Date().toISOString() };
 
   // Always update in-memory cache immediately
   memoryStore = cleanData;

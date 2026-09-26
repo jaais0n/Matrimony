@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'wouter';
+import { Link, useParams, useLocation } from 'wouter';
 import {
   AlertCircle,
   ArrowLeft,
@@ -26,8 +26,10 @@ import { useGetProfile, useSaveProfile, useSendInterest, useUnsaveProfile, isSee
 import { VerificationBadge } from '../components/ui/VerificationBadge';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
+import { initiateConversation } from '../utils/storageHelper';
 
 export function ProfileDetailPage() {
+  const [, setLocation] = useLocation();
   const { id = '' } = useParams<{ id: string }>();
   const profileQuery = useGetProfile(id);
   const sendInterestMutation = useSendInterest();
@@ -310,13 +312,18 @@ export function ProfileDetailPage() {
                     <Heart size={16} fill={interestSent ? 'currentColor' : 'none'} className={`shrink-0 ${interestSent ? 'text-rose-500' : 'text-rose-200'}`} />
                     <span className="whitespace-nowrap">{interestSent ? 'Interest Sent' : 'Express Interest'}</span>
                   </button>
-                  <Link
-                    href={`/messages?user=${p.id}&name=${encodeURIComponent(p.displayName)}`}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 px-4 py-3 text-xs font-bold uppercase tracking-wider text-rose-800 shadow-xs transition text-center"
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      initiateConversation(p);
+                      setLocation(`/messages?user=${p.id}&name=${encodeURIComponent(p.displayName)}`);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 px-4 py-3 text-xs font-bold uppercase tracking-wider text-rose-800 shadow-xs transition text-center cursor-pointer"
                   >
                     <MessageCircle size={16} className="text-rose-700 shrink-0" />
                     <span className="whitespace-nowrap">Message</span>
-                  </Link>
+                  </button>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-1">

@@ -1,21 +1,24 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link, useLocation } from 'wouter';
 import {
   ArrowLeft,
   Ban,
   CheckCheck,
   Clock,
+  Compass,
   Flag,
+  MessageCircle,
   MoreVertical,
   Send,
-  Shield,
   Trash2,
-  Sparkles,
+  User,
 } from 'lucide-react';
-import { customFetch } from '@workspace/api-client-react';
+import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import type { Conversation, ChatMessage } from '../types';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
+import { initiateConversation } from '../utils/storageHelper';
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
@@ -46,8 +49,52 @@ const FAITH_REPLIES = [
   'Praise God! I appreciate your message. Let us continue to seek the Lord in prayer for wisdom and clarity.',
 ];
 
+function getStoredConversations(): Conversation[] {
+  try {
+    const raw = localStorage.getItem('pm_user_conversations');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  // If no conversations yet, check if registered candidate profiles exist and initiate
+  try {
+    const profRaw = localStorage.getItem('pm_registered_profiles');
+    if (profRaw) {
+      const profiles = JSON.parse(profRaw);
+      if (Array.isArray(profiles)) {
+        const validProfiles = profiles.filter((p: any) => !isSeedProfile(p));
+        if (validProfiles.length > 0) {
+          initiateConversation(validProfiles[0]);
+          const updated = localStorage.getItem('pm_user_conversations');
+          if (updated) return JSON.parse(updated);
+        }
+      }
+    }
+  } catch {}
+
+  return [];
+}
+
 export function MessagesPage() {
-  const [selectedConvId, setSelectedConvId] = useState<string>('');
+  const [location] = useLocation();
+  const [selectedConvId, setSelectedConvId] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const targetUserId = params.get('user');
+      if (targetUserId) return `conv_${targetUserId}`;
+      const savedActive = localStorage.getItem('pm_active_conv_id');
+      if (savedActive) return savedActive;
+      const initial = getStoredConversations();
+      return initial[0]?.id || '';
+    } catch {
+      return '';
+    }
+  });
+
   const [inputText, setInputText] = useState('');
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
@@ -61,6 +108,7 @@ export function MessagesPage() {
   const { data: rawConversations = [], refetch } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
     queryFn: () => customFetch('/api/conversations'),
+    initialData: getStoredConversations,
   });
 
   // Filter conversations so that expired messages (> 24h) are purged in real-time
@@ -75,61 +123,37 @@ export function MessagesPage() {
     };
   });
 
-  // Handle ?user= and ?name= params from Profile Cards / Details
+  // Handle ?user= and ?name= query parameters
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const searchStr = window.location.search || (location.includes('?') ? location.split('?')[1] : '');
+    const params = new URLSearchParams(searchStr);
     const targetUserId = params.get('user');
     const targetName = params.get('name');
 
     if (targetUserId) {
-      const existing = conversations.find(
-        (c) => c.participantId === targetUserId || c.id === targetUserId || c.id === `conv_${targetUserId}`
-      );
-      if (existing) {
-        setSelectedConvId(existing.id);
-        setMobileChatOpen(true);
-      } else {
-        let photo = '';
-        let occ = 'Professional';
-        let denom = 'Pentecostal';
-        let age = 28;
-        let loc = 'India';
-        try {
-          const raw = localStorage.getItem('pm_registered_profiles');
-          const profiles = raw ? JSON.parse(raw) : [];
-          const matched = profiles.find((p: any) => p.id === targetUserId || p.userId === targetUserId);
-          if (matched) {
-            photo = matched.photos && matched.photos[0] ? matched.photos[0].url : '';
-            occ = matched.occupation || 'Professional';
-            denom = matched.denomination || 'Pentecostal';
-            age = matched.age || 28;
-            loc = [matched.location, matched.country].filter(Boolean).join(', ') || 'India';
-          }
-        } catch {}
+      let matchedProfile: any = null;
+      try {
+        const raw = localStorage.getItem('pm_registered_profiles');
+        const profiles = raw ? JSON.parse(raw) : [];
+        matchedProfile = profiles.find((p: any) => p.id === targetUserId || p.userId === targetUserId);
+      } catch {}
 
-        customFetch('/api/conversations', {
-          method: 'POST',
-          body: JSON.stringify({
-            participantId: targetUserId,
-            participantName: targetName ? decodeURIComponent(targetName) : 'Believer Candidate',
-            participantPhoto: photo,
-            participantOccupation: occ,
-            participantDenomination: denom,
-            participantAge: age,
-            participantLocation: loc,
-          }),
-        }).then(() => {
-          setSelectedConvId(`conv_${targetUserId}`);
-          setMobileChatOpen(true);
-          refetch();
-        });
-      }
+      const convId = initiateConversation(matchedProfile || {
+        id: targetUserId,
+        displayName: targetName ? decodeURIComponent(targetName) : 'Believer Candidate',
+      });
+
+      setSelectedConvId(convId);
+      setMobileChatOpen(true);
+      refetch();
     } else if (conversations.length > 0 && !selectedConvId) {
       setSelectedConvId(conversations[0].id);
     }
-  }, [conversations]);
+  }, [location, conversations.length]);
 
-  const activeConversation = conversations.find((c) => c.id === selectedConvId) || conversations[0];
+  const activeConversation =
+    conversations.find((c) => c.id === selectedConvId || c.participantId === selectedConvId) ||
+    conversations[0];
 
   // Auto-scroll chat stream to latest message
   useEffect(() => {
@@ -260,6 +284,18 @@ export function MessagesPage() {
       ])
     : [];
 
+  // Registered candidate profiles for quick start if conversation list is empty
+  const registeredProfiles = (() => {
+    try {
+      const raw = localStorage.getItem('pm_registered_profiles');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.filter((p: any) => !isSeedProfile(p));
+      }
+    } catch {}
+    return [];
+  })();
+
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-12 text-slate-900">
       {notice && (
@@ -324,8 +360,21 @@ export function MessagesPage() {
               </div>
 
               {conversations.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500">
-                  No active conversations yet. When mutual interest is accepted, private messaging begins here.
+                <div className="p-6 text-center">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-600 mb-3">
+                    <MessageCircle size={22} />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">No active conversations yet</h3>
+                  <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                    Start a discernment conversation with verified Pentecostal believers in the directory.
+                  </p>
+                  <Link
+                    href="/discover"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white shadow hover:bg-rose-800 transition"
+                  >
+                    <Compass size={14} />
+                    <span>Browse Believers</span>
+                  </Link>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -572,8 +621,55 @@ export function MessagesPage() {
                   </form>
                 </>
               ) : (
-                <div className="flex h-full items-center justify-center p-8 text-center text-xs text-slate-400">
-                  Select an active conversation to view messages.
+                <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-600 mb-3 shadow-xs">
+                    <MessageCircle size={26} />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900">Select a Candidate to Message</h3>
+                  <p className="mt-1.5 max-w-sm text-xs text-slate-500 leading-relaxed">
+                    Choose a conversation from the sidebar or connect with verified believers in the directory.
+                  </p>
+
+                  {registeredProfiles.length > 0 && (
+                    <div className="mt-6 w-full max-w-sm space-y-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Available Candidates</p>
+                      {registeredProfiles.slice(0, 3).map((cand: any) => (
+                        <button
+                          key={cand.id}
+                          type="button"
+                          onClick={() => {
+                            const cid = initiateConversation(cand);
+                            setSelectedConvId(cid);
+                            refetch();
+                          }}
+                          className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 transition cursor-pointer text-left"
+                        >
+                          <div className="flex items-center gap-3">
+                            {cand.photos && cand.photos[0] ? (
+                              <img src={cand.photos[0].url} alt="" className="h-9 w-9 rounded-full object-cover border" />
+                            ) : (
+                              <div className="h-9 w-9 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs">
+                                {cand.displayName?.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-xs font-bold text-slate-900">{cand.displayName}, {cand.age}</p>
+                              <p className="text-[10px] text-slate-500">{cand.denomination}</p>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded-md">Chat</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <Link
+                    href="/discover"
+                    className="mt-6 inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:border-rose-400 hover:text-rose-700 transition shadow-2xs"
+                  >
+                    <Compass size={14} />
+                    <span>Open Discover Directory</span>
+                  </Link>
                 </div>
               )}
             </div>

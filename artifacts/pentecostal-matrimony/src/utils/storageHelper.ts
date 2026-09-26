@@ -213,3 +213,71 @@ export function deduplicateProfiles<T extends { id?: string; userId?: string; di
   return result;
 }
 
+export function initiateConversation(profile: any): string {
+  if (!profile) return '';
+  const partId = String(profile.id || profile.userId || `user_${Date.now()}`);
+  const convId = `conv_${partId}`;
+  const partName = profile.displayName || 'Believer Candidate';
+  const partAge = profile.age || 28;
+  const partPhoto = profile.photos && profile.photos[0] ? profile.photos[0].url : (profile.primaryPhotoUrl || '');
+  const partOcc = profile.occupation || profile.career?.occupation || 'Professional';
+  const partDenom = profile.denomination || profile.faith?.denomination || 'Pentecostal';
+  const partLoc = [profile.location, profile.country].filter(Boolean).join(', ') || 'India';
+
+  try {
+    let convs: any[] = [];
+    const raw = localStorage.getItem('pm_user_conversations');
+    if (raw) {
+      convs = JSON.parse(raw);
+    }
+    if (!Array.isArray(convs)) convs = [];
+
+    const existingIndex = convs.findIndex((c) => c.id === convId || c.participantId === partId);
+    if (existingIndex >= 0) {
+      localStorage.setItem('pm_active_conv_id', convs[existingIndex].id);
+      return convs[existingIndex].id;
+    }
+
+    const newConv = {
+      id: convId,
+      participantId: partId,
+      participantName: partName,
+      participantAge: partAge,
+      participantLocation: partLoc,
+      participantPhoto: partPhoto,
+      participantOccupation: partOcc,
+      participantDenomination: partDenom,
+      status: 'active',
+      lastMessageText: 'Grace and peace to you in Christ Jesus.',
+      lastMessageAt: new Date().toISOString(),
+      unreadCount: 0,
+      messages: [
+        {
+          id: `msg_sys_${Date.now()}`,
+          senderId: 'system',
+          senderName: 'Platform Stewards',
+          content: 'Mutual connection confirmed. Messages automatically delete after 24 hours for member privacy.',
+          timestamp: new Date().toISOString(),
+          read: true,
+        },
+      ],
+    };
+
+    convs.unshift(newConv);
+    localStorage.setItem('pm_user_conversations', JSON.stringify(convs));
+    localStorage.setItem('pm_active_conv_id', convId);
+
+    // Also sync to serverless API in background
+    fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newConv),
+    }).catch(() => {});
+
+    return convId;
+  } catch {
+    return convId;
+  }
+}
+
+

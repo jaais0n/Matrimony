@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Briefcase, Church, Globe, GraduationCap, Heart, MapPin, MessageCircle } from 'lucide-react';
 import { VerificationBadge } from './VerificationBadge';
+import { initiateConversation } from '../../utils/storageHelper';
 
 export interface ProfileCardData {
   id: string;
@@ -27,6 +28,7 @@ interface ProfileCardProps {
 }
 
 export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
+  const [, setLocation] = useLocation();
   const [interestSent, setInterestSent] = useState(false);
 
   const handleInterest = (e: React.MouseEvent) => {
@@ -149,14 +151,19 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
             <span className="truncate">{interestSent ? 'Sent' : 'Interest'}</span>
           </button>
 
-          <Link
-            href={`/messages?user=${profile.id}&name=${encodeURIComponent(profile.displayName)}`}
-            onClick={(e) => e.stopPropagation()}
-            className="h-10 w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 text-rose-800 px-3 text-xs font-bold tracking-wide transition shadow-2xs text-center"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              initiateConversation(profile);
+              setLocation(`/messages?user=${profile.id}&name=${encodeURIComponent(profile.displayName)}`);
+            }}
+            className="h-10 w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 text-rose-800 px-3 text-xs font-bold tracking-wide transition shadow-2xs text-center cursor-pointer"
           >
             <MessageCircle size={14} className="text-rose-600 shrink-0" />
             <span className="truncate">Message</span>
-          </Link>
+          </button>
         </div>
       </div>
     </article>
