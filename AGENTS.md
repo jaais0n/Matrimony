@@ -81,6 +81,13 @@ Pentecostal-Matrimony/
 - **Welcoming Celebration Banner**: Automatically displays an encouraging confirmation banner upon arrival at `/discover`.
 - **Smooth Step Transitions**: Auto-scrolls to top (`window.scrollTo({ top: 0, behavior: 'smooth' })`) across wizard steps on both mobile and desktop viewports.
 
+### 6. Card Button Alignment, Skeleton Shimmer, & Messaging Wiring
+- **Razor-Straight Card Button Alignment**: `ProfileCard` action buttons use `mt-auto` and fixed `h-10` dimensions so buttons across all adjacent grid cards are strictly aligned to the exact same horizontal level regardless of chip wrapping or text lengths.
+- **Sanitized Location Strings**: Eliminates orphan `, India` entries by cleanly composing `[location, country].filter(Boolean).join(', ')`.
+- **Skeleton Shimmer Loading**: Replaced plain "Loading profile details..." with an animated skeleton matching the exact layout of the profile detail view.
+- **Removed Unnecessary Publish Checkbox**: In `MyProfilePage`, removed the explicit "Publish profile to public Discover directory" checkbox; profiles default to published seamlessly upon save.
+- **End-to-End Messaging & Interest Actions**: Clicking "Message" on any profile card or detail page immediately opens the candidate's direct conversation thread in `/messages`, with backend persistence for message sending and interest acceptance.
+
 ---
 
 ## 🔒 Security & Privacy Controls

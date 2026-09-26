@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Ban, CheckCheck, Flag, MoreVertical, Send, ShieldAlert, User, X } from 'lucide-react';
 import { customFetch } from '@workspace/api-client-react';
@@ -7,7 +7,7 @@ import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
 
 export function MessagesPage() {
-  const [selectedConvId, setSelectedConvId] = useState<string>('conv_1');
+  const [selectedConvId, setSelectedConvId] = useState<string>('');
   const [inputText, setInputText] = useState('');
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
@@ -18,6 +18,58 @@ export function MessagesPage() {
     queryKey: ['conversations'],
     queryFn: () => customFetch('/api/conversations'),
   });
+
+  // Handle ?user= and ?name= params from Profile Cards / Details
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetUserId = params.get('user');
+    const targetName = params.get('name');
+
+    if (targetUserId) {
+      const existing = conversations.find(
+        (c) => c.participantId === targetUserId || c.id === targetUserId || c.id === `conv_${targetUserId}`
+      );
+      if (existing) {
+        setSelectedConvId(existing.id);
+      } else {
+        let photo = '';
+        let occ = 'Professional';
+        let denom = 'Pentecostal';
+        let age = 28;
+        let loc = 'India';
+        try {
+          const raw = localStorage.getItem('pm_registered_profiles');
+          const profiles = raw ? JSON.parse(raw) : [];
+          const matched = profiles.find((p: any) => p.id === targetUserId || p.userId === targetUserId);
+          if (matched) {
+            photo = matched.photos && matched.photos[0] ? matched.photos[0].url : '';
+            occ = matched.occupation || 'Professional';
+            denom = matched.denomination || 'Pentecostal';
+            age = matched.age || 28;
+            loc = [matched.location, matched.country].filter(Boolean).join(', ') || 'India';
+          }
+        } catch {}
+
+        customFetch('/api/conversations', {
+          method: 'POST',
+          body: JSON.stringify({
+            participantId: targetUserId,
+            participantName: targetName ? decodeURIComponent(targetName) : 'Believer Candidate',
+            participantPhoto: photo,
+            participantOccupation: occ,
+            participantDenomination: denom,
+            participantAge: age,
+            participantLocation: loc,
+          }),
+        }).then(() => {
+          setSelectedConvId(`conv_${targetUserId}`);
+          refetch();
+        });
+      }
+    } else if (conversations.length > 0 && !selectedConvId) {
+      setSelectedConvId(conversations[0].id);
+    }
+  }, [conversations]);
 
   const activeConversation = conversations.find((c) => c.id === selectedConvId) || conversations[0];
 
@@ -115,17 +167,24 @@ export function MessagesPage() {
                         }`}
                       >
                         <div className="relative shrink-0">
-                          <img
-                            src={c.participantPhoto}
-                            alt={c.participantName}
-                            className="h-12 w-12 rounded-xl border border-slate-200 object-cover shadow-sm"
-                          />
+                          {c.participantPhoto ? (
+                            <img
+                              src={c.participantPhoto}
+                              alt={c.participantName}
+                              className="h-12 w-12 rounded-xl border border-slate-200 object-cover shadow-sm"
+                            />
+                          ) : (
+                            <div className="h-12 w-12 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 flex items-center justify-center font-bold text-sm shadow-xs">
+                              {c.participantName.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
                           <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between">
                             <span className={`font-bold text-xs truncate ${isSelected ? 'text-rose-950 font-extrabold' : 'text-slate-900'}`}>
-                              {c.participantName}, {c.participantAge}
+                              {c.participantName}
+                              {typeof c.participantAge === 'number' && c.participantAge > 0 ? `, ${c.participantAge}` : ''}
                             </span>
                             <span className="text-[10px] text-slate-500">
                               {new Date(c.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -152,17 +211,24 @@ export function MessagesPage() {
                   {/* Chat Active Header */}
                   <div className="flex items-center justify-between border-b border-slate-200 p-4 bg-white/80 backdrop-blur-sm">
                     <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <img
-                          src={activeConversation.participantPhoto}
-                          alt={activeConversation.participantName}
-                          className="h-10 w-10 rounded-full border border-slate-200 object-cover shadow-sm"
-                        />
+                      <div className="relative shrink-0">
+                        {activeConversation.participantPhoto ? (
+                          <img
+                            src={activeConversation.participantPhoto}
+                            alt={activeConversation.participantName}
+                            className="h-10 w-10 rounded-full border border-slate-200 object-cover shadow-sm"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full border border-rose-200 bg-rose-50 text-rose-700 flex items-center justify-center font-bold text-xs shadow-xs">
+                            {activeConversation.participantName.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
                         <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                       </div>
                       <div>
                         <h2 className="text-sm font-bold text-slate-900">
-                          {activeConversation.participantName}, {activeConversation.participantAge}
+                          {activeConversation.participantName}
+                          {typeof activeConversation.participantAge === 'number' && activeConversation.participantAge > 0 ? `, ${activeConversation.participantAge}` : ''}
                         </h2>
                         <p className="text-[11px] text-slate-500">
                           {activeConversation.participantLocation} · <span className="text-purple-700 font-medium">{activeConversation.participantDenomination}</span>

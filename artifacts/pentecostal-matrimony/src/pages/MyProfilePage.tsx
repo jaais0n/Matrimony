@@ -317,6 +317,7 @@ export function MyProfilePage() {
     e.preventDefault();
     const dataToSave = {
       ...form,
+      published: true,
       photos: photos as any,
     };
 
@@ -710,32 +711,20 @@ export function MyProfilePage() {
               </div>
             </div>
 
-            {/* Submit & Publish Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 pt-6">
-              <label className="flex items-center gap-2.5 text-xs font-semibold cursor-pointer text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.published}
-                  onChange={(e) => setTop('published', e.target.checked)}
-                  className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500"
-                />
-                <span>Publish profile to public Discover directory</span>
-              </label>
-
-              <div className="flex items-center gap-3">
-                {saved && (
-                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
-                    <Check size={14} className="stroke-[3]" /> Profile Saved
-                  </span>
-                )}
-                <button
-                  type="submit"
-                  disabled={save.isPending}
-                  className="rounded-xl bg-rose-700 px-6 py-2.5 text-xs font-bold text-white uppercase tracking-wider shadow-md hover:bg-rose-800 transition"
-                >
-                  {save.isPending ? 'Saving...' : 'Save Profile'}
-                </button>
-              </div>
+            {/* Submit Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-slate-100 pt-6">
+              {saved && (
+                <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3.5 py-1.5 rounded-full border border-emerald-200 flex items-center gap-1.5 shadow-2xs">
+                  <Check size={14} className="stroke-[3]" /> Profile Saved & Active
+                </span>
+              )}
+              <button
+                type="submit"
+                disabled={save.isPending}
+                className="w-full sm:w-auto rounded-xl bg-rose-700 px-7 py-3 text-xs font-bold text-white uppercase tracking-wider shadow-md hover:bg-rose-800 transition active:scale-[0.98]"
+              >
+                {save.isPending ? 'Saving Profile...' : 'Save Profile'}
+              </button>
             </div>
           </form>
         </div>

@@ -74,8 +74,8 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
       <div className="flex flex-1 flex-col p-4 sm:p-5">
         {/* Name, Age & Location */}
         <div>
-          <Link href={`/profiles/${profile.id}`} className="hover:text-rose-700 transition">
-            <h3 className="text-lg font-bold tracking-tight text-slate-900">
+          <Link href={`/profiles/${profile.id}`} className="hover:text-rose-700 transition block">
+            <h3 className="text-lg font-bold tracking-tight text-slate-900 truncate">
               {profile.displayName}
               {typeof profile.age === 'number' && profile.age > 0 && (
                 <>
@@ -86,7 +86,9 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
           </Link>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
             <MapPin size={13} className="shrink-0 text-rose-500" />
-            <span className="truncate">{profile.location}, {profile.country}</span>
+            <span className="truncate">
+              {[profile.location?.replace(/^,\s*/, '').trim(), profile.country?.trim()].filter(Boolean).join(', ') || 'India'}
+            </span>
           </p>
         </div>
 
@@ -132,27 +134,27 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
           </div>
         )}
 
-        {/* Bottom Actions: Equally Finished Balanced Buttons */}
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+        {/* Bottom Actions: Equally Finished Balanced Buttons with mt-auto */}
+        <div className="mt-auto grid grid-cols-2 gap-2 border-t border-slate-100 pt-3.5">
           <button
             onClick={handleInterest}
             disabled={interestSent}
-            className={`w-full flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold tracking-wide transition shadow-xs ${
+            className={`h-10 w-full flex items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold tracking-wide transition shadow-xs ${
               interestSent
                 ? 'border border-slate-200 bg-slate-100 text-slate-500 cursor-default'
                 : 'bg-rose-700 text-white hover:bg-rose-800 active:scale-[0.98]'
             }`}
           >
-            <Heart size={13} fill={interestSent ? 'currentColor' : 'none'} className={interestSent ? 'text-rose-500' : 'text-rose-200'} />
+            <Heart size={14} fill={interestSent ? 'currentColor' : 'none'} className={interestSent ? 'text-rose-500' : 'text-rose-200'} />
             <span className="truncate">{interestSent ? 'Sent' : 'Interest'}</span>
           </button>
 
           <Link
             href={`/messages?user=${profile.id}&name=${encodeURIComponent(profile.displayName)}`}
             onClick={(e) => e.stopPropagation()}
-            className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 text-rose-800 py-2.5 text-xs font-bold tracking-wide transition shadow-2xs text-center"
+            className="h-10 w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 text-rose-800 px-3 text-xs font-bold tracking-wide transition shadow-2xs text-center"
           >
-            <MessageCircle size={13} className="text-rose-600 shrink-0" />
+            <MessageCircle size={14} className="text-rose-600 shrink-0" />
             <span className="truncate">Message</span>
           </Link>
         </div>

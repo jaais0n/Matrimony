@@ -453,31 +453,175 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     const target = getRegisteredProfiles().find((p) => p.id === id);
     const allInterests = getBrowserStorage<Interest[]>('pm_user_interests', []);
     if (target) {
-      allInterests.push({
-        id: `int_${Date.now()}`,
-        profileId: target.id,
-        displayName: target.displayName,
-        age: target.age,
-        location: target.location,
-        primaryPhotoUrl: target.photos && target.photos[0] ? target.photos[0].url : null,
-        direction: 'outgoing',
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        mutual: false,
-      });
-      setBrowserStorage('pm_user_interests', allInterests);
+      const exists = allInterests.some((i) => i.profileId === target.id);
+      if (!exists) {
+        allInterests.push({
+          id: `int_${Date.now()}`,
+          profileId: target.id,
+          displayName: target.displayName,
+          age: target.age,
+          location: target.location,
+          primaryPhotoUrl: target.photos && target.photos[0] ? target.photos[0].url : null,
+          direction: 'outgoing',
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+          mutual: false,
+        });
+        setBrowserStorage('pm_user_interests', allInterests);
+      }
     }
     return { success: true };
   }
 
-  // 7. CONVERSATIONS
+  const respondInterestMatch = cleanUrl.match(/^\/api\/interests\/([^/]+)$/);
+  if (respondInterestMatch && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
+    const interestId = respondInterestMatch[1];
+    const decision = (body as any)?.data?.decision || (body as any)?.decision || 'accepted';
+    const allInterests = getBrowserStorage<any[]>('pm_user_interests', []);
+    const idx = allInterests.findIndex((i) => i.id === interestId);
+    let targetInterest: any = null;
+    if (idx >= 0) {
+      allInterests[idx] = {
+        ...allInterests[idx],
+        status: decision,
+        mutual: decision === 'accepted',
+      };
+      targetInterest = allInterests[idx];
+      setBrowserStorage('pm_user_interests', allInterests);
+    }
+
+    if (decision === 'accepted' && targetInterest) {
+      // Auto-create or ensure active conversation exists
+      const convs = getBrowserStorage<any[]>('pm_user_conversations', []);
+      const convId = `conv_${targetInterest.profileId}`;
+      if (!convs.some((c) => c.id === convId || c.participantId === targetInterest.profileId)) {
+        const newConv = {
+          id: convId,
+          participantId: targetInterest.profileId,
+          participantName: targetInterest.displayName,
+          participantAge: targetInterest.age || 0,
+          participantLocation: targetInterest.location || 'India',
+          participantPhoto: targetInterest.primaryPhotoUrl || '',
+          participantOccupation: 'Professional',
+          participantDenomination: 'Pentecostal',
+          status: 'active',
+          lastMessageText: 'Mutual connection accepted! Private messaging unlocked.',
+          lastMessageAt: new Date().toISOString(),
+          unreadCount: 0,
+          messages: [
+            {
+              id: `msg_init_${Date.now()}`,
+              senderId: 'system',
+              senderName: 'System',
+              content: 'Mutual connection accepted! You can now converse with Christian respect and courtesy.',
+              timestamp: new Date().toISOString(),
+              read: true,
+            },
+          ],
+        };
+        setBrowserStorage('pm_user_conversations', [newConv, ...convs]);
+      }
+    }
+    return { success: true, decision };
+  }
+
+  // 7. CONVERSATIONS & MESSAGING
   if (cleanUrl === '/api/conversations' && method === 'GET') {
     return getBrowserStorage<any[]>('pm_user_conversations', []);
+  }
+
+  if (cleanUrl === '/api/conversations' && method === 'POST') {
+    const pId = (body as any)?.participantId || `p_${Date.now()}`;
+    const pName = (body as any)?.participantName || 'Candidate';
+    const convs = getBrowserStorage<any[]>('pm_user_conversations', []);
+    const existing = convs.find((c) => c.id === `conv_${pId}` || c.participantId === pId);
+    if (existing) {
+      return existing;
+    }
+    const newConv = {
+      id: `conv_${pId}`,
+      participantId: pId,
+      participantName: pName,
+      participantAge: (body as any)?.participantAge || 0,
+      participantLocation: (body as any)?.participantLocation || 'India',
+      participantPhoto: (body as any)?.participantPhoto || '',
+      participantOccupation: (body as any)?.participantOccupation || 'Professional',
+      participantDenomination: (body as any)?.participantDenomination || 'Pentecostal',
+      status: 'active',
+      lastMessageText: 'Conversation started.',
+      lastMessageAt: new Date().toISOString(),
+      unreadCount: 0,
+      messages: [
+        {
+          id: `msg_sys_${Date.now()}`,
+          senderId: 'system',
+          senderName: 'System',
+          content: 'Private discernment conversation initiated.',
+          timestamp: new Date().toISOString(),
+          read: true,
+        },
+      ],
+    };
+    setBrowserStorage('pm_user_conversations', [newConv, ...convs]);
+    return newConv;
+  }
+
+  const postMessageMatch = cleanUrl.match(/^\/api\/conversations\/([^/]+)\/messages$/);
+  if (postMessageMatch && method === 'POST') {
+    const convId = postMessageMatch[1];
+    const content = (body as any)?.content?.trim() || '';
+    if (content) {
+      const convs = getBrowserStorage<any[]>('pm_user_conversations', []);
+      let targetConv = convs.find((c) => c.id === convId);
+      if (!targetConv) {
+        targetConv = {
+          id: convId,
+          participantId: convId.replace('conv_', ''),
+          participantName: 'Member Candidate',
+          participantAge: 0,
+          participantLocation: 'India',
+          participantPhoto: '',
+          participantOccupation: 'Professional',
+          participantDenomination: 'Pentecostal',
+          status: 'active',
+          lastMessageText: content,
+          lastMessageAt: new Date().toISOString(),
+          unreadCount: 0,
+          messages: [],
+        };
+        convs.unshift(targetConv);
+      }
+      const newMsg = {
+        id: `msg_${Date.now()}`,
+        senderId: 'prof_me',
+        senderName: 'You',
+        content,
+        timestamp: new Date().toISOString(),
+        read: true,
+        delivered: true,
+      };
+      targetConv.messages = targetConv.messages || [];
+      targetConv.messages.push(newMsg);
+      targetConv.lastMessageText = content;
+      targetConv.lastMessageAt = newMsg.timestamp;
+      setBrowserStorage('pm_user_conversations', convs);
+      return { success: true, message: newMsg };
+    }
+    return { success: true };
   }
 
   // 8. NOTIFICATIONS
   if (cleanUrl === '/api/notifications' && method === 'GET') {
     return getBrowserStorage<any[]>('pm_user_notifications', []);
+  }
+
+  const notifReadMatch = cleanUrl.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (notifReadMatch && method === 'POST') {
+    const notifId = notifReadMatch[1];
+    const notifs = getBrowserStorage<any[]>('pm_user_notifications', []);
+    const updated = notifs.map((n) => (n.id === notifId ? { ...n, read: true } : n));
+    setBrowserStorage('pm_user_notifications', updated);
+    return { success: true, id: notifId };
   }
 
   // 9. ADMIN OVERVIEW (Calculated purely from real registered data)

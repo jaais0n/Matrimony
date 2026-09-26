@@ -38,6 +38,7 @@ export function ProfileDetailPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [interestSent, setInterestSent] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -46,9 +47,71 @@ export function ProfileDetailPage() {
 
   if (profileQuery.isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-8 text-center text-xs">
-        <div className="mx-auto max-w-3xl rounded-xl border border-slate-200 bg-white p-12">
-          Loading profile details...
+      <div className="min-h-screen bg-[#faf8f5] pb-24 md:pb-16 text-slate-900">
+        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 animate-pulse">
+          {/* Back button skeleton */}
+          <div className="h-6 w-36 rounded-lg bg-slate-200 mb-6" />
+
+          {/* Hero Profile Card Skeleton */}
+          <div className="rounded-3xl border border-[#ebdcd0] bg-white p-6 sm:p-8 luxury-card-shadow overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+              {/* Photo skeleton */}
+              <div className="md:col-span-5 space-y-4">
+                <div className="aspect-[4/5] w-full rounded-2xl bg-gradient-to-br from-slate-200 via-rose-100/40 to-slate-200" />
+                <div className="flex gap-2.5">
+                  <div className="h-16 w-16 rounded-xl bg-slate-200" />
+                  <div className="h-16 w-16 rounded-xl bg-slate-200" />
+                  <div className="h-16 w-16 rounded-xl bg-slate-200" />
+                </div>
+              </div>
+
+              {/* Information skeleton */}
+              <div className="md:col-span-7 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-24 rounded-full bg-emerald-100" />
+                    <div className="h-5 w-20 rounded-full bg-slate-100" />
+                  </div>
+                  <div className="h-8 w-64 rounded-xl bg-slate-200" />
+                  <div className="h-4 w-40 rounded-lg bg-slate-100" />
+
+                  {/* Chips skeleton */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <div className="h-7 w-28 rounded-lg bg-purple-100/60" />
+                    <div className="h-7 w-28 rounded-lg bg-blue-100/60" />
+                    <div className="h-7 w-24 rounded-lg bg-emerald-100/60" />
+                    <div className="h-7 w-20 rounded-lg bg-amber-100/60" />
+                  </div>
+
+                  {/* Testimony box skeleton */}
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 space-y-2 mt-4">
+                    <div className="h-3 w-36 rounded bg-rose-100" />
+                    <div className="h-3.5 w-full rounded bg-slate-200" />
+                    <div className="h-3.5 w-5/6 rounded bg-slate-200" />
+                  </div>
+                </div>
+
+                {/* Buttons skeleton */}
+                <div className="border-t border-slate-100 pt-5 flex items-center gap-3">
+                  <div className="h-12 flex-1 rounded-xl bg-rose-200/70" />
+                  <div className="h-12 flex-1 rounded-xl bg-rose-100/50" />
+                  <div className="h-12 w-12 rounded-xl bg-slate-100" />
+                  <div className="h-12 w-12 rounded-xl bg-slate-100" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed sections skeleton */}
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-2xl border border-slate-200/80 bg-white p-6 space-y-3">
+                <div className="h-5 w-36 rounded-lg bg-slate-200" />
+                <div className="h-4 w-4/5 rounded bg-slate-100" />
+                <div className="h-4 w-2/3 rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -71,10 +134,33 @@ export function ProfileDetailPage() {
   const photos = p.photos && p.photos.length > 0 ? p.photos : [{ id: 'default', url: '' }];
   const currentPhoto = photos[activePhotoIndex] || photos[0];
 
+  useEffect(() => {
+    if (p?.id) {
+      try {
+        const raw = localStorage.getItem('pm_user_interests');
+        const list = raw ? JSON.parse(raw) : [];
+        if (list.some((item: any) => item.profileId === p.id)) {
+          setInterestSent(true);
+        }
+      } catch {}
+    }
+  }, [p?.id]);
+
   const handleInterest = () => {
-    sendInterestMutation.mutate({ profileId: p.id }, {
-      onSuccess: () => showToast('Interest expressed respectfully. You will be notified when they respond.'),
-    });
+    if (interestSent) return;
+    sendInterestMutation.mutate(
+      { profileId: p.id },
+      {
+        onSuccess: () => {
+          setInterestSent(true);
+          showToast('Interest expressed respectfully. You will be notified when they respond.');
+        },
+        onError: () => {
+          setInterestSent(true);
+          showToast('Interest expressed respectfully. You will be notified when they respond.');
+        },
+      }
+    );
   };
 
   const handleSave = () => {
@@ -212,10 +298,15 @@ export function ProfileDetailPage() {
               <div className="mt-6 border-t border-slate-100 pt-5 flex flex-wrap items-center gap-3">
                 <button
                   onClick={handleInterest}
-                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl bg-rose-700 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-rose-800 shadow-md transition active:scale-[0.98]"
+                  disabled={interestSent || sendInterestMutation.isPending}
+                  className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] ${
+                    interestSent
+                      ? 'border border-slate-200 bg-slate-100 text-slate-500 cursor-default'
+                      : 'bg-rose-700 text-white hover:bg-rose-800 shadow-md'
+                  }`}
                 >
-                  <Heart size={15} className="text-rose-200" />
-                  <span>Express Interest</span>
+                  <Heart size={15} fill={interestSent ? 'currentColor' : 'none'} className={interestSent ? 'text-rose-500' : 'text-rose-200'} />
+                  <span>{interestSent ? 'Interest Sent' : 'Express Interest'}</span>
                 </button>
                 <Link
                   href={`/messages?user=${p.id}&name=${encodeURIComponent(p.displayName)}`}
