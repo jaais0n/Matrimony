@@ -668,7 +668,66 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     return result;
   }
 
-  // 11. ADMIN VERIFICATION QUEUE
+  // 11. ADMIN VERIFICATION QUEUE & REVIEWS
+  const reviewMatch = cleanUrl.match(/^\/api\/admin\/verifications\/([^/]+)\/review$/);
+  if (reviewMatch && method === 'POST') {
+    const profileId = reviewMatch[1];
+    const decision = (body as any)?.decision || 'verified';
+    const profiles = getRegisteredProfiles();
+    const idx = profiles.findIndex((p) => p.id === profileId || p.userId === profileId);
+    if (idx >= 0) {
+      profiles[idx].verificationStatus = decision;
+      profiles[idx].updatedAt = new Date().toISOString();
+      setBrowserStorage('pm_registered_profiles', profiles);
+    }
+    const myProf = getBrowserStorage<any>('pm_my_profile', null);
+    if (myProf && (myProf.id === profileId || myProf.userId === profileId)) {
+      myProf.verificationStatus = decision;
+      myProf.updatedAt = new Date().toISOString();
+      setBrowserStorage('pm_my_profile', myProf);
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const up = localStorage.getItem(`pm_user_profile_${profileId}`);
+        if (up) {
+          const parsed = JSON.parse(up);
+          parsed.verificationStatus = decision;
+          localStorage.setItem(`pm_user_profile_${profileId}`, JSON.stringify(parsed));
+        }
+      } catch {}
+    }
+    return { success: true, profileId, decision };
+  }
+
+  const deleteProfileMatch = cleanUrl.match(/^\/api\/admin\/profiles\/([^/]+)\/delete$/);
+  if (deleteProfileMatch && method === 'POST') {
+    const profileId = deleteProfileMatch[1];
+    const profiles = getRegisteredProfiles();
+    const updated = profiles.filter((p) => p.id !== profileId && p.userId !== profileId);
+    setBrowserStorage('pm_registered_profiles', updated);
+    const myProf = getBrowserStorage<any>('pm_my_profile', null);
+    if (myProf && (myProf.id === profileId || myProf.userId === profileId)) {
+      if (typeof window !== 'undefined') localStorage.removeItem('pm_my_profile');
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`pm_user_profile_${profileId}`);
+    }
+    return { success: true, deletedId: profileId };
+  }
+
+  const deleteUserMatch = cleanUrl.match(/^\/api\/admin\/users\/([^/]+)\/delete$/);
+  if (deleteUserMatch && method === 'POST') {
+    const userId = deleteUserMatch[1];
+    const users = getBrowserStorage<any[]>('pm_registered_accounts', []);
+    const updatedUsers = users.filter((u) => u.id !== userId && u.email !== userId);
+    setBrowserStorage('pm_registered_accounts', updatedUsers);
+    setBrowserStorage('pm_registered_users', updatedUsers);
+    const profiles = getRegisteredProfiles();
+    const updatedProfiles = profiles.filter((p) => p.userId !== userId && p.id !== userId);
+    setBrowserStorage('pm_registered_profiles', updatedProfiles);
+    return { success: true, deletedUserId: userId };
+  }
+
   if (cleanUrl === '/api/admin/verification-queue') {
     const profiles = getRegisteredProfiles().filter((p) => p.verificationStatus !== 'verified');
     const queue: VerificationQueueItem[] = profiles.map((p) => ({

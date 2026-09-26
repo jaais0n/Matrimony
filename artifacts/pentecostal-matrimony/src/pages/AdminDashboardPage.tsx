@@ -373,22 +373,64 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         body: JSON.stringify({ decision }),
       }).catch(() => {});
 
-      // Update in local profiles and push to server
+      let updatedProfile: any = null;
+
+      // Update in local profiles
       const raw = localStorage.getItem('pm_registered_profiles');
-      if (raw) {
-        const list = JSON.parse(raw);
-        const idx = list.findIndex((p: any) => p.id === profileId || p.userId === profileId);
-        if (idx >= 0) {
-          list[idx].verificationStatus = decision;
-          list[idx].updatedAt = new Date().toISOString();
-          const cleaned = list.filter((p: any) => !isSeedProfile(p));
-          localStorage.setItem('pm_registered_profiles', JSON.stringify(cleaned));
-          await fetch('/api/profiles', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(list[idx]),
-          }).catch(() => {});
+      let list = raw ? JSON.parse(raw) : [];
+      const idx = list.findIndex((p: any) => p.id === profileId || p.userId === profileId);
+      if (idx >= 0) {
+        list[idx].verificationStatus = decision;
+        list[idx].updatedAt = new Date().toISOString();
+        updatedProfile = list[idx];
+      } else {
+        const found = profilesList.find((p: any) => p.id === profileId || p.userId === profileId);
+        if (found) {
+          const updated = { ...found, verificationStatus: decision, updatedAt: new Date().toISOString() };
+          list.push(updated);
+          updatedProfile = updated;
         }
+      }
+      const cleaned = list.filter((p: any) => !isSeedProfile(p));
+      localStorage.setItem('pm_registered_profiles', JSON.stringify(cleaned));
+
+      // Also check pm_my_profile
+      const myProfRaw = localStorage.getItem('pm_my_profile');
+      if (myProfRaw) {
+        try {
+          const myProf = JSON.parse(myProfRaw);
+          if (myProf.id === profileId || myProf.userId === profileId) {
+            myProf.verificationStatus = decision;
+            myProf.updatedAt = new Date().toISOString();
+            updatedProfile = updatedProfile || myProf;
+            localStorage.setItem('pm_my_profile', JSON.stringify(myProf));
+          }
+        } catch {}
+      }
+
+      // Check all pm_user_profile_* in localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('pm_user_profile_')) {
+          try {
+            const up = JSON.parse(localStorage.getItem(key) || '{}');
+            if (up.id === profileId || up.userId === profileId) {
+              up.verificationStatus = decision;
+              up.updatedAt = new Date().toISOString();
+              updatedProfile = updatedProfile || up;
+              localStorage.setItem(key, JSON.stringify(up));
+            }
+          } catch {}
+        }
+      }
+
+      // Sync to cloud DB
+      if (updatedProfile) {
+        await fetch('/api/profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedProfile),
+        }).catch(() => {});
       }
 
       notifySync();
@@ -932,9 +974,10 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
                 ) : (
                   <div className="space-y-4">
                     {queue.map((item: any, idx: number) => {
-                      const prof = item.profile;
+                      const prof = item.profile || item;
+                      const profileId = prof?.id || item?.id;
                       return (
-                        <div key={idx} className="rounded-xl border border-slate-200 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-rose-200 transition">
+                        <div key={profileId || idx} className="rounded-xl border border-slate-200 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-rose-200 transition">
                           <div className="flex items-center gap-4">
                             {prof?.primaryPhotoUrl ? (
                               <img
@@ -948,8 +991,11 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
                               </div>
                             )}
                             <div>
-                              <h4 className="text-base font-bold text-slate-900">{prof?.displayName}, {prof?.age}</h4>
-                              <p className="text-xs text-slate-500">{prof?.location} · {prof?.denomination}</p>
+                              <h4 className="text-base font-bold text-slate-900">
+                                {prof?.displayName}
+                                {typeof prof?.age === 'number' && prof.age > 0 ? `, ${prof.age}` : ''}
+                              </h4>
+                              <p className="text-xs text-slate-500">{prof?.location || 'India'} · {prof?.denomination || 'Pentecostal'}</p>
                               <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
                                 <span className="rounded-md border border-emerald-300 bg-emerald-50 text-emerald-800 px-2 py-0.5 uppercase font-bold">
                                   ✓ ID Checked
@@ -963,20 +1009,20 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
 
                           <div className="flex items-center gap-2 w-full sm:w-auto">
                             <button
-                              onClick={() => handleReviewVerification(prof?.id, 'verified')}
-                              className="flex-1 sm:flex-none flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow-xs transition"
+                              onClick={() => handleReviewVerification(profileId, 'verified')}
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow-xs transition active:scale-[0.98]"
                             >
                               <Check size={14} /> Verify
                             </button>
                             <button
-                              onClick={() => handleReviewVerification(prof?.id, 'under_review')}
-                              className="flex-1 sm:flex-none flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                              onClick={() => handleReviewVerification(profileId, 'under_review')}
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition active:scale-[0.98]"
                             >
                               <Clock size={14} /> Hold
                             </button>
                             <button
-                              onClick={() => handleReviewVerification(prof?.id, 'rejected')}
-                              className="flex-1 sm:flex-none flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-rose-300 hover:text-rose-700 transition"
+                              onClick={() => handleReviewVerification(profileId, 'rejected')}
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-rose-300 hover:text-rose-700 transition active:scale-[0.98]"
                             >
                               <X size={14} /> Reject
                             </button>
