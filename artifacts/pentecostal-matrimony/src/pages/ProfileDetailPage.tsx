@@ -21,7 +21,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
-import { useGetProfile, useSaveProfile, useSendInterest, useUnsaveProfile } from '@workspace/api-client-react';
+import { useGetProfile, useSaveProfile, useSendInterest, useUnsaveProfile, isSeedProfile } from '@workspace/api-client-react';
 import { VerificationBadge } from '../components/ui/VerificationBadge';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
@@ -54,7 +54,7 @@ export function ProfileDetailPage() {
   }
 
   const p = profileQuery.data;
-  if (!p) {
+  if (!p || isSeedProfile(p)) {
     return (
       <div className="min-h-screen bg-slate-50 p-8 text-center text-xs">
         <div className="mx-auto max-w-md rounded-xl border border-slate-200 bg-white p-8">

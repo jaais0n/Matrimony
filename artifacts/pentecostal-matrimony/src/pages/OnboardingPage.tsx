@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Lock, Shield, Upload, User, Star, Trash2, Camera, Sparkles } from 'lucide-react';
 import { registerNewUser, useAuthActions } from '../auth';
 import { compressImage, getApproximateKB, safeSetLocalStorage } from '../utils/storageHelper';
+import { isSeedProfile } from '@workspace/api-client-react';
 import type { MatrimonyProfile } from '../types';
 
 export function OnboardingPage() {
@@ -255,7 +256,7 @@ export function OnboardingPage() {
     try {
       const existingRaw = localStorage.getItem('pm_registered_profiles');
       const existing = existingRaw ? JSON.parse(existingRaw) : [];
-      const updatedList = [...existing.filter((p: any) => p.id !== newProfile.id && p.userId !== registered.id), newProfile];
+      const updatedList = [...existing.filter((p: any) => !isSeedProfile(p) && p.id !== newProfile.id && p.userId !== registered.id), newProfile];
       safeSetLocalStorage('pm_registered_profiles', updatedList);
     } catch {}
 

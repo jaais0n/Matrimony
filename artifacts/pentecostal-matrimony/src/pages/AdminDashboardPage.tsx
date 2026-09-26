@@ -30,7 +30,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { customFetch, DEFAULT_SEED_PROFILES } from '@workspace/api-client-react';
+import { customFetch, DEFAULT_SEED_PROFILES, isSeedProfile } from '@workspace/api-client-react';
 import { useClerk, useUser } from '../auth';
 import { deduplicateProfiles } from '../utils/storageHelper';
 
@@ -264,7 +264,8 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         const idx = list.findIndex((p: any) => p.id === profileId || p.userId === profileId);
         if (idx >= 0) {
           list[idx].verificationStatus = decision;
-          localStorage.setItem('pm_registered_profiles', JSON.stringify(list));
+          const cleaned = list.filter((p: any) => !isSeedProfile(p));
+          localStorage.setItem('pm_registered_profiles', JSON.stringify(cleaned));
         }
       }
       const myProfRaw = localStorage.getItem('pm_my_profile');

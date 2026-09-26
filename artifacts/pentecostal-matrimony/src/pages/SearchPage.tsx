@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { useListProfiles } from '@workspace/api-client-react';
+import { useListProfiles, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
 import { ProfileCard } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
@@ -44,13 +44,13 @@ export function SearchPage() {
 
   // Merge API profiles with real registered profiles
   const displayedProfiles = useMemo(() => {
-    const apiItems = profilesQuery.data?.items || [];
+    const apiItems = (profilesQuery.data?.items || []).filter((p: any) => !isSeedProfile(p));
     let localItems: any[] = [];
     try {
       const raw = localStorage.getItem('pm_registered_profiles');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) localItems = parsed;
+        if (Array.isArray(parsed)) localItems = parsed.filter((p: any) => !isSeedProfile(p));
       }
     } catch {}
 
@@ -96,7 +96,7 @@ export function SearchPage() {
       })),
     ];
 
-    let list = deduplicateProfiles(combined).filter((p) => p.published !== false);
+    let list = deduplicateProfiles(combined).filter((p) => !isSeedProfile(p) && p.published !== false);
 
     // Robust multi-device / mobile filtering to strictly exclude the logged-in user's own profile
     const selfIds = new Set<string>();

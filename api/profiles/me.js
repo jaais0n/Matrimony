@@ -7,6 +7,31 @@ import { put, list, del } from '@vercel/blob';
 
 const BLOB_KEY = 'pm-profiles-store.json';
 
+const SEED_PROFILE_IDS = new Set([
+  'prof_user_grace',
+  'prof_user_joshua',
+  'prof_user_rebecca',
+  'prof_user_samuel',
+  'prof_user_sneha',
+  'prof_user_daniel',
+  'user_grace',
+  'user_joshua',
+  'user_rebecca',
+  'user_samuel',
+  'user_sneha',
+  'user_daniel',
+]);
+
+function isSeed(p) {
+  if (!p) return false;
+  const id = String(p.id || '').toLowerCase();
+  const userId = String(p.userId || '').toLowerCase();
+  const name = String(p.displayName || '').toLowerCase();
+  if (SEED_PROFILE_IDS.has(id) || SEED_PROFILE_IDS.has(userId)) return true;
+  if (name.includes('grace philip') || name.includes('joshua varghese') || name.includes('rebecca e') || name.includes('samuel k') || name.includes('sneha philip') || name.includes('daniel k')) return true;
+  return false;
+}
+
 async function readStore() {
   try {
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
@@ -14,7 +39,9 @@ async function readStore() {
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
     const res = await fetch(blob.url);
     const data = await res.json();
-    return { profiles: Array.isArray(data.profiles) ? data.profiles : [], users: Array.isArray(data.users) ? data.users : [] };
+    const raw = Array.isArray(data.profiles) ? data.profiles : [];
+    const cleaned = raw.filter(p => !isSeed(p));
+    return { profiles: cleaned, users: Array.isArray(data.users) ? data.users : [] };
   } catch {
     return { profiles: [], users: [] };
   }

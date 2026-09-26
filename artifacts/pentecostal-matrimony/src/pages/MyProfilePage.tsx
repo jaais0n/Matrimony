@@ -18,6 +18,7 @@ import {
   getGetMyProfileQueryKey,
   useGetMyProfile,
   useSaveMyProfile,
+  isSeedProfile,
 } from '@workspace/api-client-react';
 import type { ProfileInput } from '@workspace/api-client-react';
 import { VerificationBadge } from '../components/ui/VerificationBadge';
@@ -238,7 +239,7 @@ export function MyProfilePage() {
         safeSetLocalStorage('pm_my_profile', { ...updatedForm, photos: updatedPhotos });
         try {
           const raw = localStorage.getItem('pm_registered_profiles');
-          const profiles = raw ? JSON.parse(raw) : [];
+          const profiles = (raw ? JSON.parse(raw) : []).filter((p: any) => !isSeedProfile(p));
           const idx = profiles.findIndex((p: any) => p.userId === user.id || p.id === `prof_${user.id}`);
           if (idx >= 0) {
             profiles[idx].photos = updatedPhotos;
@@ -306,7 +307,7 @@ export function MyProfilePage() {
       safeSetLocalStorage('pm_my_profile', dataToSave);
       try {
         const raw = localStorage.getItem('pm_registered_profiles');
-        const profiles = raw ? JSON.parse(raw) : [];
+        const profiles = (raw ? JSON.parse(raw) : []).filter((p: any) => !isSeedProfile(p));
         const fullProfile = {
           id: `prof_${user.id}`,
           userId: user.id,
@@ -319,7 +320,7 @@ export function MyProfilePage() {
         } else {
           profiles.push(fullProfile);
         }
-        safeSetLocalStorage('pm_registered_profiles', profiles);
+        safeSetLocalStorage('pm_registered_profiles', profiles.filter((p: any) => !isSeedProfile(p)));
 
         // Sync to backend API server (cross-device)
         fetch('/api/profiles/me', {

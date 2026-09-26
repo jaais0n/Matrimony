@@ -61,8 +61,94 @@ function getCurrentAuthUser(): { id: string; email: string; fullName: string } |
   return getBrowserStorage<{ id: string; email: string; fullName: string } | null>('pm_auth_user', null);
 }
 
+export const SEED_PROFILE_IDS = new Set([
+  'prof_user_grace',
+  'prof_user_joshua',
+  'prof_user_rebecca',
+  'prof_user_samuel',
+  'prof_user_sneha',
+  'prof_user_daniel',
+  'user_grace',
+  'user_joshua',
+  'user_rebecca',
+  'user_samuel',
+  'user_sneha',
+  'user_daniel',
+  'ph_grace_1',
+  'ph_joshua_1',
+  'ph_rebecca_1',
+  'ph_samuel_1',
+  'ph_sneha_1',
+  'ph_daniel_1',
+]);
+
+export const SEED_PROFILE_NAMES = [
+  'grace philip',
+  'dr. joshua varghese',
+  'rebecca e. george',
+  'samuel k. george',
+  'sneha philip',
+  'daniel k. varghese',
+  'dr. joshua thomas',
+  'rebecca sarah varghese',
+  'samuel k. cherian',
+  'sneha elizabeth mathew',
+  'daniel m. varghese',
+];
+
+export function isSeedProfile(p: any): boolean {
+  if (!p) return false;
+  if (p.isSeed === true || p._seed === true) return true;
+  const id = String(p.id || '').trim().toLowerCase();
+  const userId = String(p.userId || '').trim().toLowerCase();
+  const name = String(p.displayName || '').trim().toLowerCase();
+
+  if (SEED_PROFILE_IDS.has(id) || SEED_PROFILE_IDS.has(userId)) return true;
+  if (
+    id.startsWith('prof_user_grace') ||
+    id.startsWith('prof_user_joshua') ||
+    id.startsWith('prof_user_rebecca') ||
+    id.startsWith('prof_user_samuel') ||
+    id.startsWith('prof_user_sneha') ||
+    id.startsWith('prof_user_daniel')
+  ) {
+    return true;
+  }
+  if (SEED_PROFILE_NAMES.some((n) => name.includes(n))) return true;
+
+  if (Array.isArray(p.photos)) {
+    for (const ph of p.photos) {
+      const u = String(ph?.url || '');
+      if (
+        u.includes('1573496359142') ||
+        u.includes('1507003211169') ||
+        u.includes('1544005313') ||
+        u.includes('1500648767791') ||
+        u.includes('1534528741775') ||
+        u.includes('1506794778202')
+      ) {
+        return true;
+      }
+    }
+  }
+  const primaryUrl = String(p.primaryPhotoUrl || '');
+  if (
+    primaryUrl.includes('1573496359142') ||
+    primaryUrl.includes('1507003211169') ||
+    primaryUrl.includes('1544005313') ||
+    primaryUrl.includes('1500648767791') ||
+    primaryUrl.includes('1534528741775') ||
+    primaryUrl.includes('1506794778202')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export const DEFAULT_SEED_PROFILES: any[] = [
   {
+    isSeed: true,
     id: 'prof_user_grace',
     userId: 'user_grace',
     displayName: 'Grace Philip',
@@ -506,15 +592,19 @@ export const DEFAULT_SEED_PROFILES: any[] = [
 function getRegisteredProfiles(): any[] {
   const existing = getBrowserStorage<any[]>('pm_registered_profiles', []);
   if (!existing || existing.length === 0) {
-    // Do NOT auto-seed demo profiles into real users' discover/search/matches views.
-    // Demo profiles are only visible in Admin Dashboard via DEFAULT_SEED_PROFILES.
     return [];
   }
-  return existing;
+  // Strictly filter out any seed/demo profiles that may be cached in browser localStorage
+  const filtered = existing.filter((p) => !isSeedProfile(p));
+  if (filtered.length !== existing.length) {
+    setBrowserStorage('pm_registered_profiles', filtered);
+  }
+  return filtered;
 }
 
 function saveRegisteredProfiles(profiles: MyProfile[]): void {
-  setBrowserStorage('pm_registered_profiles', profiles);
+  const cleaned = profiles.filter((p) => !isSeedProfile(p));
+  setBrowserStorage('pm_registered_profiles', cleaned);
 }
 
 // Convert ProfileDetail to ProfileSummary
@@ -715,14 +805,14 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   if (profileDetailMatch && method === 'GET') {
     const id = profileDetailMatch[1];
     const found = getRegisteredProfiles().find((p) => p.id === id);
-    if (found) return found;
+    if (found && !isSeedProfile(found)) return found;
     return null;
   }
 
   // 4. MATCHES
   if (cleanUrl === '/api/matches' && method === 'GET') {
     const savedIds = new Set(getBrowserStorage<string[]>('pm_saved_profile_ids', []));
-    const all = getRegisteredProfiles();
+    const all = getRegisteredProfiles().filter((p) => !isSeedProfile(p));
     return {
       items: all.map((p) => ({
         ...toSummary(p, savedIds.has(p.id)),
@@ -736,7 +826,7 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   if (cleanUrl === '/api/profiles/saved' || cleanUrl === '/api/me/saved') {
     const savedIds = new Set(getBrowserStorage<string[]>('pm_saved_profile_ids', []));
     return getRegisteredProfiles()
-      .filter((p) => savedIds.has(p.id))
+      .filter((p) => !isSeedProfile(p) && savedIds.has(p.id))
       .map((p) => toSummary(p, true));
   }
 

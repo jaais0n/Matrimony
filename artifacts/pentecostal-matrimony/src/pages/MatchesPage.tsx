@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { Bookmark, Clock, Flame, Heart, MapPin, Sparkles, UserPlus } from 'lucide-react';
-import { customFetch } from '@workspace/api-client-react';
+import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
 import { ProfileCard } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
@@ -35,13 +35,13 @@ export function MatchesPage() {
   });
 
   const displayedMatches = useMemo(() => {
-    const apiItems = data?.items || [];
+    const apiItems = (data?.items || []).filter((p: any) => !isSeedProfile(p));
     let localItems: any[] = [];
     try {
       const raw = localStorage.getItem('pm_registered_profiles');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) localItems = parsed;
+        if (Array.isArray(parsed)) localItems = parsed.filter((p: any) => !isSeedProfile(p));
       }
     } catch {}
 
@@ -79,7 +79,7 @@ export function MatchesPage() {
       })),
     ];
 
-    let list = deduplicateProfiles(combined).filter((p) => p.published !== false);
+    let list = deduplicateProfiles(combined).filter((p) => !isSeedProfile(p) && p.published !== false);
 
     // Robust multi-device / mobile filtering to strictly exclude the logged-in user's own profile
     const selfIds = new Set<string>();

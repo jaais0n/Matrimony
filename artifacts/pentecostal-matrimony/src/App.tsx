@@ -25,8 +25,35 @@ import NotFound from './pages/not-found';
 import { ErrorBoundary } from './components/error-boundary';
 
 import { safeSetLocalStorage } from './utils/storageHelper';
+import { isSeedProfile } from '@workspace/api-client-react';
 
 import './index.css';
+
+// Purge any legacy dummy / seed profiles from client localStorage on any device
+export function purgeLocalSeedProfiles() {
+  try {
+    const raw = localStorage.getItem('pm_registered_profiles');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((p) => !isSeedProfile(p));
+        if (cleaned.length !== parsed.length) {
+          localStorage.setItem('pm_registered_profiles', JSON.stringify(cleaned));
+        }
+      }
+    }
+    const myProfRaw = localStorage.getItem('pm_my_profile');
+    if (myProfRaw) {
+      const myProf = JSON.parse(myProfRaw);
+      if (isSeedProfile(myProf)) {
+        localStorage.removeItem('pm_my_profile');
+      }
+    }
+  } catch {}
+}
+
+// Immediate run when module loads
+purgeLocalSeedProfiles();
 
 function DataSyncEffect() {
   const queryClient = useQueryClient();
@@ -34,31 +61,34 @@ function DataSyncEffect() {
   useEffect(() => {
     const syncData = async () => {
       try {
-        // 1. Collect all local profiles from this device
+        purgeLocalSeedProfiles();
+
+        // 1. Collect all real local profiles from this device
         let localProfiles: any[] = [];
         const raw = localStorage.getItem('pm_registered_profiles');
         if (raw) {
           try {
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) localProfiles = parsed;
+            if (Array.isArray(parsed)) localProfiles = parsed.filter((p) => !isSeedProfile(p));
           } catch {}
         }
         const myProfRaw = localStorage.getItem('pm_my_profile');
         if (myProfRaw) {
           try {
             const myProf = JSON.parse(myProfRaw);
-            if (myProf && !localProfiles.some((p) => p.id === myProf.id || p.userId === myProf.userId)) {
+            if (myProf && !isSeedProfile(myProf) && !localProfiles.some((p) => p.id === myProf.id || p.userId === myProf.userId)) {
               localProfiles.push(myProf);
             }
           } catch {}
         }
 
-        // 2. Push local profiles to server (so other devices can see them)
-        if (localProfiles.length > 0) {
+        // 2. Push real local profiles to server (so other devices can see them)
+        const payload = localProfiles.filter((p) => !isSeedProfile(p));
+        if (payload.length > 0) {
           fetch('/api/profiles/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(localProfiles),
+            body: JSON.stringify(payload),
           }).catch(() => {});
         }
 
@@ -68,13 +98,14 @@ function DataSyncEffect() {
           const contentType = res.headers.get('content-type') || '';
           if (contentType.includes('application/json')) {
             const data = await res.json().catch(() => null);
-            const serverProfiles: any[] = (data && Array.isArray(data.items)) ? data.items : (Array.isArray(data) ? data : []);
+            const rawServerProfiles: any[] = (data && Array.isArray(data.items)) ? data.items : (Array.isArray(data) ? data : []);
+            const serverProfiles = rawServerProfiles.filter((p) => !isSeedProfile(p));
 
             if (serverProfiles.length > 0) {
               // Merge: server wins for existing IDs, add new ones from server
               const existingRaw = localStorage.getItem('pm_registered_profiles');
               const existing: any[] = existingRaw ? JSON.parse(existingRaw) : [];
-              const merged = [...existing];
+              const merged = existing.filter((p) => !isSeedProfile(p));
               for (const sp of serverProfiles) {
                 const idx = merged.findIndex((m) => m.id === sp.id || m.userId === sp.userId);
                 if (idx >= 0) {
@@ -88,7 +119,8 @@ function DataSyncEffect() {
                   merged.push(sp);
                 }
               }
-              safeSetLocalStorage('pm_registered_profiles', merged);
+              const finalMerged = merged.filter((p) => !isSeedProfile(p));
+              safeSetLocalStorage('pm_registered_profiles', finalMerged);
               queryClient.invalidateQueries({ queryKey: ['/api/profiles'] });
             }
           }
