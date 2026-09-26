@@ -88,10 +88,19 @@ export async function compressImage(
   });
 }
 
+export function notifySync() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('pm:sync'));
+  }
+}
+
 export function safeSetLocalStorage(key: string, value: any): boolean {
   if (typeof window === 'undefined' || !window.localStorage) return false;
   try {
     localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+    if (key === 'pm_my_profile' || key === 'pm_registered_profiles') {
+      notifySync();
+    }
     return true;
   } catch (err) {
     console.warn(`[Storage] Quota exceeded for "${key}". Trimming photos to fit...`);
@@ -111,6 +120,9 @@ export function safeSetLocalStorage(key: string, value: any): boolean {
             return item;
           });
           localStorage.setItem(key, JSON.stringify(trimmed));
+          if (key === 'pm_my_profile' || key === 'pm_registered_profiles') {
+            notifySync();
+          }
           return true;
         } else if (value.photos?.length) {
           const trimmed = {
@@ -121,6 +133,9 @@ export function safeSetLocalStorage(key: string, value: any): boolean {
             })),
           };
           localStorage.setItem(key, JSON.stringify(trimmed));
+          if (key === 'pm_my_profile' || key === 'pm_registered_profiles') {
+            notifySync();
+          }
           return true;
         }
       }

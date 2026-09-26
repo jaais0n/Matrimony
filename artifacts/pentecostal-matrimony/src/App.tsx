@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
 import { Heart } from 'lucide-react';
@@ -77,9 +77,12 @@ purgeLocalSeedProfiles();
 
 function DataSyncEffect() {
   const queryClient = useQueryClient();
+  const lastPushedHashRef = useRef<string>('');
 
   useEffect(() => {
-    const syncData = async () => {
+    let lastFocusSync = 0;
+
+    const syncData = async (forcePush = false) => {
       try {
         purgeLocalSeedProfiles();
 
@@ -102,9 +105,12 @@ function DataSyncEffect() {
           } catch {}
         }
 
-        // 2. Push real local profiles to server (so other devices can see them)
+        // 2. Push real local profiles to server only when there is changed data
         const payload = localProfiles.filter((p) => !isSeedProfile(p));
-        if (payload.length > 0) {
+        const currentHash = JSON.stringify(payload.map(p => `${p.id}_${p.updatedAt || ''}`));
+        
+        if (payload.length > 0 && (forcePush || currentHash !== lastPushedHashRef.current)) {
+          lastPushedHashRef.current = currentHash;
           try {
             await fetch('/api/profiles/sync', {
               method: 'POST',
@@ -112,10 +118,9 @@ function DataSyncEffect() {
               body: JSON.stringify(payload),
             });
           } catch (syncErr) {
-            console.warn('Sync push error (non-fatal):', syncErr);
+            console.warn('Sync push warning (non-fatal):', syncErr);
           }
         }
-
 
         // 3. Pull ALL server profiles and merge into local storage
         const res = await fetch('/api/profiles').catch(() => null);
@@ -127,14 +132,12 @@ function DataSyncEffect() {
             const serverProfiles = rawServerProfiles.filter((p) => !isSeedProfile(p));
 
             if (serverProfiles.length > 0) {
-              // Merge: server wins for existing IDs, add new ones from server
               const existingRaw = localStorage.getItem('pm_registered_profiles');
               const existing: any[] = existingRaw ? JSON.parse(existingRaw) : [];
               const merged = existing.filter((p) => !isSeedProfile(p));
               for (const sp of serverProfiles) {
                 const idx = merged.findIndex((m) => m.id === sp.id || m.userId === sp.userId);
                 if (idx >= 0) {
-                  // Keep server version if it's newer
                   const serverTime = sp.updatedAt ? new Date(sp.updatedAt).getTime() : 0;
                   const localTime = merged[idx].updatedAt ? new Date(merged[idx].updatedAt).getTime() : 0;
                   if (serverTime >= localTime) {
@@ -164,7 +167,6 @@ function DataSyncEffect() {
                     safeSetLocalStorage(`pm_user_profile_${au.id}`, myMatch);
                     queryClient.invalidateQueries({ queryKey: ['/api/profiles/me'] });
                   } else {
-                    // Check if current pm_my_profile belongs to a different user, and remove it
                     const currentMyProf = localStorage.getItem('pm_my_profile');
                     if (currentMyProf) {
                       const cmp = JSON.parse(currentMyProf);
@@ -181,7 +183,7 @@ function DataSyncEffect() {
           }
         }
 
-        // 4. Also lively sync user accounts from server
+        // 4. Also sync user accounts from server
         try {
           const authRes = await fetch('/api/auth/users').catch(() => null);
           if (authRes && authRes.ok) {
@@ -207,13 +209,34 @@ function DataSyncEffect() {
       }
     };
 
-    syncData();
-    // Lively update: re-sync every 8 seconds and on window focus
-    const interval = setInterval(syncData, 8000);
-    window.addEventListener('focus', syncData);
+    // 1. Initial sync on mount
+    syncData(false);
+
+    // 2. Immediate sync when user saves profile or registers (custom event)
+    const onSyncEvent = () => syncData(true);
+    window.addEventListener('pm:sync', onSyncEvent);
+
+    // 3. Gentle throttled sync when window gets focus (at most once every 60s)
+    const onFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusSync > 60000) {
+        lastFocusSync = now;
+        syncData(false);
+      }
+    };
+    window.addEventListener('focus', onFocus);
+
+    // 4. Gentle periodic poll (every 60s only when document is visible)
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncData(false);
+      }
+    }, 60000);
+
     return () => {
       clearInterval(interval);
-      window.removeEventListener('focus', syncData);
+      window.removeEventListener('pm:sync', onSyncEvent);
+      window.removeEventListener('focus', onFocus);
     };
   }, [queryClient]);
 

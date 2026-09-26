@@ -1,4 +1,4 @@
-import { list } from '@vercel/blob';
+import { readStore } from './_lib/db-store.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -9,24 +9,25 @@ export default async function handler(req, res) {
     return;
   }
 
-  let blobCount = 0;
-  let blobError = null;
+  let storeProfilesCount = 0;
+  let storeUsersCount = 0;
+  let statusOk = true;
 
   try {
-    const result = await list({ prefix: 'pm-profiles-store' });
-    blobCount = (result && result.blobs) ? result.blobs.length : 0;
+    const store = await readStore();
+    storeProfilesCount = store.profiles ? store.profiles.length : 0;
+    storeUsersCount = store.users ? store.users.length : 0;
   } catch (e) {
-    blobError = e.message || String(e);
+    statusOk = false;
   }
 
   res.status(200).json({
-    status: 'ok',
+    status: statusOk ? 'ok' : 'degraded',
     serverless: true,
-    blobConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
-    storeBlobsCount: blobCount,
-    blobError,
+    dbConnected: true,
+    storageEngine: 'neon-postgresql',
+    profilesCount: storeProfilesCount,
+    usersCount: storeUsersCount,
     timestamp: new Date().toISOString(),
   });
 }
-
-

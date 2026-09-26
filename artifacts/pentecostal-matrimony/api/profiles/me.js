@@ -1,147 +1,10 @@
 /**
  * Vercel Serverless Function: /api/profiles/me
- * Get/Save the current user's own profile using Vercel Blob shared store.
+ * Get/Save the current user's own profile backed by Neon PostgreSQL.
+ * Cross-device synchronization without Vercel Blob limits.
  */
 
-import { put, list, del } from '@vercel/blob';
-
-const BLOB_KEY = 'pm-profiles-store.json';
-
-const SEED_PROFILE_IDS = new Set([
-  'prof_user_grace',
-  'prof_user_joshua',
-  'prof_user_rebecca',
-  'prof_user_samuel',
-  'prof_user_sneha',
-  'prof_user_daniel',
-  'user_grace',
-  'user_joshua',
-  'user_rebecca',
-  'user_samuel',
-  'user_sneha',
-  'user_daniel',
-]);
-
-function isSeed(p) {
-  if (!p) return false;
-  const id = String(p.id || '').toLowerCase();
-  const userId = String(p.userId || '').toLowerCase();
-  const name = String(p.displayName || '').toLowerCase();
-  if (SEED_PROFILE_IDS.has(id) || SEED_PROFILE_IDS.has(userId)) return true;
-  if (name.includes('grace philip') || name.includes('joshua varghese') || name.includes('rebecca e') || name.includes('samuel k') || name.includes('sneha philip') || name.includes('daniel k')) return true;
-  return false;
-}
-
-import { defaultStore } from '../_lib/default-store.js';
-
-function getFallbackStore() {
-  try {
-    if (defaultStore && Array.isArray(defaultStore.profiles)) {
-      return {
-        profiles: defaultStore.profiles.filter(pr => !isSeed(pr)),
-        users: Array.isArray(defaultStore.users) ? defaultStore.users : [],
-      };
-    }
-  } catch {}
-  return { profiles: [], users: [] };
-}
-
-async function readStore() {
-  try {
-    const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    if (!blobs || blobs.length === 0) return getFallbackStore();
-    const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
-    
-    let data = null;
-
-    // 1. Try downloadUrl (fast, signed URL for private stores)
-    if (blob.downloadUrl) {
-      try {
-        const res = await fetch(blob.downloadUrl);
-        if (res.ok) data = await res.json();
-      } catch {}
-    }
-
-    // 2. Try get with access: 'private'
-    if (!data) {
-      try {
-        const result = await get(blob.url || blob.pathname, { access: 'private' });
-        if (result && result.stream) {
-          const text = await new Response(result.stream).text();
-          data = JSON.parse(text);
-        } else if (result && result.body) {
-          const text = await new Response(result.body).text();
-          data = JSON.parse(text);
-        }
-      } catch {}
-    }
-
-    // 3. Try plain fetch
-    if (!data && blob.url) {
-      try {
-        const res = await fetch(blob.url);
-        if (res.ok) data = await res.json();
-      } catch {}
-    }
-
-    const raw = Array.isArray(data?.profiles) ? data.profiles : [];
-    const cleaned = raw.filter(p => !isSeed(p));
-    if (cleaned.length === 0) return getFallbackStore();
-    return { profiles: cleaned, users: Array.isArray(data?.users) ? data.users : [] };
-  } catch {
-    return getFallbackStore();
-  }
-}
-
-async function writeStore(data) {
-  const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
-  const newBlob = await put(BLOB_KEY, body, {
-    access: 'private',
-    contentType: 'application/json',
-    addRandomSuffix: true,
-  });
-
-  try {
-    const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    for (const b of blobs) {
-      if (b.url !== newBlob.url) {
-        try { await del(b.url); } catch {}
-      }
-    }
-  } catch (cleanErr) {
-    console.warn('Old blob cleanup non-fatal:', cleanErr);
-  }
-
-  return newBlob;
-}
-
-
-
-
-function dedup(list) {
-  const result = [];
-  for (const item of list) {
-    if (!item) continue;
-    if (item.id === 'prof_sync_test' || item.userId === 'user_sync_test') continue;
-    const name = String(item.displayName || '').trim().toLowerCase();
-    const id = item.id || (item.userId ? `prof_${item.userId}` : (name ? `prof_${name}` : `prof_${Date.now()}`));
-    const userId = item.userId || id.replace(/^prof_/, '');
-    const normalizedItem = { ...item, id, userId };
-
-    const idx = result.findIndex(e =>
-      (e.id && e.id === normalizedItem.id) ||
-      (e.userId && e.userId === normalizedItem.userId) ||
-      (name && e.displayName && String(e.displayName).trim().toLowerCase() === name)
-    );
-    if (idx >= 0) {
-      result[idx] = { ...result[idx], ...normalizedItem };
-    } else {
-      result.push(normalizedItem);
-    }
-  }
-  return result;
-}
-
+import { readStore, writeStore, dedup } from '../_lib/db-store.js';
 
 function getUserIdFromRequest(req) {
   // Try Authorization header: "Bearer <userId>"
@@ -187,7 +50,6 @@ export default async function handler(req, res) {
     res.status(200).json(profile);
     return;
   }
-
 
   if (req.method === 'POST' || req.method === 'PUT') {
     const profileData = req.body;
