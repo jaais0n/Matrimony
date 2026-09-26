@@ -21,6 +21,11 @@ import {
 } from 'lucide-react';
 import { useAuth, useClerk, useUser } from '../auth';
 import { Footer } from '../components/ui/Footer';
+import heroCard1 from '../assets/hero/card1.jpg';
+import heroCard2 from '../assets/hero/card2.jpg';
+import heroCard3 from '../assets/hero/card3.jpg';
+import heroCard4 from '../assets/hero/card4.jpg';
+import heroCard5 from '../assets/hero/card5.jpg';
 
 const HERO_CARDS = [
   {
@@ -31,7 +36,7 @@ const HERO_CARDS = [
     denomination: 'Assemblies of God',
     profession: 'Architect',
     tag: 'Worship Team',
-    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=500',
+    photo: heroCard3,
   },
   {
     id: 'joshua',
@@ -41,7 +46,7 @@ const HERO_CARDS = [
     denomination: 'IPC Ebenezer',
     profession: 'Tech Lead',
     tag: 'Youth Leader',
-    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=500',
+    photo: heroCard2,
   },
   {
     id: 'believer_1',
@@ -51,7 +56,7 @@ const HERO_CARDS = [
     denomination: 'Church of God',
     profession: 'Healthcare',
     tag: 'Water Baptized',
-    photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=500',
+    photo: heroCard1,
   },
   {
     id: 'julian',
@@ -61,7 +66,7 @@ const HERO_CARDS = [
     denomination: 'Church of God',
     profession: 'Civil Eng',
     tag: 'Sunday School',
-    photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=500',
+    photo: heroCard4,
   },
   {
     id: 'sharon',
@@ -71,7 +76,7 @@ const HERO_CARDS = [
     denomination: 'Sharon Fellow.',
     profession: 'Physiotherapist',
     tag: 'Choir Member',
-    photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=500',
+    photo: heroCard5,
   },
 ];
 
@@ -298,8 +303,10 @@ export function LandingPage() {
             }`}>
               <div className="h-56 sm:h-72 md:h-84 w-full overflow-hidden bg-slate-100">
                 <img
-                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400"
+                  src={heroCard1}
                   alt="Verified Member"
+                  loading="eager"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -323,8 +330,10 @@ export function LandingPage() {
             }`}>
               <div className="h-58 sm:h-76 md:h-88 w-full overflow-hidden bg-slate-100">
                 <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400"
+                  src={heroCard2}
                   alt="Joshua V."
+                  loading="eager"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -348,8 +357,10 @@ export function LandingPage() {
             }`}>
               <div className="h-64 sm:h-82 md:h-96 w-full overflow-hidden bg-slate-100 relative">
                 <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=500"
+                  src={heroCard3}
                   alt="Grace E. Thomas"
+                  loading="eager"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
                 <div className="absolute top-3 right-3 rounded-full bg-rose-600 text-white p-1 shadow-md">
@@ -385,8 +396,10 @@ export function LandingPage() {
             }`}>
               <div className="h-58 sm:h-76 md:h-88 w-full overflow-hidden bg-slate-100">
                 <img
-                  src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=400"
+                  src={heroCard4}
                   alt="Julian Toby"
+                  loading="eager"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -410,8 +423,10 @@ export function LandingPage() {
             }`}>
               <div className="h-56 sm:h-72 md:h-84 w-full overflow-hidden bg-slate-100">
                 <img
-                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=400"
+                  src={heroCard5}
                   alt="Sharon M."
+                  loading="eager"
+                  decoding="async"
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -702,8 +717,9 @@ export function LandingPage() {
                 <div className="flex items-center justify-center gap-4 mb-8">
                   <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-rose-300 shadow-md">
                     <img
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200"
+                      src={heroCard3}
                       alt="Believer Bride"
+                      loading="lazy"
                       className="h-full w-full object-cover"
                     />
                   </div>
@@ -712,8 +728,9 @@ export function LandingPage() {
                   </div>
                   <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-rose-300 shadow-md">
                     <img
-                      src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200"
+                      src={heroCard2}
                       alt="Believer Groom"
+                      loading="lazy"
                       className="h-full w-full object-cover"
                     />
                   </div>
