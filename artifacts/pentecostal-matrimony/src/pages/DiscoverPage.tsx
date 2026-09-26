@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'wouter';
-import { Lock, Search, ShieldCheck, SlidersHorizontal, Sparkles, UserPlus, X } from 'lucide-react';
+import { Check, Lock, Search, ShieldCheck, SlidersHorizontal, Sparkles, UserPlus, X } from 'lucide-react';
 import { useListProfiles, useSaveProfile, useSendInterest, useUnsaveProfile, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
 import { ProfileCard } from '../components/ui/ProfileCard';
@@ -20,6 +20,13 @@ export function DiscoverPage() {
     church: '',
     maritalStatus: '',
     workingAbroad: '',
+  });
+
+  const [justPublished, setJustPublished] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const isJust = localStorage.getItem('pm_just_published') === 'true';
+    if (isJust) localStorage.removeItem('pm_just_published');
+    return isJust;
   });
 
   const queryParams = useMemo(() => ({
@@ -263,6 +270,31 @@ export function DiscoverPage() {
 
       {/* Main Discover Container */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {justPublished && (
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50/50 p-4 sm:p-5 flex items-start justify-between shadow-xs animate-in fade-in duration-300">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+                <Check size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-emerald-950">
+                  Hallelujah! Your Matrimonial Profile is Live & Published
+                </h4>
+                <p className="mt-0.5 text-xs text-emerald-700">
+                  Welcome to the fellowship! You can now browse verified Pentecostal matches below or search by specific denominations.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setJustPublished(false)}
+              className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+              title="Dismiss"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
         {/* Top Greeting & Title with warm rose & gold gradient */}
         <div className="rounded-3xl border border-[#ebdcd0] bg-gradient-to-r from-[#fff9f4] via-white to-[#fbf4ed] p-6 sm:p-8 luxury-card-shadow">
           <h1 className="mt-3 text-2xl font-extrabold sm:text-3xl text-slate-900">
@@ -427,20 +459,30 @@ export function DiscoverPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center shadow-xs">
-              <h3 className="text-lg font-bold text-slate-800">No profiles match your current preferences.</h3>
-              <p className="mt-2 text-xs text-slate-500">
-                Try widening your search criteria or resetting filters to browse more profiles.
+            <div className="rounded-3xl border border-[#ebdcd0] bg-white/95 p-10 sm:p-14 text-center luxury-card-shadow max-w-2xl mx-auto">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-700 border border-rose-200/80 mb-5 shadow-2xs">
+                <Sparkles size={28} className="text-amber-500" />
+              </div>
+              <h3 className="font-serif-fancy text-xl sm:text-2xl font-bold text-slate-900">
+                Welcome to Pentecostal Matrimony
+              </h3>
+              <p className="mt-3 text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
+                Your profile is active and saved! As new Pentecostal believers and candidates register and complete pastoral review, they will appear here in your match directory.
               </p>
-              <button
-                onClick={() => {
-                  setSearch('');
-                  setFilters({ ageMin: '', ageMax: '', location: '', denomination: '', occupation: '', church: '', maritalStatus: '', workingAbroad: '' });
-                }}
-                className="mt-5 rounded-lg bg-rose-700 px-5 py-2.5 text-xs font-bold text-white uppercase tracking-wider hover:bg-rose-800 shadow-sm"
-              >
-                Reset Filters
-              </button>
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link
+                  href="/search"
+                  className="w-full sm:w-auto rounded-xl bg-rose-700 px-6 py-3 text-xs font-bold uppercase tracking-wider !text-white shadow-sm hover:bg-rose-800 transition text-center"
+                >
+                  Explore Church Assemblies
+                </Link>
+                <Link
+                  href="/my-profile"
+                  className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-6 py-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 transition text-center"
+                >
+                  View My Profile
+                </Link>
+              </div>
             </div>
           )}
         </div>

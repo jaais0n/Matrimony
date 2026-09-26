@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowRight,
@@ -377,14 +378,22 @@ export function MyProfilePage() {
         {/* Profile Edit Form */}
         <div className="rounded-3xl border border-rose-100 bg-white p-6 sm:p-10 shadow-sm overflow-hidden relative">
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-500 to-rose-700" />
-          <div className="border-b border-slate-100 pb-5 mb-8">
-            <span className="inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1 border border-rose-200">
-              Account & Matrimonial Profile
-            </span>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900">Edit Your Profile</h1>
-            <p className="mt-1 text-xs text-slate-600">
-              Update your personal, faith, career, and family details. Changes save directly to your published card.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-5 mb-8 gap-4">
+            <div>
+              <span className="inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1 border border-rose-200">
+                Account & Matrimonial Profile
+              </span>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900">Edit Your Profile</h1>
+              <p className="mt-1 text-xs text-slate-600">
+                Update your personal, faith, career, and family details. Changes save directly to your published card.
+              </p>
+            </div>
+            <Link
+              href="/discover"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50/60 transition shadow-2xs shrink-0 self-start sm:self-center"
+            >
+              Browse Matches →
+            </Link>
           </div>
 
           <form onSubmit={submit} className="space-y-8">

@@ -102,11 +102,17 @@ export function OnboardingPage() {
   const totalSteps = 10;
 
   const nextStep = () => {
-    if (currentStep < totalSteps) setCurrentStep((prev) => prev + 1);
+    if (currentStep < totalSteps) {
+      setCurrentStep((prev) => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const prevStep = () => {
-    if (currentStep > 1) setCurrentStep((prev) => prev - 1);
+    if (currentStep > 1) {
+      setCurrentStep((prev) => prev - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, replaceIndex?: number) => {
@@ -271,9 +277,10 @@ export function OnboardingPage() {
         safeSetLocalStorage('pm_registered_profiles', updatedList);
       } catch {}
 
-      setPublishingMessage('✓ Profile published successfully! Opening your dashboard...');
+      setPublishingMessage('✓ Profile published successfully! Opening Discover matches...');
+      safeSetLocalStorage('pm_just_published', 'true');
       setTimeout(() => {
-        setLocation('/my-profile');
+        setLocation('/discover');
       }, 500);
     } catch (err) {
       console.error('Failed to publish profile:', err);
