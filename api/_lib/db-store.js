@@ -1,6 +1,6 @@
 import { defaultStore } from './default-store.js';
 
-const FALLBACK_CONN = 'postgresql://neondb_owner:npg_DTj86nVbSHRq@ep-old-queen-b3qfwz1n-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+const FALLBACK_CONN = 'postgresql://neondb_owner:npg_lksoYRUjhS54@ep-morning-breeze-azc2ysa2-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 
 // In-memory cache for ultra-fast serverless response
 let memoryStore = {
