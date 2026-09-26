@@ -296,40 +296,47 @@ export function ProfileDetailPage() {
               </div>
 
               {/* Action Buttons: Express Interest & Message (Equally Finished) */}
-              <div className="mt-6 border-t border-slate-100 pt-5 flex flex-wrap items-center gap-3">
-                <button
-                  onClick={handleInterest}
-                  disabled={interestSent || sendInterestMutation.isPending}
-                  className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] ${
-                    interestSent
-                      ? 'border border-slate-200 bg-slate-100 text-slate-500 cursor-default'
-                      : 'bg-rose-700 text-white hover:bg-rose-800 shadow-md'
-                  }`}
-                >
-                  <Heart size={15} fill={interestSent ? 'currentColor' : 'none'} className={interestSent ? 'text-rose-500' : 'text-rose-200'} />
-                  <span>{interestSent ? 'Interest Sent' : 'Express Interest'}</span>
-                </button>
-                <Link
-                  href={`/messages?user=${p.id}&name=${encodeURIComponent(p.displayName)}`}
-                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 py-3 text-xs font-bold uppercase tracking-wider text-rose-800 shadow-xs transition text-center"
-                >
-                  <MessageCircle size={15} className="text-rose-700" />
-                  <span>Message</span>
-                </Link>
-                <button
-                  onClick={() => setReportModalOpen(true)}
-                  className="p-3 rounded-xl border border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-800 transition"
-                  title="Report Profile"
-                >
-                  <Flag size={15} />
-                </button>
-                <button
-                  onClick={() => setBlockModalOpen(true)}
-                  className="p-3 rounded-xl border border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-800 transition"
-                  title="Block Profile"
-                >
-                  <Ban size={15} />
-                </button>
+              <div className="mt-6 border-t border-slate-100 pt-5 space-y-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <button
+                    onClick={handleInterest}
+                    disabled={interestSent || sendInterestMutation.isPending}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] ${
+                      interestSent
+                        ? 'border border-slate-200 bg-slate-100 text-slate-500 cursor-default'
+                        : 'bg-rose-700 text-white hover:bg-rose-800 shadow-md'
+                    }`}
+                  >
+                    <Heart size={16} fill={interestSent ? 'currentColor' : 'none'} className={`shrink-0 ${interestSent ? 'text-rose-500' : 'text-rose-200'}`} />
+                    <span className="whitespace-nowrap">{interestSent ? 'Interest Sent' : 'Express Interest'}</span>
+                  </button>
+                  <Link
+                    href={`/messages?user=${p.id}&name=${encodeURIComponent(p.displayName)}`}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 px-4 py-3 text-xs font-bold uppercase tracking-wider text-rose-800 shadow-xs transition text-center"
+                  >
+                    <MessageCircle size={16} className="text-rose-700 shrink-0" />
+                    <span className="whitespace-nowrap">Message</span>
+                  </Link>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    onClick={() => setReportModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-500 hover:border-slate-300 hover:text-slate-700 hover:bg-slate-50 transition"
+                    title="Report Profile"
+                  >
+                    <Flag size={13} className="shrink-0" />
+                    <span>Report</span>
+                  </button>
+                  <button
+                    onClick={() => setBlockModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-[11px] font-semibold text-slate-500 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition"
+                    title="Block Profile"
+                  >
+                    <Ban size={13} className="shrink-0" />
+                    <span>Block</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

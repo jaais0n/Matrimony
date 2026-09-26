@@ -866,5 +866,109 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     };
   }
 
+  // 16. CONVERSATIONS & INSTANT MESSAGING
+  if (cleanUrl === '/api/conversations') {
+    const convKey = `pm_user_conversations_${userId}`;
+    let userConvs = getBrowserStorage<any[]>(convKey, []);
+    if (!userConvs || userConvs.length === 0) {
+      userConvs = getBrowserStorage<any[]>('pm_user_conversations', []);
+    }
+
+    if (method === 'POST') {
+      const b = (body as any) || {};
+      const partId = b.participantId || `cand_${Date.now()}`;
+      const convId = b.id || `conv_${partId}`;
+
+      const existingIndex = userConvs.findIndex(
+        (c: any) => c.id === convId || c.participantId === partId
+      );
+
+      if (existingIndex >= 0) {
+        return userConvs[existingIndex];
+      }
+
+      const newConv = {
+        id: convId,
+        participantId: partId,
+        participantName: b.participantName || 'Believer Candidate',
+        participantAge: b.participantAge || 28,
+        participantLocation: b.participantLocation || 'India',
+        participantPhoto: b.participantPhoto || '',
+        participantOccupation: b.participantOccupation || 'Professional',
+        participantDenomination: b.participantDenomination || 'Assemblies of God',
+        status: 'active',
+        lastMessageText: 'Grace and peace to you in Christ Jesus.',
+        lastMessageAt: new Date().toISOString(),
+        unreadCount: 0,
+        messages: [
+          {
+            id: `msg_sys_${Date.now()}`,
+            senderId: 'system',
+            senderName: 'Platform Stewards',
+            content: 'Mutual connection confirmed. Grace and peace to you both in Christ.',
+            timestamp: new Date().toISOString(),
+            read: true,
+          },
+        ],
+      };
+
+      userConvs = [newConv, ...userConvs];
+      setBrowserStorage(convKey, userConvs);
+      setBrowserStorage('pm_user_conversations', userConvs);
+      return newConv;
+    }
+
+    return userConvs;
+  }
+
+  if (cleanUrl.startsWith('/api/conversations/') && cleanUrl.endsWith('/messages')) {
+    const convId = cleanUrl.replace('/api/conversations/', '').replace('/messages', '');
+    const convKey = `pm_user_conversations_${userId}`;
+    let userConvs = getBrowserStorage<any[]>(convKey, []);
+    if (!userConvs || userConvs.length === 0) {
+      userConvs = getBrowserStorage<any[]>('pm_user_conversations', []);
+    }
+
+    if (method === 'POST') {
+      const b = (body as any) || {};
+      const newMsg = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        senderId: 'You',
+        senderName: 'You',
+        content: b.content || '',
+        timestamp: new Date().toISOString(),
+        read: true,
+      };
+
+      const targetIdx = userConvs.findIndex((c: any) => c.id === convId);
+      if (targetIdx >= 0) {
+        const conv = { ...userConvs[targetIdx] };
+        conv.messages = Array.isArray(conv.messages) ? [...conv.messages, newMsg] : [newMsg];
+        conv.lastMessageText = newMsg.content;
+        conv.lastMessageAt = newMsg.timestamp;
+        userConvs[targetIdx] = conv;
+        setBrowserStorage(convKey, userConvs);
+        setBrowserStorage('pm_user_conversations', userConvs);
+      }
+
+      return newMsg;
+    }
+
+    const matchedConv = userConvs.find((c: any) => c.id === convId);
+    return matchedConv?.messages || [];
+  }
+
+  if (cleanUrl.startsWith('/api/conversations/')) {
+    const convId = cleanUrl.replace('/api/conversations/', '');
+    const convKey = `pm_user_conversations_${userId}`;
+    let userConvs = getBrowserStorage<any[]>(convKey, []);
+    if (!userConvs || userConvs.length === 0) {
+      userConvs = getBrowserStorage<any[]>('pm_user_conversations', []);
+    }
+    const matchedConv = userConvs.find((c: any) => c.id === convId);
+    return matchedConv || null;
+  }
+
   return null;
 }
+

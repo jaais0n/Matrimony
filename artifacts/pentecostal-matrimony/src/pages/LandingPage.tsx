@@ -137,19 +137,20 @@ export function LandingPage() {
     <div className="min-h-screen bg-[#fdfbf9] text-slate-900 selection:bg-rose-500 selection:text-white font-sans antialiased overflow-x-hidden">
       
       {/* Top Floating Glass Header (Matches SoulSync reference) */}
-      <header className="sticky top-4 z-50 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between rounded-full border border-rose-100/80 bg-white/90 px-6 backdrop-blur-md shadow-sm transition-all hover:shadow-md">
+      {/* Top Floating Glass Header */}
+      <header className="sticky top-2.5 sm:top-4 z-50 px-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-14 sm:h-16 max-w-6xl items-center justify-between rounded-full border border-rose-100/80 bg-white/95 px-3.5 sm:px-6 backdrop-blur-md shadow-sm transition-all hover:shadow-md">
           {/* Logo with Fancy Script / Serif Accent */}
           <button
             type="button"
             onClick={() => scrollToSection('home')}
-            className="flex items-center gap-2.5 group cursor-pointer text-left"
+            className="flex items-center gap-2 group cursor-pointer text-left shrink-0"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-700 text-white shadow-sm transition-transform group-hover:scale-105">
-              <Heart size={16} className="fill-white" />
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-rose-700 text-white shadow-sm transition-transform group-hover:scale-105 shrink-0">
+              <Heart size={15} className="fill-white" />
             </div>
-            <span className="font-serif-fancy text-lg font-bold tracking-tight text-slate-900 group-hover:text-rose-600 transition-colors">
-              Pentecostal <span className="font-script-fancy text-2xl font-normal text-rose-600 -ml-0.5">Matrimony</span>
+            <span className="font-serif-fancy text-sm sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-rose-600 transition-colors">
+              <span className="hidden xs:inline">Pentecostal </span><span className="font-script-fancy text-xl sm:text-2xl font-normal text-rose-600 -ml-0.5">Matrimony</span>
             </span>
           </button>
 
@@ -202,19 +203,19 @@ export function LandingPage() {
           </nav>
 
           {/* Right Action Button */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             {isSignedIn ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <Link
                   href="/discover"
-                  className="inline-flex items-center justify-center rounded-full bg-rose-700 px-5 py-2 text-xs font-bold !text-white shadow-sm hover:bg-rose-800 transition active:scale-95"
+                  className="inline-flex items-center justify-center rounded-full bg-rose-700 px-3.5 sm:px-5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold !text-white shadow-sm hover:bg-rose-800 transition active:scale-95 whitespace-nowrap shrink-0"
                 >
                   Enter Portal
                 </Link>
                 <button
                   type="button"
                   onClick={() => signOut({ redirectUrl: '/' })}
-                  className="text-[11px] font-semibold text-slate-500 hover:text-rose-700 px-2 py-1 transition cursor-pointer"
+                  className="text-[11px] font-semibold text-slate-500 hover:text-rose-700 px-1 sm:px-2 py-1 transition cursor-pointer whitespace-nowrap shrink-0"
                   title="Sign Out"
                 >
                   Sign Out
@@ -223,7 +224,7 @@ export function LandingPage() {
             ) : (
               <Link
                 href="/sign-in"
-                className="inline-flex items-center justify-center rounded-full bg-rose-700 px-5 py-2 text-xs font-bold !text-white shadow-sm hover:bg-rose-800 hover:shadow transition active:scale-95"
+                className="inline-flex items-center justify-center rounded-full bg-rose-700 px-4 sm:px-5 py-1.5 sm:py-2 text-xs font-bold !text-white shadow-sm hover:bg-rose-800 hover:shadow transition active:scale-95 whitespace-nowrap shrink-0"
               >
                 Sign In
               </Link>

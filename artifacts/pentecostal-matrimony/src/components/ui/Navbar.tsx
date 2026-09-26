@@ -75,18 +75,18 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
 
   return (
     <header className="sticky top-0 z-40 border-b border-[#ebdcd0]/80 bg-[#fdfbf9]/95 backdrop-blur-md shadow-xs">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-3 sm:px-6 lg:px-8">
         {/* Brand / Logo */}
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-rose-700 via-rose-800 to-rose-950 font-extrabold text-sm text-amber-200 shadow-md border border-rose-600/30 tracking-widest group-hover:scale-105 transition-transform">
+        <div className="flex items-center gap-4 sm:gap-8 min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-gradient-to-br from-rose-700 via-rose-800 to-rose-950 font-extrabold text-xs sm:text-sm text-amber-200 shadow-md border border-rose-600/30 tracking-widest group-hover:scale-105 transition-transform shrink-0">
               PM
             </div>
-            <div>
-              <span className="block font-black text-sm uppercase tracking-[0.16em] text-slate-900 group-hover:text-rose-700 transition">
+            <div className="min-w-0">
+              <span className="block font-black text-xs sm:text-sm uppercase tracking-[0.12em] sm:tracking-[0.16em] text-slate-900 group-hover:text-rose-700 transition truncate">
                 Pentecostal Matrimony
               </span>
-              <span className="block text-[10px] uppercase font-semibold tracking-wider text-rose-600">
+              <span className="hidden sm:block text-[10px] uppercase font-semibold tracking-wider text-rose-600">
                 Verified Covenant Fellowship
               </span>
             </div>
@@ -114,11 +114,11 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Notifications Link with conditional unread badge */}
           <Link
             href="/notifications"
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition"
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition shrink-0"
             title={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : "Notifications"}
           >
             <Bell size={16} />
@@ -133,15 +133,15 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
           {isAdmin ? (
             <Link
               href="/admin"
-              className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-2xs"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-2xs shrink-0"
             >
               <Shield size={13} className="text-rose-400" />
-              <span>Admin Portal</span>
+              <span className="hidden sm:inline">Admin Portal</span>
             </Link>
           ) : (
             <Link
               href="/my-profile"
-              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs"
+              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-rose-200 bg-rose-50/80 px-2 sm:px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs shrink-0"
             >
               {userPhotoUrl ? (
                 <div className="h-6 w-6 rounded-full overflow-hidden border border-rose-300 shadow-2xs shrink-0">
@@ -156,14 +156,14 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
                   <User size={13} className="text-rose-700" />
                 </div>
               )}
-              <span>My Profile</span>
+              <span className="hidden sm:inline">My Profile</span>
             </Link>
           )}
 
           {/* Logout Icon Button next to My Profile */}
           <button
             onClick={() => signOut({ redirectUrl: '/' })}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition shadow-2xs"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition shadow-2xs shrink-0"
             title="Log Out"
             aria-label="Log Out"
           >
