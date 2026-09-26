@@ -117,17 +117,35 @@ async function readStore() {
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
     
     let data = null;
-    try {
-      const result = await get(blob.url);
-      if (result && result.body) {
-        const text = await new Response(result.body).text();
-        data = JSON.parse(text);
-      }
-    } catch {}
 
+    // 1. Try downloadUrl (fast, signed URL for private stores)
+    if (blob.downloadUrl) {
+      try {
+        const res = await fetch(blob.downloadUrl);
+        if (res.ok) data = await res.json();
+      } catch {}
+    }
+
+    // 2. Try get with access: 'private'
     if (!data) {
-      const res = await fetch(blob.url);
-      data = await res.json();
+      try {
+        const result = await get(blob.url || blob.pathname, { access: 'private' });
+        if (result && result.stream) {
+          const text = await new Response(result.stream).text();
+          data = JSON.parse(text);
+        } else if (result && result.body) {
+          const text = await new Response(result.body).text();
+          data = JSON.parse(text);
+        }
+      } catch {}
+    }
+
+    // 3. Try plain fetch
+    if (!data && blob.url) {
+      try {
+        const res = await fetch(blob.url);
+        if (res.ok) data = await res.json();
+      } catch {}
     }
 
     const rawProfiles = Array.isArray(data?.profiles) ? data.profiles : [];
@@ -140,27 +158,25 @@ async function readStore() {
   }
 }
 
-
 async function writeStore(data) {
   const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
-  const newBlob = await put(BLOB_KEY, body, {
-    access: 'public',
-    contentType: 'application/json',
-    addRandomSuffix: true,
-  });
-
+  let newBlob = null;
   try {
-    const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    for (const b of blobs) {
-      if (b.url !== newBlob.url) {
-        try { await del(b.url); } catch {}
-      }
-    }
-  } catch (cleanErr) {
-    console.warn('Old blob cleanup non-fatal:', cleanErr);
+    newBlob = await put(BLOB_KEY, body, {
+      access: 'private',
+      contentType: 'application/json',
+      addRandomSuffix: false,
+    });
+  } catch (privErr) {
+    newBlob = await put(BLOB_KEY, body, {
+      access: 'public',
+      contentType: 'application/json',
+      addRandomSuffix: false,
+    });
   }
   return newBlob;
 }
+
 
 
 function dedup(list) {
