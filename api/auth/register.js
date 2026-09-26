@@ -3,33 +3,49 @@
  * Persists registered accounts across devices in the shared store.
  */
 
-import { put, list, del } from '@vercel/blob';
+import { get, put, list, del } from '@vercel/blob';
 
 const BLOB_KEY = 'pm-profiles-store.json';
 
 async function readStore() {
   try {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return { profiles: [], users: [] };
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    if (blobs.length === 0) return { profiles: [], users: [] };
+    if (!blobs || blobs.length === 0) return { profiles: [], users: [] };
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
-    const res = await fetch(blob.url);
-    const data = await res.json();
-    return { profiles: Array.isArray(data.profiles) ? data.profiles : [], users: Array.isArray(data.users) ? data.users : [] };
-  } catch {
+    
+    let data = null;
+    try {
+      const result = await get(blob.url);
+      if (result && result.body) {
+        const text = await new Response(result.body).text();
+        data = JSON.parse(text);
+      }
+    } catch {}
+
+    if (!data) {
+      const res = await fetch(blob.url);
+      data = await res.json();
+    }
+
+    return { profiles: Array.isArray(data?.profiles) ? data.profiles : [], users: Array.isArray(data?.users) ? data.users : [] };
+  } catch (err) {
+    console.error('readStore error in auth/register', err);
     return { profiles: [], users: [] };
   }
 }
 
 async function writeStore(data) {
   try {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return;
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
     for (const b of blobs) {
       try { await del(b.url); } catch {}
     }
     const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
-    await put(BLOB_KEY, body, { access: 'public', contentType: 'application/json', addRandomSuffix: false });
+    try {
+      await put(BLOB_KEY, body, { access: 'private', contentType: 'application/json', addRandomSuffix: false });
+    } catch {
+      await put(BLOB_KEY, body, { access: 'public', contentType: 'application/json', addRandomSuffix: false });
+    }
   } catch (e) {
     console.error('writeStore error in auth/register', e);
   }

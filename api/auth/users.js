@@ -3,18 +3,31 @@
  * Returns registered accounts for cross-device authentication.
  */
 
-import { list } from '@vercel/blob';
+import { get, list } from '@vercel/blob';
 
 async function readStore() {
   try {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return { profiles: [], users: [] };
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    if (blobs.length === 0) return { profiles: [], users: [] };
+    if (!blobs || blobs.length === 0) return { profiles: [], users: [] };
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
-    const res = await fetch(blob.url);
-    const data = await res.json();
-    return { profiles: Array.isArray(data.profiles) ? data.profiles : [], users: Array.isArray(data.users) ? data.users : [] };
-  } catch {
+    
+    let data = null;
+    try {
+      const result = await get(blob.url);
+      if (result && result.body) {
+        const text = await new Response(result.body).text();
+        data = JSON.parse(text);
+      }
+    } catch {}
+
+    if (!data) {
+      const res = await fetch(blob.url);
+      data = await res.json();
+    }
+
+    return { profiles: Array.isArray(data?.profiles) ? data.profiles : [], users: Array.isArray(data?.users) ? data.users : [] };
+  } catch (err) {
+    console.error('readStore error in auth/users', err);
     return { profiles: [], users: [] };
   }
 }

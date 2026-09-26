@@ -23,6 +23,12 @@ export default defineConfig({
             fs.mkdirSync(rootDist, { recursive: true });
             fs.cpSync(localDist, rootDist, { recursive: true, force: true });
           }
+          const rootApi = path.resolve(import.meta.dirname, '../../api');
+          const distApi = path.resolve(rootDist, 'api');
+          if (fs.existsSync(rootApi)) {
+            fs.mkdirSync(distApi, { recursive: true });
+            fs.cpSync(rootApi, distApi, { recursive: true, force: true });
+          }
         } catch (e) {
           // ignore
         }
