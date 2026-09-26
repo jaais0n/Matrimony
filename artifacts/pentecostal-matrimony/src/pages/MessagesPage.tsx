@@ -120,6 +120,22 @@ export function MessagesPage() {
     initialData: getStoredConversations,
   });
 
+  // Filter conversations so that expired messages (> 24h) are purged in real-time
+  const conversations = rawConversations.map((c) => {
+    const valid = filter24hMessages(c.messages || []);
+    const lastMsg = valid[valid.length - 1];
+    return {
+      ...c,
+      messages: valid,
+      lastMessageText: lastMsg ? lastMsg.content : 'No active messages (expired after 24h).',
+      lastMessageAt: lastMsg ? lastMsg.timestamp : c.lastMessageAt,
+    };
+  });
+
+  const activeConversation =
+    conversations.find((c) => c.id === selectedConvId || c.participantId === selectedConvId) ||
+    conversations[0];
+
   // Real-time Firebase WebSocket listener for live chat synchronization
   useEffect(() => {
     if (!activeConversation?.id) return;
@@ -145,18 +161,6 @@ export function MessagesPage() {
       setFirebaseActive(false);
     }
   }, [activeConversation?.id]);
-
-  // Filter conversations so that expired messages (> 24h) are purged in real-time
-  const conversations = rawConversations.map((c) => {
-    const valid = filter24hMessages(c.messages || []);
-    const lastMsg = valid[valid.length - 1];
-    return {
-      ...c,
-      messages: valid,
-      lastMessageText: lastMsg ? lastMsg.content : 'No active messages (expired after 24h).',
-      lastMessageAt: lastMsg ? lastMsg.timestamp : c.lastMessageAt,
-    };
-  });
 
   // Handle ?user= and ?name= query parameters
   useEffect(() => {
@@ -185,10 +189,6 @@ export function MessagesPage() {
       setSelectedConvId(conversations[0].id);
     }
   }, [location, conversations.length]);
-
-  const activeConversation =
-    conversations.find((c) => c.id === selectedConvId || c.participantId === selectedConvId) ||
-    conversations[0];
 
   // Auto-scroll chat stream to latest message
   useEffect(() => {
