@@ -147,7 +147,19 @@ async function queryNeon(sql, params = []) {
   }
 }
 
+let lastNeonFetchTime = 0;
+const NEON_CACHE_TTL_MS = 60 * 1000; // 60-second in-memory cache to save database transfer allowance
+
 export async function readStore() {
+  const now = Date.now();
+  if (memoryStore && memoryStore.profiles && (now - lastNeonFetchTime < NEON_CACHE_TTL_MS)) {
+    return {
+      profiles: (memoryStore.profiles || []).filter((p) => !isSeedProfile(p)),
+      users: memoryStore.users || [],
+      conversations: memoryStore.conversations || [],
+    };
+  }
+
   try {
     // 1. Try fetching from Neon Postgres
     const result = await queryNeon(`SELECT data FROM pm_store WHERE key = $1`, ['store_main']);
@@ -158,6 +170,7 @@ export async function readStore() {
       const users = Array.isArray(data.users) ? data.users : [];
       const conversations = Array.isArray(data.conversations) ? data.conversations : [];
       memoryStore = { profiles: cleaned, users, conversations };
+      lastNeonFetchTime = Date.now();
       return { profiles: cleaned, users, conversations };
     }
   } catch (err) {
