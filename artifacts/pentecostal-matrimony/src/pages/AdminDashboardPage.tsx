@@ -128,8 +128,8 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
       const res = await customFetch<any>('/api/profiles').catch(() => null);
       const apiItems = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
 
-      // Always show DEFAULT_SEED_PROFILES in admin view as reference data
-      const allItems = deduplicateProfiles([...DEFAULT_SEED_PROFILES, ...localItems, ...apiItems]);
+      // Only show real registered database profiles (never seed profiles)
+      const allItems = deduplicateProfiles([...localItems, ...apiItems]).filter((p: any) => !isSeedProfile(p));
       return allItems;
     },
   });
@@ -164,10 +164,41 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
     name: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showWipeModal, setShowWipeModal] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  const handleWipeAll = async () => {
+    try {
+      setIsWiping(true);
+      // 1. Wipe server database / Neon PostgreSQL
+      await fetch('/api/profiles?all=true', { method: 'DELETE' }).catch(() => {});
+
+      // 2. Wipe browser storage on this device
+      localStorage.setItem('pm_registered_profiles', '[]');
+      localStorage.removeItem('pm_my_profile');
+      localStorage.setItem('pm_registered_accounts', '[]');
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_'))) {
+          localStorage.removeItem(k);
+        }
+      }
+
+      showToast('All database profiles permanently wiped! Database is 100% clean.');
+      refetchProfiles();
+      refetchQueue();
+      refetchOverview();
+    } catch (err) {
+      showToast('Failed to wipe profiles.');
+    } finally {
+      setIsWiping(false);
+      setShowWipeModal(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -178,6 +209,9 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         // 1. Delete from Backend API / Database
         await customFetch(`/api/admin/users/${deleteTarget.id}/delete`, {
           method: 'POST',
+        }).catch(() => {});
+        await fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, {
+          method: 'DELETE',
         }).catch(() => {});
 
         // 2. Clean from Browser LocalStorage
@@ -212,7 +246,10 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         refetchQueue();
         refetchOverview();
       } else {
-        // Profile Deletion
+        // Profile Deletion from Neon DB & API
+        await fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, {
+          method: 'DELETE',
+        }).catch(() => {});
         await customFetch(`/api/admin/profiles/${deleteTarget.id}/delete`, {
           method: 'POST',
         }).catch(() => {});
@@ -556,6 +593,14 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowWipeModal(true)}
+                      className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                      title="Completely delete all profiles from database"
+                    >
+                      <Trash2 size={13} />
+                      Clear All From DB
+                    </button>
                     <span className="rounded-full bg-rose-50 border border-rose-200 px-3 py-1 text-xs font-bold text-rose-800">
                       {profilesList.length} Total Profiles
                     </span>
@@ -950,6 +995,65 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
                   <>
                     <Trash2 size={13} />
                     <span>Permanently Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: WIPE ALL PROFILES CONFIRMATION */}
+      {showWipeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-red-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-red-100 p-2.5 text-red-700">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Wipe All Profiles from Database?
+                </h3>
+                <p className="text-xs text-red-600 font-semibold">
+                  Fresh Start · Permanent Action
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-3.5 text-xs text-red-900">
+              <p className="font-bold">
+                Are you sure you want to completely erase all matrimonial profiles from the database?
+              </p>
+              <p className="mt-2 text-[11px] text-red-700">
+                ⚠️ This will delete all candidates from Neon PostgreSQL and local storage, giving you a 100% clean, empty slate for fresh startup testing.
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                disabled={isWiping}
+                onClick={() => setShowWipeModal(false)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isWiping}
+                onClick={handleWipeAll}
+                className="rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white px-4 py-2 text-xs font-bold shadow-sm transition flex items-center gap-2"
+              >
+                {isWiping ? (
+                  <>
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Wiping Database...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    <span>Yes, Wipe Everything Clean</span>
                   </>
                 )}
               </button>

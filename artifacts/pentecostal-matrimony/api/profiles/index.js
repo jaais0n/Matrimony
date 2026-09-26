@@ -48,5 +48,32 @@ export default async function handler(req, res) {
     return;
   }
 
+  // DELETE /api/profiles — delete single profile by id or wipe all with ?all=true
+  if (req.method === 'DELETE') {
+    const { id, all } = req.query || {};
+    const body = req.body || {};
+    if (all === 'true' || all === true || body.all === true) {
+      store.profiles = [];
+      await writeStore(store);
+      res.status(200).json({ success: true, count: 0, items: [] });
+      return;
+    }
+
+    const targetId = id || body.id;
+    if (targetId) {
+      const cleanTarget = String(targetId).trim().toLowerCase();
+      store.profiles = store.profiles.filter(p => 
+        String(p.id).toLowerCase() !== cleanTarget &&
+        String(p.userId).toLowerCase() !== cleanTarget
+      );
+      await writeStore(store);
+      res.status(200).json({ success: true, deletedId: targetId, remaining: store.profiles.length });
+      return;
+    }
+
+    res.status(400).json({ error: 'Missing profile id or all flag' });
+    return;
+  }
+
   res.status(405).json({ error: 'Method not allowed' });
 }

@@ -32,20 +32,24 @@ import './index.css';
 // One-time clean startup wipe for fresh testing across all devices
 export function purgeLocalSeedProfiles() {
   try {
-    const FRESH_KEY = 'pm_fresh_startup_v2';
+    const FRESH_KEY = 'pm_fresh_startup_v3';
     if (!localStorage.getItem(FRESH_KEY)) {
       localStorage.removeItem('pm_registered_profiles');
       localStorage.removeItem('pm_my_profile');
+      localStorage.removeItem('pm_registered_users');
+      localStorage.removeItem('pm_registered_accounts');
+      localStorage.removeItem('pm_auth_user');
       // Remove any leftover profile caches
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_'))) {
+        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_') || k.startsWith('pm_fresh_startup_v'))) {
           keysToRemove.push(k);
         }
       }
       keysToRemove.forEach((k) => localStorage.removeItem(k));
       localStorage.setItem('pm_registered_profiles', '[]');
+      localStorage.setItem('pm_registered_accounts', '[]');
       localStorage.setItem(FRESH_KEY, 'true');
       return;
     }
