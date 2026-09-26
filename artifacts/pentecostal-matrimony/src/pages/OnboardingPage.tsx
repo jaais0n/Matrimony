@@ -119,8 +119,8 @@ export function OnboardingPage() {
     try {
       setIsCompressingPhoto(true);
       setPhotoError(null);
-      // High clarity compression strictly under 95KB
-      const compressedDataUrl = await compressImage(file, 900, 95);
+      // High clarity compression strictly under 50KB
+      const compressedDataUrl = await compressImage(file, 720, 48);
       const sizeKB = getApproximateKB(compressedDataUrl);
 
       setPhotos((prev) => {

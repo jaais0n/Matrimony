@@ -230,8 +230,8 @@ export function MyProfilePage() {
     if (!file) return;
     setIsUploadingPhoto(true);
     try {
-      // Compress to crystal clear resolution strictly under 100KB (target 95KB)
-      const compressed = await compressImage(file, 900, 95);
+      // Compress to crystal clear resolution strictly under 50KB (target 48KB)
+      const compressed = await compressImage(file, 720, 48);
       const sizeKB = getApproximateKB(compressed);
 
       let updatedPhotos: ProfilePhotoItem[];

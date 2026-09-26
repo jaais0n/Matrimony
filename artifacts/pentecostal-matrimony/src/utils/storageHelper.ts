@@ -1,6 +1,6 @@
 /**
  * Utility for safe browser storage and image optimization.
- * Compresses photos to crisp, high-definition quality under 100KB.
+ * Compresses photos to crisp quality strictly under 50KB for fast cloud DB synchronization.
  */
 
 export function getApproximateKB(dataUrl: string): number {
@@ -13,8 +13,8 @@ export function getApproximateKB(dataUrl: string): number {
 
 export async function compressImage(
   file: File,
-  maxDimension = 900,
-  targetMaxKB = 95
+  maxDimension = 720,
+  targetMaxKB = 48
 ): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -53,19 +53,19 @@ export async function compressImage(
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Test decreasing quality levels until under targetMaxKB (under 100KB)
-          let quality = 0.82;
+          // Test decreasing quality levels until strictly under targetMaxKB (<50KB)
+          let quality = 0.76;
           let compressed = canvas.toDataURL('image/jpeg', quality);
 
-          while (getApproximateKB(compressed) > targetMaxKB && quality > 0.45) {
+          while (getApproximateKB(compressed) > targetMaxKB && quality > 0.35) {
             quality -= 0.08;
             compressed = canvas.toDataURL('image/jpeg', quality);
           }
 
-          // If still over targetMaxKB, scale canvas down slightly (e.g. 700px)
+          // If still over targetMaxKB, scale canvas down slightly (e.g. 560px)
           if (getApproximateKB(compressed) > targetMaxKB) {
             const smallerCanvas = document.createElement('canvas');
-            const scaleFactor = 0.8;
+            const scaleFactor = 0.75;
             smallerCanvas.width = Math.round(width * scaleFactor);
             smallerCanvas.height = Math.round(height * scaleFactor);
             const sCtx = smallerCanvas.getContext('2d');
@@ -73,7 +73,7 @@ export async function compressImage(
               sCtx.imageSmoothingEnabled = true;
               sCtx.imageSmoothingQuality = 'high';
               sCtx.drawImage(canvas, 0, 0, smallerCanvas.width, smallerCanvas.height);
-              compressed = smallerCanvas.toDataURL('image/jpeg', 0.72);
+              compressed = smallerCanvas.toDataURL('image/jpeg', 0.65);
             }
           }
 

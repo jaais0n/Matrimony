@@ -12,7 +12,7 @@
 - **Icons**: Lucide React
 - **State & Data Fetching**: TanStack React Query v5, Custom Sync Handlers
 - **API Architecture**: OpenAPI Specification (`lib/api-spec/openapi.yaml`), Orval Zod & React Query client generators (`lib/api-client-react`)
-- **Backend Service**: Express.js REST API (`artifacts/api-server`) with mock storage & SQLite fallback
+- **Cloud Database Backend**: Serverless API backed by Neon PostgreSQL (`api/profiles`, `api/users`, `api/status`) with native SQL transactions and global edge response caching (`s-maxage=10, stale-while-revalidate=30`)
 - **Authentication**: Modular Clerk integration (`@clerk/react`) with an instant built-in offline authentication engine fallback
 
 ---
@@ -25,65 +25,64 @@ Pentecostal-Matrimony/
 ├── pnpm-workspace.yaml               # PNPM Workspace Settings & Shared Catalogs
 ├── tsconfig.json                     # Root TypeScript Configuration
 │
+├── api/                              # Production Vercel Serverless Functions
+│   ├── _lib/                         # Database adapters (Neon PostgreSQL HTTP /sql engine)
+│   ├── profiles/                     # /api/profiles (GET, POST, DELETE with ?all=true reset)
+│   ├── users/                        # /api/users (GET, POST)
+│   └── status.js                     # /api/status health check
+│
 ├── artifacts/
 │   ├── pentecostal-matrimony/        # Primary Web Application (Vite + React TSX)
 │   │   ├── src/
 │   │   │   ├── components/           # UI Components (Navbar, BottomNav, Footer, ProfileCard, etc.)
 │   │   │   ├── pages/                # Page Views (LandingPage, DiscoverPage, MatchesPage, etc.)
-│   │   │   ├── utils/                # Helpers (storageHelper, image compression, deduplication)
+│   │   │   ├── utils/                # Helpers (storageHelper, image compression <50KB)
 │   │   │   ├── auth.tsx              # Clerk / Local Authentication Provider
 │   │   │   ├── App.tsx               # App Root Routing & Data Synchronization
 │   │   │   └── main.tsx              # React Entry Point
 │   │   ├── index.html                # Main HTML Shell (Clean SEO & Meta Tags)
 │   │   └── vite.config.ts            # Vite Build & Dev Server Configuration
 │   │
-│   └── api-server/                   # Express REST API Server
-│       └── src/
-│           ├── index.ts              # API Entry Point & Express Setup
-│           └── middlewares/          # Security & Auth Proxy Middlewares
+│   └── api-server/                   # Express REST API Server (Local fallback)
 │
 └── lib/                              # Shared Workspace Libraries
-    ├── api-client-react/             # Generated React Query API Hooks & Mock Handler
+    ├── api-client-react/             # Generated React Query API Hooks & Clean Mock Handler
     ├── api-spec/                     # OpenAPI 3.0 YAML Schema
     └── api-zod/                      # Generated Zod Validation Schemas
 ```
 
 ---
 
-## 🚀 Completed Features & Enhancements
+## 🚀 Key Architectural Guidelines & Completed Enhancements
 
-### 1. Ultra-Robust Self-Profile Exclusion (Mobile & Network Sync)
-- **Problem Resolved**: When logged-in users registered or viewed the app from mobile devices or local network IP addresses (`192.168.x.x`), their own profile cards could show up in **Discover**, **Search**, or **Matches**.
-- **Fix Implemented**: Built an exhaustive multi-source self-filtering algorithm in `DiscoverPage.tsx`, `SearchPage.tsx`, and `MatchesPage.tsx`:
-  - Collects all user markers (`userId`, `user.id`, `pm_auth_user`, `pm_my_profile`, `displayName`, `email`).
-  - Normalizes and checks across all ID formats (`prof_`, `user_`, `prof_user_`, and clean raw IDs).
-  - Guarantees 100% exclusion of the logged-in user's profile card on all screens and mobile viewports.
+### 1. Zero-Dummy Database & Clean Data Separation
+- **Static Assets in Source**: Marketing assets, logos, and landing page visual mockups (`HERO_CARDS`) are stored as static source elements in the codebase.
+- **Real User Data in Database**: Real candidate profiles and user accounts are created dynamically by registered users and stored exclusively in Neon PostgreSQL cloud database (`pm_store` table).
+- **Zero Dummy Profiles in DB**: Database tables and mock registries are kept 100% clean with 0 seed/dummy profiles.
 
-### 2. TypeScript Type Safety & `ProfileSummary` Fixes
-- Fixed type mismatch errors where `userId` and `published` properties were missing on generated `ProfileSummary` interfaces.
-- Updated `mock-handler.ts` to preserve `userId` and fallback fields in `toSummary()`.
+### 2. High-Performance Photo Compression (< 50 KB) & Fast DB Retrieval
+- **Ultra-Lightweight Photo Compression**: In `storageHelper.ts`, photos are automatically resized to `720px` max dimension and progressively compressed strictly **under 50 KB (target 45–48 KB)**.
+- **Instant Cloud Sync & Low Payload**: Small payload sizes ensure rapid uploads and near-instant database fetches on both desktop and mobile networks (`192.168.x.x`).
+- **Edge Caching**: `/api/profiles` includes `Cache-Control: s-maxage=10, stale-while-revalidate=30` for low-latency Edge responses.
+- **Clean UI**: Removed all technical file size badges, HD pills, and compression metrics from the user-facing interface for a polished, clean aesthetic.
 
-### 3. Complete Replit Dependency & Reference Removal
-- Removed all Replit-specific plugins (`@replit/vite-plugin-cartographer`, `@replit/vite-plugin-dev-banner`, `@replit/vite-plugin-runtime-error-modal`, `@replit/connectors-sdk`).
-- Cleaned up configuration files (`.replit`, `.replitignore`, `replit.md`, `package.json`, `pnpm-workspace.yaml`, `vite.config.ts`, `index.html`).
-- Eliminated 100% of Replit annotations, comments, and package references across all components.
+### 3. Fully Operational Admin Dashboard (`/admin`)
+- **Credentials**: `admin` / `admin`
+- **Profiles Directory**: Filter by verification status, live search, candidate preview modal, verify/re-check action, single profile delete, and full database reset (`Clear All From DB`).
+- **Verification Queue**: One-click actions to Verify, Hold (under review), or Reject candidates.
+- **Moderation & Reports**: Log new candidate misconduct complaints, Dismiss reports, or Suspend accounts.
+- **Churches & Denominations**: Add new churches/denominations with dynamic state lists and delete buttons.
+- **Subscriptions & Quotas**: Tier breakdowns and "+ Grant 50 Requests & VIP" button.
+- **Pastoral Broadcast**: Composer to dispatch platform announcements with full broadcast audit history.
+- **Analytics & Settings**: Real-time progress bars for denominational distribution, gender ratio, verification pass rates, and platform policy switches.
 
-### 4. Navbar & Branding Flow
-- Fixed PM Logo brand button in `Navbar.tsx` so clicking the logo routes seamlessly to the Landing Page (`/`).
-- Modernized header banner with spiritual motto: *"Faith. Values. A Life Together. A dedicated matrimonial community for Pentecostal Christian believers."*
-
-### 5. Multi-Step Registration & Instant Image Processing
-- 10-Step Registration Wizard (`OnboardingPage.tsx`) covering Faith, Denomination, Church Involvement, Education, Career, Family Background, and Partner Preferences.
-- Canvas-based client-side image compression in `storageHelper.ts` (automatically resizes photo uploads to safe base64 payloads under quota limits).
-
-### 6. Verification Queue & Admin Control
-- Admin Dashboard (`AdminDashboardPage.tsx`) with single-click Admin credentials (`admin` / `admin`).
-- Real-time profile verification status badge (`verified`, `under_review`, `rejected`).
+### 4. Ultra-Robust Self-Profile Exclusion
+- Excludes logged-in user profiles across **Discover**, **Search**, and **Matches** by checking multiple identifier formats (`userId`, `id`, `prof_user_`, `pm_auth_user`, `email`).
 
 ---
 
 ## 🔒 Security & Privacy Controls
-- Photo visibility modes (`all_members`, `verified_only`, `on_request`).
+- Photo visibility controls (`all_members`, `verified_only`, `on_request`).
 - Soft deletion / profile unpublishing toggles (`published !== false`).
 - Full client-side data isolation per user key.
 
@@ -91,4 +90,4 @@ Pentecostal-Matrimony/
 
 ## 🏃 Useful Commands
 - **Run Frontend Dev Server**: `npm run dev`
-- **Typecheck Workspace**: `npm run typecheck`
+- **Build Workspace**: `npm run build`
