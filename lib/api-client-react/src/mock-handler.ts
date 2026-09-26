@@ -538,26 +538,91 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
 
   // 12. ADMIN CHURCHES & DENOMINATIONS
   if (cleanUrl === '/api/admin/churches') {
-    return [
-      { id: 'c1', name: 'Bethel AG Church', location: 'Kerala & Bangalore', pastor: 'Pastorate Council', denomination: 'Assemblies of God', verified: true },
+    const defaultChurches = [
+      { id: 'c1', name: 'Bethel AG Church', location: 'Kochi & Bangalore', pastor: 'Pastorate Council', denomination: 'Assemblies of God', verified: true },
       { id: 'c2', name: 'IPC Hebron', location: 'Kumbanad, Kerala', pastor: 'General Presbytery', denomination: 'Indian Pentecostal Church', verified: true },
       { id: 'c3', name: 'Church of God (Full Gospel)', location: 'State Council', pastor: 'Overseer', denomination: 'Church of God', verified: true },
+      { id: 'c4', name: 'Sharon Fellowship Church', location: 'Manakala, Adoor', pastor: 'National Council', denomination: 'Sharon Fellowship', verified: true },
     ];
+    let stored = getBrowserStorage<any[]>('pm_admin_churches', defaultChurches);
+    if (method === 'POST' && body) {
+      const newChurch = { id: `c_${Date.now()}`, verified: true, ...(body as any) };
+      stored = [newChurch, ...stored];
+      setBrowserStorage('pm_admin_churches', stored);
+      return newChurch;
+    }
+    return stored;
+  }
+
+  if (cleanUrl.startsWith('/api/admin/churches/') && cleanUrl.endsWith('/delete')) {
+    const churchId = cleanUrl.replace('/api/admin/churches/', '').replace('/delete', '');
+    const stored = getBrowserStorage<any[]>('pm_admin_churches', []);
+    const updated = stored.filter((c) => c.id !== churchId);
+    setBrowserStorage('pm_admin_churches', updated);
+    return { success: true, deletedId: churchId };
   }
 
   if (cleanUrl === '/api/admin/denominations') {
     const profiles = getRegisteredProfiles();
-    return [
-      { id: 'd1', name: 'Assemblies of God (AG)', count: profiles.filter((p) => p.faith?.denomination?.includes('Assemblies of God')).length },
-      { id: 'd2', name: 'Indian Pentecostal Church (IPC)', count: profiles.filter((p) => p.faith?.denomination?.includes('IPC')).length },
-      { id: 'd3', name: 'Church of God (Full Gospel)', count: profiles.filter((p) => p.faith?.denomination?.includes('Church of God')).length },
-      { id: 'd4', name: 'Sharon Fellowship Church', count: profiles.filter((p) => p.faith?.denomination?.includes('Sharon')).length },
+    const defaultDenoms = [
+      { id: 'd1', name: 'Assemblies of God (AG)', headquarter: 'Springfield / Chennai' },
+      { id: 'd2', name: 'Indian Pentecostal Church (IPC)', headquarter: 'Kumbanad, Kerala' },
+      { id: 'd3', name: 'Church of God (Full Gospel)', headquarter: 'Cleveland / Kottayam' },
+      { id: 'd4', name: 'Sharon Fellowship Church', headquarter: 'Manakala, Kerala' },
+      { id: 'd5', name: 'The Pentecostal Mission (TPM)', headquarter: 'Chennai, India' },
     ];
+    let stored = getBrowserStorage<any[]>('pm_admin_denominations', defaultDenoms);
+    if (method === 'POST' && body) {
+      const newDenom = { id: `d_${Date.now()}`, ...(body as any) };
+      stored = [...stored, newDenom];
+      setBrowserStorage('pm_admin_denominations', stored);
+      return newDenom;
+    }
+    return stored.map((d) => ({
+      ...d,
+      count: profiles.filter((p) => p.faith?.denomination?.toLowerCase().includes(d.name.toLowerCase().split(' ')[0])).length,
+    }));
+  }
+
+  if (cleanUrl.startsWith('/api/admin/denominations/') && cleanUrl.endsWith('/delete')) {
+    const denomId = cleanUrl.replace('/api/admin/denominations/', '').replace('/delete', '');
+    const stored = getBrowserStorage<any[]>('pm_admin_denominations', []);
+    const updated = stored.filter((d) => d.id !== denomId);
+    setBrowserStorage('pm_admin_denominations', updated);
+    return { success: true, deletedId: denomId };
   }
 
   // 13. ADMIN REPORTS
   if (cleanUrl === '/api/admin/reports') {
-    return getBrowserStorage<any[]>('pm_admin_reports', []);
+    const defaultReports = [
+      {
+        id: 'rep_1',
+        reportedProfileId: 'prof_sample_1',
+        reportedProfileName: 'User Profile Verification Issue',
+        reporterName: 'Pastor Thomas',
+        reason: 'Incomplete Church Information',
+        details: 'Candidate needs to provide verified baptism certificate and local pastor contact number.',
+        status: 'open',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    let stored = getBrowserStorage<any[]>('pm_admin_reports', defaultReports);
+    if (method === 'POST' && body) {
+      const newRep = { id: `rep_${Date.now()}`, status: 'open', createdAt: new Date().toISOString(), ...(body as any) };
+      stored = [newRep, ...stored];
+      setBrowserStorage('pm_admin_reports', stored);
+      return newRep;
+    }
+    return stored;
+  }
+
+  if (cleanUrl.startsWith('/api/admin/reports/') && cleanUrl.endsWith('/action')) {
+    const reportId = cleanUrl.replace('/api/admin/reports/', '').replace('/action', '');
+    const action = (body as any)?.action || 'action_taken';
+    const stored = getBrowserStorage<any[]>('pm_admin_reports', []);
+    const updated = stored.map((r) => (r.id === reportId ? { ...r, status: action === 'dismissed' ? 'dismissed' : 'resolved' } : r));
+    setBrowserStorage('pm_admin_reports', updated);
+    return { success: true, reportId, status: action };
   }
 
   // 14. PRIVACY
