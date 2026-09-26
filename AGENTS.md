@@ -56,7 +56,7 @@ Pentecostal-Matrimony/
 ## 🚀 Key Architectural Guidelines & Completed Enhancements
 
 ### 1. Zero-Dummy Database & Clean Data Separation
-- **Static Assets in Source**: Marketing assets, logos, and landing page visual mockups (`HERO_CARDS`) are stored as static source elements in the codebase.
+- **Static Assets in Source**: Marketing assets, logos, and landing page visual mockups (`HERO_CARDS`) are stored as compressed, local static assets (`src/assets/hero/`) bundled directly with Vite for 0-latency instant rendering without external network requests.
 - **Real User Data in Database**: Real candidate profiles and user accounts are created dynamically by registered users and stored exclusively in Neon PostgreSQL cloud database (`pm_store` table).
 - **Zero Dummy Profiles in DB**: Database tables and mock registries are kept 100% clean with 0 seed/dummy profiles.
 
