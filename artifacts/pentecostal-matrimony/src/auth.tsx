@@ -395,38 +395,7 @@ export function SignIn(props: { routing?: string; path?: string; signUpUrl?: str
         </button>
       </form>
 
-      {/* 1-Tap Mobile Quick Login Access */}
-      <div className="mt-5 pt-4 border-t border-[#ebdcd0]/70 space-y-2">
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">
-          Instant 1-Tap Mobile Sign In
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const res = signIn('admin', 'admin');
-              if (res.success) window.location.href = '/admin';
-            }}
-            className="w-full py-2.5 px-3 rounded-xl border border-slate-800 bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 active:scale-[0.98] transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-          >
-            <ShieldCheck size={14} className="text-rose-400" />
-            <span>Admin</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              signInAs('member');
-              window.location.href = '/discover';
-            }}
-            className="w-full py-2.5 px-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-800 text-xs font-bold hover:bg-rose-100 active:scale-[0.98] transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-          >
-            <User size={14} className="text-rose-700" />
-            <span>Member</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-5 border-t border-[#ebdcd0]/70 pt-4 text-center space-y-2">
+      <div className="mt-6 border-t border-[#ebdcd0]/70 pt-4 text-center space-y-2">
         <div className="text-xs text-slate-500">
           Don't have an account yet?{' '}
           <a href="/onboarding" className="font-bold text-rose-700 hover:underline">
