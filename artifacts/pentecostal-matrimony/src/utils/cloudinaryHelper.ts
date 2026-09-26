@@ -23,8 +23,8 @@ export async function uploadPhotoToCloudinary(
   }
 
   try {
-    // 1. First attempt: Direct unsigned upload if client env is configured
-    const clientCloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    // 1. First attempt: Direct unsigned upload for ultra-fast CDN upload (<200ms)
+    const clientCloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'suvkbjww';
     const clientPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'pm_unsigned';
 
     if (clientCloudName) {
@@ -37,7 +37,6 @@ export async function uploadPhotoToCloudinary(
             body: JSON.stringify({
               file: base64DataUrl,
               upload_preset: clientPreset,
-              folder: 'pentecostal_matrimony',
             }),
           }
         );

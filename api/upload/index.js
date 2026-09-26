@@ -51,28 +51,10 @@ export default async function handler(req, res) {
     }
 
     const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
-    let bodyData = {};
-
-    if (apiSecret && apiKey) {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const folder = 'pentecostal_matrimony';
-      const toSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
-      const signature = crypto.createHash('sha1').update(toSign).digest('hex');
-
-      bodyData = {
-        file: image,
-        api_key: apiKey,
-        timestamp,
-        folder,
-        signature,
-      };
-    } else {
-      bodyData = {
-        file: image,
-        upload_preset: uploadPreset,
-        folder: 'pentecostal_matrimony',
-      };
-    }
+    const bodyData = {
+      file: image,
+      upload_preset: uploadPreset || 'pm_unsigned',
+    };
 
     const cRes = await fetch(endpoint, {
       method: 'POST',
