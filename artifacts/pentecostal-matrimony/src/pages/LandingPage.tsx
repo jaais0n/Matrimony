@@ -202,16 +202,9 @@ export function LandingPage() {
               <div className="flex items-center gap-2">
                 <Link
                   href="/discover"
-                  className="inline-flex items-center gap-2 rounded-full bg-rose-700 px-4 py-2 text-xs font-bold !text-white shadow-sm hover:bg-rose-800 transition active:scale-95"
+                  className="inline-flex items-center justify-center rounded-full bg-rose-700 px-5 py-2 text-xs font-bold !text-white shadow-sm hover:bg-rose-800 transition active:scale-95"
                 >
-                  <span>Portal</span>
-                  <div className="h-5 w-5 rounded-full overflow-hidden border border-white/60">
-                    <img
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100"
-                      alt="Member Avatar"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
+                  Enter Portal
                 </Link>
                 <button
                   type="button"
@@ -225,16 +218,9 @@ export function LandingPage() {
             ) : (
               <Link
                 href="/sign-in"
-                className="inline-flex items-center gap-2 rounded-full bg-rose-700 px-5 py-2 text-xs font-bold !text-white shadow-sm hover:bg-rose-800 hover:shadow transition active:scale-95"
+                className="inline-flex items-center justify-center rounded-full bg-rose-700 px-5 py-2 text-xs font-bold !text-white shadow-sm hover:bg-rose-800 hover:shadow transition active:scale-95"
               >
-                <span>Sign In</span>
-                <div className="h-5 w-5 rounded-full overflow-hidden border border-white/60">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100"
-                    alt="Member Avatar"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                Sign In
               </Link>
             )}
           </div>
