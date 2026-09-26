@@ -104,8 +104,17 @@ export function MyProfilePage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    // 1. If backend / API returned real profile data with name or location
-    if (me.data && (me.data.displayName || me.data.location || me.data.introduction)) {
+    const isOwned = (p: any): boolean => {
+      if (!p || !user) return false;
+      if (p.userId && (p.userId === user.id || p.userId === `user_${user.id}`)) return true;
+      if (p.id && (p.id === `prof_${user.id}` || p.id === user.id)) return true;
+      if (user.primaryEmailAddress?.emailAddress && p.email && p.email.toLowerCase() === user.primaryEmailAddress.emailAddress.toLowerCase()) return true;
+      if (user.fullName && p.displayName && p.displayName.trim().toLowerCase() === user.fullName.trim().toLowerCase()) return true;
+      return false;
+    };
+
+    // 1. If backend / API returned real profile data belonging to current user
+    if (me.data && isOwned(me.data) && (me.data.displayName || me.data.location || me.data.introduction)) {
       const p = me.data;
       setForm({
         displayName: p.displayName || user?.fullName || '',
@@ -141,9 +150,28 @@ export function MyProfilePage() {
     // 2. Otherwise check user-specific localStorage profile
     if (user?.id) {
       try {
-        const raw = localStorage.getItem(`pm_user_profile_${user.id}`) || localStorage.getItem('pm_my_profile');
-        if (raw) {
-          const p = JSON.parse(raw);
+        let p: any = null;
+        const userSpecificRaw = localStorage.getItem(`pm_user_profile_${user.id}`);
+        if (userSpecificRaw) {
+          p = JSON.parse(userSpecificRaw);
+        } else {
+          // Check pm_my_profile ONLY if it is confirmed to belong to this user
+          const myProfRaw = localStorage.getItem('pm_my_profile');
+          if (myProfRaw) {
+            const cand = JSON.parse(myProfRaw);
+            if (isOwned(cand)) p = cand;
+          }
+          // Also check registered profiles
+          if (!p) {
+            const allRaw = localStorage.getItem('pm_registered_profiles');
+            if (allRaw) {
+              const all = JSON.parse(allRaw);
+              p = all.find((cand: any) => isOwned(cand));
+            }
+          }
+        }
+
+        if (p && isOwned(p)) {
           setForm({
             displayName: p.displayName || user.fullName || '',
             dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
@@ -176,12 +204,13 @@ export function MyProfilePage() {
         }
       } catch {}
 
-      // 3. Initialize displayName with user's registered name
+      // 3. Initialize fresh profile for current user with registered name
       if (user.fullName) {
         setForm((prev) => ({ ...prev, displayName: user.fullName || '' }));
       }
     }
   }, [me.data, user?.id, user?.fullName]);
+
 
   const setTop = (key: string, value: string | number | boolean) => {
     setForm((old) => ({ ...old, [key]: value }));

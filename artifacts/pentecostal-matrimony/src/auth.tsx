@@ -170,6 +170,33 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     return null;
   });
 
+  const syncProfileForUser = (authUser: AuthUser) => {
+    try {
+      const rawSaved = localStorage.getItem(`pm_user_profile_${authUser.id}`);
+      if (rawSaved) {
+        localStorage.setItem('pm_my_profile', rawSaved);
+        return;
+      }
+      const rawAll = localStorage.getItem('pm_registered_profiles');
+      if (rawAll) {
+        const all = JSON.parse(rawAll);
+        const match = all.find((p: any) =>
+          p.userId === authUser.id ||
+          p.id === `prof_${authUser.id}` ||
+          (authUser.fullName && p.displayName && p.displayName.trim().toLowerCase() === authUser.fullName.trim().toLowerCase()) ||
+          (authUser.primaryEmailAddress?.emailAddress && p.email && p.email.toLowerCase() === authUser.primaryEmailAddress.emailAddress.toLowerCase())
+        );
+        if (match) {
+          localStorage.setItem('pm_my_profile', JSON.stringify(match));
+          localStorage.setItem(`pm_user_profile_${authUser.id}`, JSON.stringify(match));
+          return;
+        }
+      }
+      // If no profile exists yet for this user, clear pm_my_profile so someone else's profile doesn't show
+      localStorage.removeItem('pm_my_profile');
+    } catch {}
+  };
+
   const signIn = (identifier: string, pass: string): { success: boolean; error?: string; user?: AuthUser } => {
     const cleanId = identifier.trim().toLowerCase();
     const cleanPass = pass.trim();
@@ -192,8 +219,10 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       localStorage.setItem('pm_auth_user', JSON.stringify(adminUser));
       localStorage.setItem('pm_demo_signed_in', 'true');
       localStorage.setItem('pm_demo_role', 'admin');
+      syncProfileForUser(adminUser);
       return { success: true, user: adminUser };
     }
+
 
     // 2. Member and Registered Users check
     const accounts = getRegisteredUsers();
@@ -226,6 +255,7 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
         localStorage.setItem('pm_auth_user', JSON.stringify(authUser));
         localStorage.setItem('pm_demo_signed_in', 'true');
         localStorage.setItem('pm_demo_role', matchedAccount.role);
+        syncProfileForUser(authUser);
         return { success: true, user: authUser };
       } else {
         return { success: false, error: 'Incorrect password. Please try again.' };
@@ -255,6 +285,7 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     localStorage.setItem('pm_auth_user', JSON.stringify(authUser));
     localStorage.setItem('pm_demo_signed_in', 'true');
     localStorage.setItem('pm_demo_role', newAccount.role);
+    syncProfileForUser(authUser);
     return { success: true, user: authUser };
   };
 
@@ -275,8 +306,10 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
   const signOut = () => {
     setCurrentUser(null);
     localStorage.removeItem('pm_auth_user');
+    localStorage.removeItem('pm_my_profile');
     localStorage.setItem('pm_demo_signed_in', 'false');
   };
+
 
   const isSignedIn = Boolean(currentUser);
 

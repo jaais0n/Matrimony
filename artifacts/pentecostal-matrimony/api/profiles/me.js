@@ -32,20 +32,36 @@ function isSeed(p) {
   return false;
 }
 
+import { defaultStore } from '../_lib/default-store.js';
+
+function getFallbackStore() {
+  try {
+    if (defaultStore && Array.isArray(defaultStore.profiles)) {
+      return {
+        profiles: defaultStore.profiles.filter(pr => !isSeed(pr)),
+        users: Array.isArray(defaultStore.users) ? defaultStore.users : [],
+      };
+    }
+  } catch {}
+  return { profiles: [], users: [] };
+}
+
 async function readStore() {
   try {
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    if (blobs.length === 0) return { profiles: [], users: [] };
+    if (blobs.length === 0) return getFallbackStore();
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
     const res = await fetch(blob.url);
     const data = await res.json();
     const raw = Array.isArray(data.profiles) ? data.profiles : [];
     const cleaned = raw.filter(p => !isSeed(p));
+    if (cleaned.length === 0) return getFallbackStore();
     return { profiles: cleaned, users: Array.isArray(data.users) ? data.users : [] };
   } catch {
-    return { profiles: [], users: [] };
+    return getFallbackStore();
   }
 }
+
 
 async function writeStore(data) {
   try {
@@ -107,7 +123,13 @@ export default async function handler(req, res) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    const profile = store.profiles.find(p => p.userId === userId || p.id === `prof_${userId}` || p.id === userId);
+    const cleanId = String(userId).trim().toLowerCase();
+    const profile = store.profiles.find(p =>
+      (p.userId && p.userId.toLowerCase() === cleanId) ||
+      (p.id && (p.id.toLowerCase() === cleanId || p.id.toLowerCase() === `prof_${cleanId}`)) ||
+      (p.displayName && p.displayName.trim().toLowerCase() === cleanId) ||
+      (p.email && p.email.toLowerCase() === cleanId)
+    );
     if (!profile) {
       res.status(404).json({ error: 'Profile not found' });
       return;
@@ -115,6 +137,7 @@ export default async function handler(req, res) {
     res.status(200).json(profile);
     return;
   }
+
 
   if (req.method === 'POST' || req.method === 'PUT') {
     const profileData = req.body;

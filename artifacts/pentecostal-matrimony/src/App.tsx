@@ -142,13 +142,23 @@ function DataSyncEffect() {
                   const myMatch = finalMerged.find((p) => 
                     p.userId === au.id || 
                     p.id === `prof_${au.id}` || 
-                    (au.primaryEmailAddress?.emailAddress && p.email === au.primaryEmailAddress.emailAddress) ||
-                    (au.email && p.email === au.email)
+                    (au.primaryEmailAddress?.emailAddress && p.email && p.email.toLowerCase() === au.primaryEmailAddress.emailAddress.toLowerCase()) ||
+                    (au.email && p.email && p.email.toLowerCase() === au.email.toLowerCase()) ||
+                    (au.fullName && p.displayName && p.displayName.trim().toLowerCase() === au.fullName.trim().toLowerCase())
                   );
                   if (myMatch) {
                     safeSetLocalStorage('pm_my_profile', myMatch);
                     safeSetLocalStorage(`pm_user_profile_${au.id}`, myMatch);
                     queryClient.invalidateQueries({ queryKey: ['/api/profiles/me'] });
+                  } else {
+                    // Check if current pm_my_profile belongs to a different user, and remove it
+                    const currentMyProf = localStorage.getItem('pm_my_profile');
+                    if (currentMyProf) {
+                      const cmp = JSON.parse(currentMyProf);
+                      if (cmp.userId && cmp.userId !== au.id && cmp.id !== `prof_${au.id}` && cmp.displayName !== au.fullName) {
+                        localStorage.removeItem('pm_my_profile');
+                      }
+                    }
                   }
                 }
               } catch {}
@@ -157,16 +167,43 @@ function DataSyncEffect() {
             }
           }
         }
+
+        // 4. Also lively sync user accounts from server
+        try {
+          const authRes = await fetch('/api/auth/users').catch(() => null);
+          if (authRes && authRes.ok) {
+            const serverUsers = await authRes.json().catch(() => []);
+            if (Array.isArray(serverUsers) && serverUsers.length > 0) {
+              const currentLocalRaw = localStorage.getItem('pm_registered_accounts');
+              const currentLocal = currentLocalRaw ? JSON.parse(currentLocalRaw) : [];
+              const mergedAccounts = [...currentLocal];
+              for (const su of serverUsers) {
+                const idx = mergedAccounts.findIndex((m: any) => m.id === su.id || (su.email && m.email?.toLowerCase() === su.email?.toLowerCase()));
+                if (idx >= 0) {
+                  mergedAccounts[idx] = { ...mergedAccounts[idx], ...su };
+                } else {
+                  mergedAccounts.push(su);
+                }
+              }
+              localStorage.setItem('pm_registered_accounts', JSON.stringify(mergedAccounts));
+            }
+          }
+        } catch {}
       } catch {
-        // Silently ignore sync errors on static hosting
+        // Silently ignore sync errors
       }
     };
 
     syncData();
-    // Re-sync every 30 seconds to pick up changes from other devices
-    const interval = setInterval(syncData, 30000);
-    return () => clearInterval(interval);
+    // Lively update: re-sync every 8 seconds and on window focus
+    const interval = setInterval(syncData, 8000);
+    window.addEventListener('focus', syncData);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', syncData);
+    };
   }, [queryClient]);
+
 
   return null;
 }

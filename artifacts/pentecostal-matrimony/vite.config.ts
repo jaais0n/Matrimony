@@ -62,11 +62,12 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: process.env.API_SERVER_URL || 'https://pentacostalmatrimony.vercel.app',
         changeOrigin: true,
-        secure: false,
+        secure: true,
       },
     },
+
   },
   preview: {
     port,

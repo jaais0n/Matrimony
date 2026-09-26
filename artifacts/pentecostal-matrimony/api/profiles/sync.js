@@ -92,10 +92,24 @@ function isSeedProfile(p) {
   return false;
 }
 
+import { defaultStore } from '../_lib/default-store.js';
+
+function getFallbackStore() {
+  try {
+    if (defaultStore && Array.isArray(defaultStore.profiles)) {
+      return {
+        profiles: defaultStore.profiles.filter(pr => !isSeedProfile(pr)),
+        users: Array.isArray(defaultStore.users) ? defaultStore.users : [],
+      };
+    }
+  } catch {}
+  return { profiles: [], users: [] };
+}
+
 async function readStore() {
   try {
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    if (!blobs || blobs.length === 0) return { profiles: [], users: [] };
+    if (!blobs || blobs.length === 0) return getFallbackStore();
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
     
     let data = null;
@@ -114,12 +128,14 @@ async function readStore() {
 
     const raw = Array.isArray(data?.profiles) ? data.profiles : [];
     const cleaned = raw.filter(p => !isSeedProfile(p));
+    if (cleaned.length === 0) return getFallbackStore();
     return { profiles: cleaned, users: Array.isArray(data?.users) ? data.users : [] };
   } catch (err) {
     console.error('readStore error in sync.js', err);
-    return { profiles: [], users: [] };
+    return getFallbackStore();
   }
 }
+
 
 async function writeStore(data) {
   try {
