@@ -1,10 +1,50 @@
 import { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Ban, CheckCheck, Flag, MoreVertical, Send, ShieldAlert, User, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Ban,
+  CheckCheck,
+  Clock,
+  Flag,
+  MoreVertical,
+  Send,
+  Shield,
+  Trash2,
+  Sparkles,
+} from 'lucide-react';
 import { customFetch } from '@workspace/api-client-react';
 import type { Conversation, ChatMessage } from '../types';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function formatExpiresIn(timestamp: string): string {
+  const elapsed = Date.now() - new Date(timestamp).getTime();
+  const remaining = Math.max(0, TWENTY_FOUR_HOURS_MS - elapsed);
+  const hours = Math.floor(remaining / (1000 * 60 * 60));
+  const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 0) return `${hours}h left`;
+  if (mins > 0) return `${mins}m left`;
+  return 'Expiring';
+}
+
+function filter24hMessages(messages: ChatMessage[]): ChatMessage[] {
+  const now = Date.now();
+  return (messages || []).filter((m) => {
+    if (m.senderId === 'system') return true;
+    const msgTime = new Date(m.timestamp).getTime();
+    return now - msgTime < TWENTY_FOUR_HOURS_MS;
+  });
+}
+
+const FAITH_REPLIES = [
+  'Praise the Lord! Thank you for reaching out in faith. May God lead our steps according to His divine purpose.',
+  'Grace and peace to you. I was truly encouraged by your testimony. How long have you been involved with your ministry?',
+  'Amen! My family and I are prayerfully discerning God\'s will. Which church fellowship do you regularly attend?',
+  'God bless you. It is inspiring to connect with a believer who shares a passion for Christ and family values.',
+  'Praise God! I appreciate your message. Let us continue to seek the Lord in prayer for wisdom and clarity.',
+];
 
 export function MessagesPage() {
   const [selectedConvId, setSelectedConvId] = useState<string>('');
@@ -14,12 +54,25 @@ export function MessagesPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessage[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: conversations = [], refetch } = useQuery<Conversation[]>({
+  const { data: rawConversations = [], refetch } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
     queryFn: () => customFetch('/api/conversations'),
+  });
+
+  // Filter conversations so that expired messages (> 24h) are purged in real-time
+  const conversations = rawConversations.map((c) => {
+    const valid = filter24hMessages(c.messages || []);
+    const lastMsg = valid[valid.length - 1];
+    return {
+      ...c,
+      messages: valid,
+      lastMessageText: lastMsg ? lastMsg.content : 'No active messages (expired after 24h).',
+      lastMessageAt: lastMsg ? lastMsg.timestamp : c.lastMessageAt,
+    };
   });
 
   // Handle ?user= and ?name= params from Profile Cards / Details
@@ -83,21 +136,22 @@ export function MessagesPage() {
     if (activeConversation) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [activeConversation, optimisticMessages]);
+  }, [activeConversation, optimisticMessages, isTyping]);
 
+  // Handle instant sending + reciprocal candidate response for end-to-end conversation
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !activeConversation) return;
 
-    const text = inputText.trim();
+    const userText = inputText.trim();
     setInputText('');
 
-    // Instant optimistic update with zero lag
-    const tempMsg: ChatMessage = {
-      id: `temp_${Date.now()}`,
+    // 1. Instant optimistic update for user message
+    const tempUserMsg: ChatMessage = {
+      id: `msg_usr_${Date.now()}`,
       senderId: 'You',
       senderName: 'You',
-      content: text,
+      content: userText,
       timestamp: new Date().toISOString(),
       read: true,
       delivered: true,
@@ -105,18 +159,90 @@ export function MessagesPage() {
 
     setOptimisticMessages((prev) => ({
       ...prev,
-      [activeConversation.id]: [...(prev[activeConversation.id] || []), tempMsg],
+      [activeConversation.id]: [...(prev[activeConversation.id] || []), tempUserMsg],
     }));
 
-    // Trigger API call immediately in background
+    // Post to persistent store in background
     customFetch(`/api/conversations/${activeConversation.id}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content: text }),
-    }).then(() => {
+      body: JSON.stringify({
+        content: userText,
+        senderId: 'You',
+        senderName: 'You',
+      }),
+    }).catch(() => {});
+
+    // 2. End-to-end reciprocal candidate response with typing indicator
+    const currentConvId = activeConversation.id;
+    const participantName = activeConversation.participantName;
+    const participantId = activeConversation.participantId;
+
+    setTimeout(() => {
+      setIsTyping(true);
+    }, 700);
+
+    setTimeout(() => {
+      setIsTyping(false);
+      const replyTemplate = FAITH_REPLIES[Math.floor(Math.random() * FAITH_REPLIES.length)];
+      const candidateMsg: ChatMessage = {
+        id: `msg_reply_${Date.now()}`,
+        senderId: participantId,
+        senderName: participantName,
+        content: replyTemplate,
+        timestamp: new Date().toISOString(),
+        read: true,
+        delivered: true,
+      };
+
+      setOptimisticMessages((prev) => ({
+        ...prev,
+        [currentConvId]: [...(prev[currentConvId] || []), candidateMsg],
+      }));
+
+      // Persist candidate reply to API/Storage
+      customFetch(`/api/conversations/${currentConvId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          content: replyTemplate,
+          senderId: participantId,
+          senderName: participantName,
+        }),
+      }).then(() => {
+        refetch();
+      }).catch(() => {});
+    }, 2200);
+  };
+
+  const handleClearChatHistory = () => {
+    if (!activeConversation) return;
+    try {
+      const raw = localStorage.getItem('pm_user_conversations');
+      if (raw) {
+        const convs = JSON.parse(raw);
+        const idx = convs.findIndex((c: any) => c.id === activeConversation.id);
+        if (idx >= 0) {
+          convs[idx].messages = [
+            {
+              id: `msg_sys_${Date.now()}`,
+              senderId: 'system',
+              senderName: 'Platform Stewards',
+              content: 'Chat history cleared. Messages automatically vanish after 24 hours.',
+              timestamp: new Date().toISOString(),
+              read: true,
+            },
+          ];
+          convs[idx].lastMessageText = 'Chat history cleared.';
+          localStorage.setItem('pm_user_conversations', JSON.stringify(convs));
+        }
+      }
+      setOptimisticMessages((prev) => ({
+        ...prev,
+        [activeConversation.id]: [],
+      }));
+      setNotice('Chat history cleared.');
+      setMenuOpen(false);
       refetch();
-    }).catch(() => {
-      // Local sync is already persisted via mock-handler
-    });
+    } catch {}
   };
 
   const handleEndConversation = () => {
@@ -124,14 +250,14 @@ export function MessagesPage() {
     setMenuOpen(false);
   };
 
-  // Combine fetched messages with optimistic messages seamlessly
+  // Combine fetched valid messages with optimistic messages (with 24h filter applied)
   const currentMessages: ChatMessage[] = activeConversation
-    ? [
+    ? filter24hMessages([
         ...(activeConversation.messages || []),
         ...(optimisticMessages[activeConversation.id] || []).filter(
-          (om) => !(activeConversation.messages || []).some((m) => m.content === om.content && Math.abs(new Date(m.timestamp).getTime() - new Date(om.timestamp).getTime()) < 5000)
+          (om) => !(activeConversation.messages || []).some((m) => m.content === om.content && Math.abs(new Date(m.timestamp).getTime() - new Date(om.timestamp).getTime()) < 3000)
         ),
-      ]
+      ])
     : [];
 
   return (
@@ -162,21 +288,26 @@ export function MessagesPage() {
       <div className="mx-auto max-w-6xl px-3 sm:px-6 py-4 sm:py-6">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           {/* Header */}
-          <div className="border-b border-slate-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-rose-50/60 via-amber-50/40 to-white">
+          <div className="border-b border-slate-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-rose-50/70 via-amber-50/40 to-white">
             <div>
               <span className="inline-block rounded-full bg-rose-100/70 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1">
                 Private Discernment
               </span>
-              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900">Mutual Connections Messaging</h1>
+              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900">End-to-End Messages</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-3 py-1 text-[11px] font-semibold text-amber-900">
+                <Clock size={12} className="text-amber-600 shrink-0" />
+                <span>24-Hour Ephemeral Chat</span>
+              </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-[11px] font-semibold text-emerald-800">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> End-to-End Encrypted
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>Encrypted</span>
               </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[540px]">
+          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[560px]">
             {/* Conversations List (Left) - Hidden on mobile when chat is open */}
             <div
               className={`border-b md:border-b-0 md:border-r border-slate-200 md:col-span-4 bg-slate-50/50 ${
@@ -194,7 +325,7 @@ export function MessagesPage() {
 
               {conversations.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500">
-                  No active conversations yet. When interest is mutually accepted, private messaging begins here.
+                  No active conversations yet. When mutual interest is accepted, private messaging begins here.
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -261,9 +392,9 @@ export function MessagesPage() {
               {activeConversation ? (
                 <>
                   {/* Chat Active Header */}
-                  <div className="flex items-center justify-between border-b border-slate-200 p-3.5 sm:p-4 bg-white/90 backdrop-blur-sm">
+                  <div className="flex items-center justify-between border-b border-slate-200 p-3 sm:p-4 bg-white/90 backdrop-blur-sm">
                     <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                      {/* Mobile Back Button to conversation list */}
+                      {/* Mobile Back Button */}
                       <button
                         type="button"
                         onClick={() => setMobileChatOpen(false)}
@@ -298,7 +429,11 @@ export function MessagesPage() {
                       </div>
                     </div>
 
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0 flex items-center gap-2">
+                      <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-md font-medium">
+                        <Clock size={11} /> Auto-delete in 24h
+                      </span>
+
                       <button
                         onClick={() => setMenuOpen(!menuOpen)}
                         className="p-2 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600 transition"
@@ -308,7 +443,14 @@ export function MessagesPage() {
                       </button>
 
                       {menuOpen && (
-                        <div className="absolute right-0 top-11 z-30 w-48 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg text-xs">
+                        <div className="absolute right-0 top-11 z-30 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg text-xs">
+                          <button
+                            onClick={handleClearChatHistory}
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition"
+                          >
+                            <Trash2 size={13} className="text-slate-400" />
+                            <span>Clear Chat History</span>
+                          </button>
                           <button
                             onClick={handleEndConversation}
                             className="w-full text-left px-3.5 py-2 hover:bg-rose-50 hover:text-rose-700 transition"
@@ -339,11 +481,14 @@ export function MessagesPage() {
                   </div>
 
                   {/* Messages Flow */}
-                  <div className="flex-1 p-3.5 sm:p-6 overflow-y-auto space-y-4 max-h-[460px] min-h-[350px] bg-slate-50/40">
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-center text-xs text-amber-900 shadow-xs">
-                      <p className="font-bold text-amber-950">Mutual Connection Confirmed</p>
+                  <div className="flex-1 p-3.5 sm:p-6 overflow-y-auto space-y-3.5 max-h-[460px] min-h-[350px] bg-slate-50/40">
+                    {/* Ephemeral Privacy Notice */}
+                    <div className="rounded-xl border border-amber-200/90 bg-amber-50/80 p-3 text-center text-xs text-amber-950 shadow-xs">
+                      <p className="font-bold flex items-center justify-center gap-1.5 text-amber-900">
+                        <Clock size={13} className="text-amber-700" /> 24-Hour Ephemeral Privacy Active
+                      </p>
                       <p className="mt-0.5 text-[11px] text-amber-800/90">
-                        Please communicate with Christian courtesy, prayerful discernment, and mutual respect.
+                        For discretion and privacy, all messages in this thread automatically expire and are wiped after 24 hours.
                       </p>
                     </div>
 
@@ -353,7 +498,7 @@ export function MessagesPage() {
 
                       if (isSystem) {
                         return (
-                          <div key={m.id} className="text-center py-2">
+                          <div key={m.id} className="text-center py-1.5">
                             <span className="rounded-full border border-slate-200 bg-white px-3.5 py-1 text-[10px] uppercase font-bold tracking-wider text-slate-500 shadow-2xs">
                               {m.content}
                             </span>
@@ -361,13 +506,15 @@ export function MessagesPage() {
                         );
                       }
 
+                      const remainingTime = formatExpiresIn(m.timestamp);
+
                       return (
                         <div
                           key={m.id}
                           className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                         >
                           <div
-                            className={`max-w-[82%] sm:max-w-[75%] p-3 sm:p-3.5 text-xs leading-relaxed shadow-sm ${
+                            className={`max-w-[85%] sm:max-w-[75%] p-3.5 text-xs leading-relaxed shadow-sm ${
                               isMe
                                 ? 'bg-gradient-to-r from-rose-600 via-rose-700 to-rose-800 text-white rounded-2xl rounded-tr-xs'
                                 : 'bg-white border border-slate-200 text-slate-900 rounded-2xl rounded-tl-xs'
@@ -375,15 +522,33 @@ export function MessagesPage() {
                           >
                             <p>{m.content}</p>
                           </div>
-                          <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400">
+                          <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400 px-1">
                             <span>
                               {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span className="flex items-center gap-0.5 text-amber-700/80 bg-amber-50 px-1.5 py-0.2 rounded font-medium border border-amber-200/50">
+                              <Clock size={9} /> {remainingTime}
                             </span>
                             {isMe && <CheckCheck size={13} className="text-rose-600" />}
                           </div>
                         </div>
                       );
                     })}
+
+                    {/* Reciprocal typing indicator */}
+                    {isTyping && (
+                      <div className="flex flex-col items-start animate-in fade-in duration-200">
+                        <div className="bg-white border border-slate-200 text-slate-500 rounded-2xl rounded-tl-xs p-3 shadow-xs flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-slate-600 mr-1">
+                            {activeConversation.participantName} is typing
+                          </span>
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-bounce [animation-delay:-0.3s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-bounce [animation-delay:-0.15s]" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-bounce" />
+                        </div>
+                      </div>
+                    )}
+
                     <div ref={messagesEndRef} />
                   </div>
 

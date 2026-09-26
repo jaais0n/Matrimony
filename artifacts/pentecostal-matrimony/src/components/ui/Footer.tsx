@@ -68,8 +68,8 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/matches" className="hover:text-amber-200 transition">
-                  Spiritual Compatibility
+                <Link href="/discover" className="hover:text-amber-200 transition">
+                  Verified Directory
                 </Link>
               </li>
               <li>

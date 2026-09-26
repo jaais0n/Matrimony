@@ -866,12 +866,30 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     };
   }
 
-  // 16. CONVERSATIONS & INSTANT MESSAGING
+  // 16. CONVERSATIONS & INSTANT MESSAGING (24-Hour Ephemeral Expiration)
   if (cleanUrl === '/api/conversations') {
     const convKey = `pm_user_conversations_${userId}`;
-    let userConvs = getBrowserStorage<any[]>(convKey, []);
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+    const filterExpired = (convs: any[]) => {
+      const now = Date.now();
+      return (convs || []).map((c: any) => {
+        const valid = (c.messages || []).filter((m: any) => {
+          if (m.senderId === 'system') return true;
+          return now - new Date(m.timestamp).getTime() < TWENTY_FOUR_HOURS_MS;
+        });
+        const last = valid[valid.length - 1];
+        return {
+          ...c,
+          messages: valid,
+          lastMessageText: last ? last.content : 'No active messages (expired after 24h).',
+          lastMessageAt: last ? last.timestamp : c.lastMessageAt,
+        };
+      });
+    };
+
+    let userConvs = filterExpired(getBrowserStorage<any[]>(convKey, []));
     if (!userConvs || userConvs.length === 0) {
-      userConvs = getBrowserStorage<any[]>('pm_user_conversations', []);
+      userConvs = filterExpired(getBrowserStorage<any[]>('pm_user_conversations', []));
     }
 
     if (method === 'POST') {
@@ -905,7 +923,7 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
             id: `msg_sys_${Date.now()}`,
             senderId: 'system',
             senderName: 'Platform Stewards',
-            content: 'Mutual connection confirmed. Grace and peace to you both in Christ.',
+            content: 'Mutual connection confirmed. Messages automatically delete after 24 hours for member privacy.',
             timestamp: new Date().toISOString(),
             read: true,
           },
@@ -924,17 +942,29 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   if (cleanUrl.startsWith('/api/conversations/') && cleanUrl.endsWith('/messages')) {
     const convId = cleanUrl.replace('/api/conversations/', '').replace('/messages', '');
     const convKey = `pm_user_conversations_${userId}`;
-    let userConvs = getBrowserStorage<any[]>(convKey, []);
+    const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+    const filterExpired = (convs: any[]) => {
+      const now = Date.now();
+      return (convs || []).map((c: any) => {
+        const valid = (c.messages || []).filter((m: any) => {
+          if (m.senderId === 'system') return true;
+          return now - new Date(m.timestamp).getTime() < TWENTY_FOUR_HOURS_MS;
+        });
+        return { ...c, messages: valid };
+      });
+    };
+
+    let userConvs = filterExpired(getBrowserStorage<any[]>(convKey, []));
     if (!userConvs || userConvs.length === 0) {
-      userConvs = getBrowserStorage<any[]>('pm_user_conversations', []);
+      userConvs = filterExpired(getBrowserStorage<any[]>('pm_user_conversations', []));
     }
 
     if (method === 'POST') {
       const b = (body as any) || {};
       const newMsg = {
         id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        senderId: 'You',
-        senderName: 'You',
+        senderId: b.senderId || 'You',
+        senderName: b.senderName || 'You',
         content: b.content || '',
         timestamp: new Date().toISOString(),
         read: true,

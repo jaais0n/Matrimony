@@ -40,7 +40,6 @@ export function BottomNav() {
 
   const items = [
     { label: 'Discover', href: '/discover', icon: Compass },
-    { label: 'Matches', href: '/matches', icon: Flame },
     { label: 'Interests', href: '/interests', icon: Heart },
     { label: 'Messages', href: '/messages', icon: MessageSquare },
     ...(isAdmin

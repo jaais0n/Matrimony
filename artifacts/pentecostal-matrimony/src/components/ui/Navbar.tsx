@@ -66,7 +66,6 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
 
   const navLinks = [
     { label: 'Discover', href: '/discover' },
-    { label: 'Matches', href: '/matches' },
     { label: 'Search', href: '/search' },
     { label: 'Interests', href: '/interests' },
     { label: 'Messages', href: '/messages' },

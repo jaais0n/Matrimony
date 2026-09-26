@@ -1,9 +1,31 @@
 /**
  * Vercel Serverless Function: /api/conversations
  * Real-time messaging and conversation synchronization backed by Neon PostgreSQL.
+ * Features 24-hour automatic message expiration (ephemeral privacy).
  */
 
 import { readStore, writeStore } from '../_lib/db-store.js';
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function purgeExpiredMessages(conversations) {
+  const now = Date.now();
+  if (!Array.isArray(conversations)) return [];
+  return conversations.map((conv) => {
+    const validMessages = (conv.messages || []).filter((m) => {
+      if (m.senderId === 'system') return true;
+      const msgTime = new Date(m.timestamp).getTime();
+      return now - msgTime < TWENTY_FOUR_HOURS_MS;
+    });
+    const lastMsg = validMessages[validMessages.length - 1];
+    return {
+      ...conv,
+      messages: validMessages,
+      lastMessageText: lastMsg ? lastMsg.content : 'No active messages (expired after 24h).',
+      lastMessageAt: lastMsg ? lastMsg.timestamp : conv.lastMessageAt,
+    };
+  });
+}
 
 export default async function handler(req, res) {
   // CORS headers
@@ -20,6 +42,9 @@ export default async function handler(req, res) {
   if (!Array.isArray(store.conversations)) {
     store.conversations = [];
   }
+
+  // Purge any messages older than 24 hours
+  store.conversations = purgeExpiredMessages(store.conversations);
 
   const { id: queryId, action } = req.query || {};
 
@@ -98,7 +123,7 @@ export default async function handler(req, res) {
           id: `msg_${Date.now()}`,
           senderId: 'system',
           senderName: 'Platform Stewards',
-          content: 'Mutual connection confirmed. Grace and peace to you both in Christ.',
+          content: 'Mutual connection confirmed. Messages automatically delete after 24 hours for member privacy.',
           timestamp: new Date().toISOString(),
           read: true,
         },

@@ -406,9 +406,7 @@ function Router() {
         </Route>
 
         <Route path="/matches">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <MatchesPage />
-          </ProtectedMemberArea>
+          <Redirect to="/discover" />
         </Route>
 
         <Route path="/search">
