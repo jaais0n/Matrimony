@@ -96,6 +96,8 @@ export function OnboardingPage() {
   const [photoVisibility, setPhotoVisibility] = useState('all_members');
   const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishingMessage, setPublishingMessage] = useState('Creating your verified member account...');
 
   const totalSteps = 10;
 
@@ -178,89 +180,105 @@ export function OnboardingPage() {
   };
 
   const handlePublish = async () => {
-    const userEmail = accountData.email.trim();
-    const userPass = accountData.password.trim();
-    const userName = accountData.fullName.trim() || basicsData.displayName.trim() || 'New Believer';
+    if (isPublishing) return;
+    setIsPublishing(true);
+    setPublishingMessage('Setting up your member covenant account...');
 
-    // 1. Authenticate & register member account
-    const registered = registerNewUser({
-      fullName: userName,
-      email: userEmail || 'user@example.com',
-      password: userPass || 'password123',
-      role: 'member',
-    });
-
-    if (signIn) {
-      await signIn(registered.email, userPass || 'password123');
-    }
-
-    // 2. Assemble complete profile object from all wizard steps
-    const newProfile = {
-      id: `prof_${registered.id}`,
-      userId: registered.id,
-      displayName: basicsData.displayName.trim() || userName,
-      dateOfBirth: accountData.dateOfBirth || '',
-      age: Number(basicsData.age) || undefined,
-      gender: accountData.gender || 'woman',
-      location: basicsData.location || '',
-      country: basicsData.country || 'India',
-      heightCm: Number(basicsData.heightCm) || undefined,
-      weightKg: Number(basicsData.weightKg) || null,
-      motherTongue: basicsData.motherTongue || 'Malayalam',
-      maritalStatus: basicsData.maritalStatus || 'Never Married',
-      introduction: basicsData.introduction || '',
-      verificationStatus: 'under_review' as const,
-      published: true,
-      profileVisible: true,
-      faith: faithData,
-      education: educationData,
-      career: careerData,
-      family: familyData,
-      preferences: preferencesData,
-      photos: photos.map((p, idx) => ({
-        id: p.id,
-        url: p.url,
-        isPrimary: p.isPrimary,
-        visibility: p.visibility || photoVisibility,
-        sortOrder: idx,
-      })),
-      updatedAt: new Date().toISOString(),
-    };
-
-    // 3. Save to backend API server for multi-device sync
     try {
-      await fetch('/api/profiles/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProfile),
+      const userEmail = accountData.email.trim();
+      const userPass = accountData.password.trim();
+      const userName = accountData.fullName.trim() || basicsData.displayName.trim() || 'New Believer';
+
+      // 1. Authenticate & register member account
+      const registered = registerNewUser({
+        fullName: userName,
+        email: userEmail || 'user@example.com',
+        password: userPass || 'password123',
+        role: 'member',
       });
-      await fetch('/api/profiles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProfile),
-      });
-      // Push to shared sync store for cross-device visibility
-      await fetch('/api/profiles/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([newProfile]),
-      });
+
+      if (signIn) {
+        setPublishingMessage('Securing spiritual background & pastoral details...');
+        await signIn(registered.email, userPass || 'password123');
+      }
+
+      // 2. Assemble complete profile object from all wizard steps
+      setPublishingMessage('Optimizing profile photos & privacy controls...');
+      const newProfile = {
+        id: `prof_${registered.id}`,
+        userId: registered.id,
+        displayName: basicsData.displayName.trim() || userName,
+        dateOfBirth: accountData.dateOfBirth || '',
+        age: Number(basicsData.age) || undefined,
+        gender: accountData.gender || 'woman',
+        location: basicsData.location || '',
+        country: basicsData.country || 'India',
+        heightCm: Number(basicsData.heightCm) || undefined,
+        weightKg: Number(basicsData.weightKg) || null,
+        motherTongue: basicsData.motherTongue || 'Malayalam',
+        maritalStatus: basicsData.maritalStatus || 'Never Married',
+        introduction: basicsData.introduction || '',
+        verificationStatus: 'under_review' as const,
+        published: true,
+        profileVisible: true,
+        faith: faithData,
+        education: educationData,
+        career: careerData,
+        family: familyData,
+        preferences: preferencesData,
+        photos: photos.map((p, idx) => ({
+          id: p.id,
+          url: p.url,
+          isPrimary: p.isPrimary,
+          visibility: p.visibility || photoVisibility,
+          sortOrder: idx,
+        })),
+        updatedAt: new Date().toISOString(),
+      };
+
+      setPublishingMessage('Publishing profile to Pentecostal Matrimony...');
+      // 3. Parallel sync to backend API server for multi-device sync
+      try {
+        await Promise.allSettled([
+          fetch('/api/profiles/me', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newProfile),
+          }),
+          fetch('/api/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newProfile),
+          }),
+          fetch('/api/profiles/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify([newProfile]),
+          }),
+        ]);
+      } catch (err) {
+        console.warn('Backend profile sync error (non-fatal):', err);
+      }
+
+      // 4. Save safely directly in user storage for instant sync (quota protected)
+      safeSetLocalStorage(`pm_user_profile_${registered.id}`, newProfile);
+      safeSetLocalStorage('pm_my_profile', newProfile);
+
+      try {
+        const existingRaw = localStorage.getItem('pm_registered_profiles');
+        const existing = existingRaw ? JSON.parse(existingRaw) : [];
+        const updatedList = [...existing.filter((p: any) => !isSeedProfile(p) && p.id !== newProfile.id && p.userId !== registered.id), newProfile];
+        safeSetLocalStorage('pm_registered_profiles', updatedList);
+      } catch {}
+
+      setPublishingMessage('✓ Profile published successfully! Opening your dashboard...');
+      setTimeout(() => {
+        setLocation('/my-profile');
+      }, 500);
     } catch (err) {
-      console.warn('Backend profile sync error (non-fatal):', err);
+      console.error('Failed to publish profile:', err);
+      setIsPublishing(false);
     }
-
-    // 4. Save safely directly in user storage for instant sync (quota protected)
-    safeSetLocalStorage(`pm_user_profile_${registered.id}`, newProfile);
-    safeSetLocalStorage('pm_my_profile', newProfile);
-
-    try {
-      const existingRaw = localStorage.getItem('pm_registered_profiles');
-      const existing = existingRaw ? JSON.parse(existingRaw) : [];
-      const updatedList = [...existing.filter((p: any) => !isSeedProfile(p) && p.id !== newProfile.id && p.userId !== registered.id), newProfile];
-      safeSetLocalStorage('pm_registered_profiles', updatedList);
-    } catch {}
-
-    setLocation('/my-profile');
   };
 
   return (
@@ -1132,14 +1150,55 @@ export function OnboardingPage() {
               <button
                 type="button"
                 onClick={handlePublish}
-                className="flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 px-8 py-3 text-xs font-bold text-white uppercase tracking-wider shadow-md transition cursor-pointer"
+                disabled={isPublishing}
+                className="flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 disabled:opacity-75 disabled:cursor-not-allowed px-8 py-3 text-xs font-bold text-white uppercase tracking-wider shadow-md transition cursor-pointer"
               >
-                <Check size={16} /> Publish Profile
+                {isPublishing ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Publishing Profile...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} /> Publish Profile
+                  </>
+                )}
               </button>
             )}
           </div>
         </div>
       </main>
+
+      {/* Engaging Luxury Publishing Modal / Overlay */}
+      {isPublishing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-3xl border border-rose-200/60 bg-white p-8 text-center shadow-2xl overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-400 to-rose-700 animate-pulse" />
+            
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-700 mb-5 shadow-inner">
+              <Sparkles size={28} className="animate-spin text-amber-500" style={{ animationDuration: '3s' }} />
+            </div>
+
+            <h3 className="font-serif-fancy text-xl font-bold text-slate-900">
+              Publishing Your Matrimonial Profile
+            </h3>
+            
+            <p className="mt-2 text-xs font-semibold text-slate-600 min-h-[36px] flex items-center justify-center transition-all duration-300">
+              {publishingMessage}
+            </p>
+
+            <div className="mt-6">
+              <div className="h-2 w-full rounded-full bg-rose-50 overflow-hidden border border-rose-100">
+                <div className="h-full rounded-full bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 animate-pulse w-full" />
+              </div>
+            </div>
+
+            <p className="mt-4 text-[11px] text-slate-400 italic">
+              "What God has joined together, let no one separate."
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
