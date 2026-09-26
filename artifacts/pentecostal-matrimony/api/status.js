@@ -12,10 +12,17 @@ export default function handler(req, res) {
     return;
   }
 
+  const envKeys = Object.keys(process.env).filter(k => 
+    k.toUpperCase().includes('BLOB') || 
+    k.toUpperCase().includes('TOKEN') || 
+    k.toUpperCase().includes('STORE')
+  );
+
   res.status(200).json({
     status: 'ok',
     serverless: true,
     blobConfigured: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+    foundEnvKeys: envKeys,
     timestamp: new Date().toISOString(),
   });
 }

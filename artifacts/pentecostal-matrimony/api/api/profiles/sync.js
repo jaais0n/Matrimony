@@ -1,7 +1,6 @@
 /**
- * Vercel Serverless Function: /api/profiles
- * Provides cross-device persistent profile storage using Vercel Blob.
- * All devices (desktop, mobile) share the same data store.
+ * Vercel Serverless Function: /api/profiles/sync
+ * Bulk-sync profiles from any device to the shared Vercel Blob store.
  */
 
 import { get, put, list, del } from '@vercel/blob';
@@ -93,25 +92,15 @@ function isSeedProfile(p) {
   return false;
 }
 
-function getBlobToken() {
-  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
-  const match = Object.keys(process.env).find(k => 
-    (k.toUpperCase().includes('BLOB') && k.toUpperCase().includes('TOKEN')) || 
-    (k.toUpperCase().includes('STORE') && k.toUpperCase().includes('TOKEN'))
-  );
-  return match ? process.env[match] : undefined;
-}
-
 async function readStore() {
   try {
-    const token = getBlobToken();
-    const { blobs } = await list({ prefix: 'pm-profiles-store', token });
+    const { blobs } = await list({ prefix: 'pm-profiles-store' });
     if (!blobs || blobs.length === 0) return { profiles: [], users: [] };
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
     
     let data = null;
     try {
-      const result = await get(blob.url, { token });
+      const result = await get(blob.url);
       if (result && result.body) {
         const text = await new Response(result.body).text();
         data = JSON.parse(text);
@@ -123,30 +112,29 @@ async function readStore() {
       data = await res.json();
     }
 
-    const rawProfiles = Array.isArray(data?.profiles) ? data.profiles : [];
-    const cleanedProfiles = rawProfiles.filter(p => !isSeedProfile(p));
-    return { profiles: cleanedProfiles, users: Array.isArray(data?.users) ? data.users : [] };
+    const raw = Array.isArray(data?.profiles) ? data.profiles : [];
+    const cleaned = raw.filter(p => !isSeedProfile(p));
+    return { profiles: cleaned, users: Array.isArray(data?.users) ? data.users : [] };
   } catch (err) {
-    console.error('readStore error', err);
+    console.error('readStore error in sync.js', err);
     return { profiles: [], users: [] };
   }
 }
 
 async function writeStore(data) {
   try {
-    const token = getBlobToken();
-    const { blobs } = await list({ prefix: 'pm-profiles-store', token });
+    const { blobs } = await list({ prefix: 'pm-profiles-store' });
     for (const b of blobs) {
-      try { await del(b.url, { token }); } catch {}
+      try { await del(b.url); } catch {}
     }
     const body = JSON.stringify({ ...data, savedAt: new Date().toISOString() });
     try {
-      await put(BLOB_KEY, body, { access: 'private', contentType: 'application/json', addRandomSuffix: false, token });
+      await put(BLOB_KEY, body, { access: 'private', contentType: 'application/json', addRandomSuffix: false });
     } catch {
-      await put(BLOB_KEY, body, { access: 'public', contentType: 'application/json', addRandomSuffix: false, token });
+      await put(BLOB_KEY, body, { access: 'public', contentType: 'application/json', addRandomSuffix: false });
     }
   } catch (e) {
-    console.error('writeStore error', e);
+    console.error('writeStore error in sync.js', e);
   }
 }
 
@@ -168,7 +156,6 @@ function dedup(list) {
 }
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -178,36 +165,21 @@ export default async function handler(req, res) {
     return;
   }
 
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const rawIncoming = Array.isArray(req.body) ? req.body : (req.body?.profiles || []);
+  const incoming = (Array.isArray(rawIncoming) ? rawIncoming : []).filter(p => !isSeedProfile(p));
+  if (incoming.length === 0) {
+    res.status(200).json({ success: true, count: 0, message: 'No non-seed profiles to sync' });
+    return;
+  }
+
   const store = await readStore();
+  store.profiles = dedup([...store.profiles, ...incoming]).filter(p => !isSeedProfile(p));
+  await writeStore(store);
 
-  // GET /api/profiles — return all published profiles (never seed profiles)
-  if (req.method === 'GET') {
-    const published = store.profiles.filter(p => !isSeedProfile(p) && p.published !== false);
-    res.status(200).json({
-      items: published,
-      total: published.length,
-      page: 1,
-      pageSize: published.length,
-    });
-    return;
-  }
-
-  // POST /api/profiles — upsert a profile
-  if (req.method === 'POST') {
-    const profile = req.body;
-    if (!profile || !profile.id) {
-      res.status(400).json({ error: 'Profile must have an id' });
-      return;
-    }
-    if (isSeedProfile(profile)) {
-      res.status(200).json({ ignored: true });
-      return;
-    }
-    store.profiles = dedup([...store.profiles, profile]).filter(p => !isSeedProfile(p));
-    await writeStore(store);
-    res.status(200).json(profile);
-    return;
-  }
-
-  res.status(405).json({ error: 'Method not allowed' });
+  res.status(200).json({ success: true, count: store.profiles.length });
 }
