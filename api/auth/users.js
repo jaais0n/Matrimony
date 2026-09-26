@@ -5,28 +5,17 @@
 
 import { get, list } from '@vercel/blob';
 
-import fs from 'fs';
-import path from 'path';
+import { defaultStore } from '../default-store.js';
 
 function getFallbackUsers() {
   try {
-    const candidatePaths = [
-      path.join(process.cwd(), 'api', 'default-store.json'),
-      path.join(process.cwd(), 'artifacts', 'pentecostal-matrimony', 'api', 'default-store.json'),
-      path.join(process.cwd(), 'artifacts', 'api-server', 'data', 'store.json'),
-    ];
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        const raw = fs.readFileSync(p, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.users) && parsed.users.length > 0) {
-          return parsed.users;
-        }
-      }
+    if (defaultStore && Array.isArray(defaultStore.users) && defaultStore.users.length > 0) {
+      return defaultStore.users;
     }
   } catch {}
   return [];
 }
+
 
 async function readStore() {
   try {

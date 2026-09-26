@@ -93,31 +93,22 @@ function isSeedProfile(p) {
   return false;
 }
 
-import fs from 'fs';
-import path from 'path';
+import { defaultStore } from './default-store.js';
 
 function getFallbackStore() {
   try {
-    const candidatePaths = [
-      path.join(process.cwd(), 'api', 'default-store.json'),
-      path.join(process.cwd(), 'artifacts', 'pentecostal-matrimony', 'api', 'default-store.json'),
-      path.join(process.cwd(), 'artifacts', 'api-server', 'data', 'store.json'),
-    ];
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        const raw = fs.readFileSync(p, 'utf8');
-        const parsed = JSON.parse(raw);
-        return {
-          profiles: Array.isArray(parsed.profiles) ? parsed.profiles.filter(pr => !isSeedProfile(pr)) : [],
-          users: Array.isArray(parsed.users) ? parsed.users : [],
-        };
-      }
+    if (defaultStore && Array.isArray(defaultStore.profiles)) {
+      return {
+        profiles: defaultStore.profiles.filter(pr => !isSeedProfile(pr)),
+        users: Array.isArray(defaultStore.users) ? defaultStore.users : [],
+      };
     }
   } catch (err) {
     console.error('getFallbackStore error', err);
   }
   return { profiles: [], users: [] };
 }
+
 
 async function readStore() {
   try {
