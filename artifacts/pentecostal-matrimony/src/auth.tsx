@@ -9,6 +9,7 @@ export interface AuthUser {
   primaryEmailAddress: { emailAddress: string };
   publicMetadata: { role: 'admin' | 'member' };
   username?: string;
+  imageUrl?: string;
 }
 
 interface StoredAccount {

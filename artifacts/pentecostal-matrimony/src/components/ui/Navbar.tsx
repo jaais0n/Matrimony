@@ -17,7 +17,7 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
   // Fetch notifications to show red dot only when real unread notifications exist
   const { data: notifications = [] } = useQuery<any[]>({
     queryKey: ['notifications'],
-    queryFn: () => customFetch('/api/notifications').catch(() => []),
+    queryFn: () => customFetch<any[]>('/api/notifications').catch(() => []),
     staleTime: 1000 * 30,
   });
 
