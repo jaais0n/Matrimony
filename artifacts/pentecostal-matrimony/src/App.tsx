@@ -8,21 +8,44 @@ import { Navbar } from './components/ui/Navbar';
 import { BottomNav } from './components/ui/BottomNav';
 import { Footer } from './components/ui/Footer';
 
+import type { ComponentType } from 'react';
+
+// Resilient code-split loader with automatic chunk version recovery
+function lazyWithRetry<T extends ComponentType<any>>(
+  componentImport: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    const reloaded = JSON.parse(window.sessionStorage.getItem('pm_chunk_reload') || 'false');
+    try {
+      const component = await componentImport();
+      window.sessionStorage.setItem('pm_chunk_reload', 'false');
+      return component;
+    } catch (error) {
+      if (!reloaded) {
+        window.sessionStorage.setItem('pm_chunk_reload', 'true');
+        window.location.reload();
+        return { default: (() => null) as unknown as T };
+      }
+      throw error;
+    }
+  });
+}
+
 // Code-split pages for instant initial load (<150KB initial bundle)
-const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
-const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
-const DiscoverPage = lazy(() => import('./pages/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
-const MatchesPage = lazy(() => import('./pages/MatchesPage').then((m) => ({ default: m.MatchesPage })));
-const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
-const ProfileDetailPage = lazy(() => import('./pages/ProfileDetailPage').then((m) => ({ default: m.ProfileDetailPage })));
-const InterestsPage = lazy(() => import('./pages/InterestsPage').then((m) => ({ default: m.InterestsPage })));
-const MessagesPage = lazy(() => import('./pages/MessagesPage').then((m) => ({ default: m.MessagesPage })));
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
-const MyProfilePage = lazy(() => import('./pages/MyProfilePage').then((m) => ({ default: m.MyProfilePage })));
-const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then((m) => ({ default: m.PrivacyPage })));
-const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
-const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
-const NotFound = lazy(() => import('./pages/not-found'));
+const LandingPage = lazyWithRetry(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
+const OnboardingPage = lazyWithRetry(() => import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
+const DiscoverPage = lazyWithRetry(() => import('./pages/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
+const MatchesPage = lazyWithRetry(() => import('./pages/MatchesPage').then((m) => ({ default: m.MatchesPage })));
+const SearchPage = lazyWithRetry(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
+const ProfileDetailPage = lazyWithRetry(() => import('./pages/ProfileDetailPage').then((m) => ({ default: m.ProfileDetailPage })));
+const InterestsPage = lazyWithRetry(() => import('./pages/InterestsPage').then((m) => ({ default: m.InterestsPage })));
+const MessagesPage = lazyWithRetry(() => import('./pages/MessagesPage').then((m) => ({ default: m.MessagesPage })));
+const NotificationsPage = lazyWithRetry(() => import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const MyProfilePage = lazyWithRetry(() => import('./pages/MyProfilePage').then((m) => ({ default: m.MyProfilePage })));
+const PrivacyPage = lazyWithRetry(() => import('./pages/PrivacyPage').then((m) => ({ default: m.PrivacyPage })));
+const SubscriptionPage = lazyWithRetry(() => import('./pages/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
+const AdminDashboardPage = lazyWithRetry(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+const NotFound = lazyWithRetry(() => import('./pages/not-found'));
 import { ErrorBoundary } from './components/error-boundary';
 
 import { safeSetLocalStorage } from './utils/storageHelper';
@@ -83,11 +106,15 @@ purgeLocalSeedProfiles();
 function DataSyncEffect() {
   const queryClient = useQueryClient();
   const lastPushedHashRef = useRef<string>('');
+  const isSyncingRef = useRef(false);
 
   useEffect(() => {
     let lastFocusSync = 0;
+    let syncDebounceTimer: any = null;
 
     const syncData = async (forcePush = false) => {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
       try {
         purgeLocalSeedProfiles();
 
@@ -153,7 +180,8 @@ function DataSyncEffect() {
                 }
               }
               const finalMerged = merged.filter((p) => !isSeedProfile(p));
-              safeSetLocalStorage('pm_registered_profiles', finalMerged);
+              // IMPORTANT: pass true for skipNotify to prevent infinite recursive event loop!
+              safeSetLocalStorage('pm_registered_profiles', finalMerged, true);
 
               // Automatically restore My Profile for the currently logged-in user on this device
               try {
@@ -168,9 +196,8 @@ function DataSyncEffect() {
                     (au.fullName && p.displayName && p.displayName.trim().toLowerCase() === au.fullName.trim().toLowerCase())
                   );
                   if (myMatch) {
-                    safeSetLocalStorage('pm_my_profile', myMatch);
-                    safeSetLocalStorage(`pm_user_profile_${au.id}`, myMatch);
-                    queryClient.invalidateQueries({ queryKey: ['/api/profiles/me'] });
+                    safeSetLocalStorage('pm_my_profile', myMatch, true);
+                    safeSetLocalStorage(`pm_user_profile_${au.id}`, myMatch, true);
                   } else {
                     const currentMyProf = localStorage.getItem('pm_my_profile');
                     if (currentMyProf) {
@@ -217,14 +244,21 @@ function DataSyncEffect() {
         } catch {}
       } catch {
         // Silently ignore sync errors
+      } finally {
+        isSyncingRef.current = false;
       }
     };
 
     // 1. Initial sync on mount
     syncData(false);
 
-    // 2. Immediate sync when user saves profile or registers (custom event)
-    const onSyncEvent = () => syncData(true);
+    // 2. Debounced sync when user saves profile or registers (custom event)
+    const onSyncEvent = () => {
+      clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        syncData(true);
+      }, 1500);
+    };
     window.addEventListener('pm:sync', onSyncEvent);
 
     // 3. Gentle throttled sync when window gets focus (at most once every 3 minutes)
@@ -245,6 +279,7 @@ function DataSyncEffect() {
     }, 180000);
 
     return () => {
+      clearTimeout(syncDebounceTimer);
       clearInterval(interval);
       window.removeEventListener('pm:sync', onSyncEvent);
       window.removeEventListener('focus', onFocus);

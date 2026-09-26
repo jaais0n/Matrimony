@@ -94,11 +94,11 @@ export function notifySync() {
   }
 }
 
-export function safeSetLocalStorage(key: string, value: any): boolean {
+export function safeSetLocalStorage(key: string, value: any, skipNotify = false): boolean {
   if (typeof window === 'undefined' || !window.localStorage) return false;
   try {
     localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
-    if (key === 'pm_my_profile' || key === 'pm_registered_profiles') {
+    if (!skipNotify && (key === 'pm_my_profile' || key === 'pm_registered_profiles')) {
       notifySync();
     }
     return true;
@@ -120,7 +120,7 @@ export function safeSetLocalStorage(key: string, value: any): boolean {
             return item;
           });
           localStorage.setItem(key, JSON.stringify(trimmed));
-          if (key === 'pm_my_profile' || key === 'pm_registered_profiles') {
+          if (!skipNotify && (key === 'pm_my_profile' || key === 'pm_registered_profiles')) {
             notifySync();
           }
           return true;
@@ -133,7 +133,7 @@ export function safeSetLocalStorage(key: string, value: any): boolean {
             })),
           };
           localStorage.setItem(key, JSON.stringify(trimmed));
-          if (key === 'pm_my_profile' || key === 'pm_registered_profiles') {
+          if (!skipNotify && (key === 'pm_my_profile' || key === 'pm_registered_profiles')) {
             notifySync();
           }
           return true;
