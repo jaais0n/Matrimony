@@ -54,6 +54,19 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     assetsInlineLimit: 65536,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('lucide-react')) return 'vendor-lucide';
+            if (id.includes('@tanstack/react-query')) return 'vendor-query';
+            if (id.includes('wouter')) return 'vendor-router';
+            if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
+            return 'vendor-core';
+          }
+        },
+      },
+    },
   },
   server: {
     port,

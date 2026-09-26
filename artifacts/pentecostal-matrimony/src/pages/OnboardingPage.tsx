@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Lock, Shield, Upload, User, Star, Trash2, Camera, Sparkles } from 'lucide-react';
 import { registerNewUser, useAuthActions } from '../auth';
 import { compressImage, getApproximateKB, safeSetLocalStorage } from '../utils/storageHelper';
+import { uploadPhotoToCloudinary } from '../utils/cloudinaryHelper';
 import { isSeedProfile } from '@workspace/api-client-react';
 import type { MatrimonyProfile } from '../types';
 
@@ -129,14 +130,17 @@ export function OnboardingPage() {
       setPhotoError(null);
       // High clarity compression strictly under 50KB
       const compressedDataUrl = await compressImage(file, 720, 48);
-      const sizeKB = getApproximateKB(compressedDataUrl);
+      // Upload to Cloudinary CDN (falls back to compressed image if not configured)
+      const cdnResult = await uploadPhotoToCloudinary(compressedDataUrl);
+      const finalPhotoUrl = cdnResult.url || compressedDataUrl;
+      const sizeKB = cdnResult.sizeKB || getApproximateKB(finalPhotoUrl);
 
       setPhotos((prev) => {
         if (replaceIndex !== undefined && replaceIndex >= 0 && replaceIndex < prev.length) {
           const next = [...prev];
           next[replaceIndex] = {
             ...next[replaceIndex],
-            url: compressedDataUrl,
+            url: finalPhotoUrl,
             sizeKB,
           };
           return next;
@@ -149,7 +153,7 @@ export function OnboardingPage() {
 
         const newPhotoItem: OnboardingPhoto = {
           id: `photo_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          url: compressedDataUrl,
+          url: finalPhotoUrl,
           isPrimary: prev.length === 0,
           sizeKB,
           visibility: photoVisibility,

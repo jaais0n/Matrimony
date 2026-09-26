@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Link, Redirect, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
 import { Heart } from 'lucide-react';
@@ -8,20 +8,21 @@ import { Navbar } from './components/ui/Navbar';
 import { BottomNav } from './components/ui/BottomNav';
 import { Footer } from './components/ui/Footer';
 
-import { LandingPage } from './pages/LandingPage';
-import { OnboardingPage } from './pages/OnboardingPage';
-import { DiscoverPage } from './pages/DiscoverPage';
-import { MatchesPage } from './pages/MatchesPage';
-import { SearchPage } from './pages/SearchPage';
-import { ProfileDetailPage } from './pages/ProfileDetailPage';
-import { InterestsPage } from './pages/InterestsPage';
-import { MessagesPage } from './pages/MessagesPage';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { MyProfilePage } from './pages/MyProfilePage';
-import { PrivacyPage } from './pages/PrivacyPage';
-import { SubscriptionPage } from './pages/SubscriptionPage';
-import { AdminDashboardPage } from './pages/AdminDashboardPage';
-import NotFound from './pages/not-found';
+// Code-split pages for instant initial load (<150KB initial bundle)
+const LandingPage = lazy(() => import('./pages/LandingPage').then((m) => ({ default: m.LandingPage })));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
+const DiscoverPage = lazy(() => import('./pages/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
+const MatchesPage = lazy(() => import('./pages/MatchesPage').then((m) => ({ default: m.MatchesPage })));
+const SearchPage = lazy(() => import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })));
+const ProfileDetailPage = lazy(() => import('./pages/ProfileDetailPage').then((m) => ({ default: m.ProfileDetailPage })));
+const InterestsPage = lazy(() => import('./pages/InterestsPage').then((m) => ({ default: m.InterestsPage })));
+const MessagesPage = lazy(() => import('./pages/MessagesPage').then((m) => ({ default: m.MessagesPage })));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const MyProfilePage = lazy(() => import('./pages/MyProfilePage').then((m) => ({ default: m.MyProfilePage })));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then((m) => ({ default: m.PrivacyPage })));
+const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage').then((m) => ({ default: m.SubscriptionPage })));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+const NotFound = lazy(() => import('./pages/not-found'));
 import { ErrorBoundary } from './components/error-boundary';
 
 import { safeSetLocalStorage } from './utils/storageHelper';
@@ -182,7 +183,13 @@ function DataSyncEffect() {
                 }
               } catch {}
 
-              queryClient.invalidateQueries({ queryKey: ['/api/profiles'] });
+              // Directly update React Query cache in-memory with ZERO extra network calls
+              queryClient.setQueryData(['/api/profiles'], {
+                items: finalMerged,
+                total: finalMerged.length,
+                page: 1,
+                pageSize: finalMerged.length,
+              });
             }
           }
         }
@@ -220,22 +227,22 @@ function DataSyncEffect() {
     const onSyncEvent = () => syncData(true);
     window.addEventListener('pm:sync', onSyncEvent);
 
-    // 3. Gentle throttled sync when window gets focus (at most once every 60s)
+    // 3. Gentle throttled sync when window gets focus (at most once every 3 minutes)
     const onFocus = () => {
       const now = Date.now();
-      if (now - lastFocusSync > 60000) {
+      if (now - lastFocusSync > 180000) {
         lastFocusSync = now;
         syncData(false);
       }
     };
     window.addEventListener('focus', onFocus);
 
-    // 4. Gentle periodic poll (every 60s only when document is visible)
+    // 4. Gentle periodic poll (every 3 minutes only when document is visible)
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         syncData(false);
       }
-    }, 60000);
+    }, 180000);
 
     return () => {
       clearInterval(interval);
@@ -244,15 +251,16 @@ function DataSyncEffect() {
     };
   }, [queryClient]);
 
-
   return null;
 }
-
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes cache lifetime (stops excessive network transfer)
+      gcTime: 30 * 60 * 1000,    // 30 minutes in memory
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
       retry: 1,
     },
   },
@@ -369,6 +377,15 @@ function ProtectedAdminArea({ children }: { children: React.ReactNode }) {
   return <div className="min-h-screen bg-slate-900 text-slate-900">{children}</div>;
 }
 
+function PageLoadingFallback() {
+  return (
+    <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3">
+      <div className="w-8 h-8 rounded-full border-2 border-rose-900/20 border-t-rose-800 animate-spin" />
+      <span className="text-[11px] font-medium tracking-widest text-slate-500 uppercase">Loading</span>
+    </div>
+  );
+}
+
 function Router() {
   const [location] = useLocation();
   const { isSignedIn, isLoaded } = useAuth();
@@ -391,87 +408,89 @@ function Router() {
 
   return (
     <ErrorBoundary resetKey={location}>
-      <Switch>
-        {/* Public Landing & Auth */}
-        <Route path="/" component={LandingPage} />
-        <Route path="/onboarding" component={OnboardingPage} />
-        <Route path="/sign-in/*?" component={SignInPage} />
-        <Route path="/sign-up/*?" component={SignUpPage} />
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Switch>
+          {/* Public Landing & Auth */}
+          <Route path="/" component={LandingPage} />
+          <Route path="/onboarding" component={OnboardingPage} />
+          <Route path="/sign-in/*?" component={SignInPage} />
+          <Route path="/sign-up/*?" component={SignUpPage} />
 
-        {/* Member Space - Only Registered Customers Can See Profiles */}
-        <Route path="/discover">
-          <AppShell activeRole={activeRole} onToggleRole={toggleRole}>
-            <DiscoverPage />
-          </AppShell>
-        </Route>
+          {/* Member Space - Only Registered Customers Can See Profiles */}
+          <Route path="/discover">
+            <AppShell activeRole={activeRole} onToggleRole={toggleRole}>
+              <DiscoverPage />
+            </AppShell>
+          </Route>
 
-        <Route path="/matches">
-          <Redirect to="/discover" />
-        </Route>
+          <Route path="/matches">
+            <Redirect to="/discover" />
+          </Route>
 
-        <Route path="/search">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <SearchPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/search">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <SearchPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/profiles/:id">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <ProfileDetailPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/profiles/:id">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <ProfileDetailPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/interests">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <InterestsPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/interests">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <InterestsPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/messages">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <MessagesPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/messages">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <MessagesPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/saved">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <MatchesPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/saved">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <MatchesPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/notifications">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <NotificationsPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/notifications">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <NotificationsPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/my-profile">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <MyProfilePage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/my-profile">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <MyProfilePage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/settings/privacy">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <PrivacyPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/settings/privacy">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <PrivacyPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/subscription">
-          <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
-            <SubscriptionPage />
-          </ProtectedMemberArea>
-        </Route>
+          <Route path="/subscription">
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
+              <SubscriptionPage />
+            </ProtectedMemberArea>
+          </Route>
 
-        <Route path="/admin">
-          <ProtectedAdminArea>
-            <AdminDashboardPage activeRole={activeRole} />
-          </ProtectedAdminArea>
-        </Route>
+          <Route path="/admin">
+            <ProtectedAdminArea>
+              <AdminDashboardPage activeRole={activeRole} />
+            </ProtectedAdminArea>
+          </Route>
 
-        {/* Fallback */}
-        <Route component={NotFound} />
-      </Switch>
+          {/* Fallback */}
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </ErrorBoundary>
   );
 }
