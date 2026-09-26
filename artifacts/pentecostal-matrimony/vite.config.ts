@@ -58,6 +58,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('firebase')) return 'vendor-firebase';
             if (id.includes('lucide-react')) return 'vendor-lucide';
             if (id.includes('@tanstack/react-query')) return 'vendor-query';
             if (id.includes('wouter')) return 'vendor-router';

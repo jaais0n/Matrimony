@@ -19,6 +19,13 @@ import type { Conversation, ChatMessage } from '../types';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
 import { initiateConversation } from '../utils/storageHelper';
+import {
+  isFirebaseConfigured,
+  subscribeToFirebaseMessages,
+  subscribeToFirebaseTyping,
+  sendFirebaseTyping,
+  sendFirebaseMessage,
+} from '../utils/firebaseHelper';
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
@@ -103,6 +110,8 @@ export function MessagesPage() {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [firebaseActive, setFirebaseActive] = useState(false);
+  const [firebaseMessages, setFirebaseMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: rawConversations = [], refetch } = useQuery<Conversation[]>({
@@ -110,6 +119,32 @@ export function MessagesPage() {
     queryFn: () => customFetch('/api/conversations'),
     initialData: getStoredConversations,
   });
+
+  // Real-time Firebase WebSocket listener for live chat synchronization
+  useEffect(() => {
+    if (!activeConversation?.id) return;
+    const convId = activeConversation.id;
+
+    if (isFirebaseConfigured()) {
+      setFirebaseActive(true);
+      const unsubMsgs = subscribeToFirebaseMessages(convId, (msgs) => {
+        if (Array.isArray(msgs)) {
+          setFirebaseMessages(msgs);
+        }
+      });
+
+      const unsubTyping = subscribeToFirebaseTyping(convId, 'You', (typing) => {
+        setIsTyping(typing);
+      });
+
+      return () => {
+        unsubMsgs();
+        unsubTyping();
+      };
+    } else {
+      setFirebaseActive(false);
+    }
+  }, [activeConversation?.id]);
 
   // Filter conversations so that expired messages (> 24h) are purged in real-time
   const conversations = rawConversations.map((c) => {
@@ -160,7 +195,15 @@ export function MessagesPage() {
     if (activeConversation) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [activeConversation, optimisticMessages, isTyping]);
+  }, [activeConversation, optimisticMessages, firebaseMessages, isTyping]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+    if (activeConversation?.id && isFirebaseConfigured()) {
+      sendFirebaseTyping(activeConversation.id, 'You', val.trim().length > 0);
+    }
+  };
 
   // Handle instant sending + reciprocal candidate response for end-to-end conversation
   const handleSendMessage = (e: React.FormEvent) => {
@@ -169,6 +212,11 @@ export function MessagesPage() {
 
     const userText = inputText.trim();
     setInputText('');
+
+    // Stop typing indicator
+    if (isFirebaseConfigured()) {
+      sendFirebaseTyping(activeConversation.id, 'You', false);
+    }
 
     // 1. Instant optimistic update for user message
     const tempUserMsg: ChatMessage = {
@@ -185,6 +233,11 @@ export function MessagesPage() {
       ...prev,
       [activeConversation.id]: [...(prev[activeConversation.id] || []), tempUserMsg],
     }));
+
+    // Send to Firebase Realtime Database
+    if (isFirebaseConfigured()) {
+      sendFirebaseMessage(activeConversation.id, tempUserMsg);
+    }
 
     // Post to persistent store in background
     customFetch(`/api/conversations/${activeConversation.id}/messages`, {
@@ -203,10 +256,16 @@ export function MessagesPage() {
 
     setTimeout(() => {
       setIsTyping(true);
+      if (isFirebaseConfigured()) {
+        sendFirebaseTyping(currentConvId, participantId, true);
+      }
     }, 700);
 
     setTimeout(() => {
       setIsTyping(false);
+      if (isFirebaseConfigured()) {
+        sendFirebaseTyping(currentConvId, participantId, false);
+      }
       const replyTemplate = FAITH_REPLIES[Math.floor(Math.random() * FAITH_REPLIES.length)];
       const candidateMsg: ChatMessage = {
         id: `msg_reply_${Date.now()}`,
@@ -222,6 +281,11 @@ export function MessagesPage() {
         ...prev,
         [currentConvId]: [...(prev[currentConvId] || []), candidateMsg],
       }));
+
+      // Also push candidate reply to Firebase Realtime Database
+      if (isFirebaseConfigured()) {
+        sendFirebaseMessage(currentConvId, candidateMsg);
+      }
 
       // Persist candidate reply to API/Storage
       customFetch(`/api/conversations/${currentConvId}/messages`, {
@@ -274,12 +338,24 @@ export function MessagesPage() {
     setMenuOpen(false);
   };
 
-  // Combine fetched valid messages with optimistic messages (with 24h filter applied)
+  // Combine fetched valid messages, real-time Firebase messages, and optimistic messages (with 24h filter applied)
   const currentMessages: ChatMessage[] = activeConversation
     ? filter24hMessages([
         ...(activeConversation.messages || []),
+        ...firebaseMessages.filter(
+          (fm) =>
+            !(activeConversation.messages || []).some(
+              (m) => m.id === fm.id || (m.content === fm.content && Math.abs(new Date(m.timestamp).getTime() - new Date(fm.timestamp).getTime()) < 3000)
+            )
+        ),
         ...(optimisticMessages[activeConversation.id] || []).filter(
-          (om) => !(activeConversation.messages || []).some((m) => m.content === om.content && Math.abs(new Date(m.timestamp).getTime() - new Date(om.timestamp).getTime()) < 3000)
+          (om) =>
+            !(activeConversation.messages || []).some(
+              (m) => m.content === om.content && Math.abs(new Date(m.timestamp).getTime() - new Date(om.timestamp).getTime()) < 3000
+            ) &&
+            !firebaseMessages.some(
+              (fm) => fm.content === om.content && Math.abs(new Date(fm.timestamp).getTime() - new Date(om.timestamp).getTime()) < 3000
+            )
         ),
       ])
     : [];
@@ -479,6 +555,11 @@ export function MessagesPage() {
                     </div>
 
                     <div className="relative shrink-0 flex items-center gap-2">
+                      {firebaseActive && (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Realtime
+                        </span>
+                      )}
                       <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-md font-medium">
                         <Clock size={11} /> Auto-delete in 24h
                       </span>
@@ -606,7 +687,7 @@ export function MessagesPage() {
                     <input
                       type="text"
                       value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
+                      onChange={handleInputChange}
                       placeholder="Type a respectful message..."
                       className="flex-1 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 sm:px-4 py-2.5 sm:py-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition"
                     />
