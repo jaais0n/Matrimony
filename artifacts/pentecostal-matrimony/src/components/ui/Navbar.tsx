@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Bell, Shield, User } from 'lucide-react';
+import { Bell, LogOut, Shield, User } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { customFetch } from '@workspace/api-client-react';
-import { useUser } from '../../auth';
+import { useClerk, useUser } from '../../auth';
 
 export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (role: string) => void }) {
   const [location] = useLocation();
   const { user } = useUser();
+  const { signOut } = useClerk();
 
   const demoRole = typeof window !== 'undefined' ? localStorage.getItem('pm_demo_role') : null;
   const currentRole = String(activeRole || (user?.publicMetadata?.role as string) || demoRole || 'user');
@@ -147,7 +148,7 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
           ) : (
             <Link
               href="/my-profile"
-              className="hidden md:inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs"
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50/80 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs"
             >
               {userPhotoUrl ? (
                 <div className="h-6 w-6 rounded-full overflow-hidden border border-rose-300 shadow-2xs shrink-0">
@@ -165,6 +166,16 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
               <span>My Profile</span>
             </Link>
           )}
+
+          {/* Logout Icon Button next to My Profile */}
+          <button
+            onClick={() => signOut({ redirectUrl: '/' })}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 transition shadow-2xs"
+            title="Log Out"
+            aria-label="Log Out"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </header>

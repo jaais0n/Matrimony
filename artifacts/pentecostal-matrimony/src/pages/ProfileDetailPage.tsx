@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'wouter';
 import {
   AlertCircle,
@@ -40,10 +40,24 @@ export function ProfileDetailPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [interestSent, setInterestSent] = useState(false);
 
+  const p = profileQuery.data;
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  useEffect(() => {
+    if (p?.id) {
+      try {
+        const raw = localStorage.getItem('pm_user_interests');
+        const list = raw ? JSON.parse(raw) : [];
+        if (list.some((item: any) => item.profileId === p.id)) {
+          setInterestSent(true);
+        }
+      } catch {}
+    }
+  }, [p?.id]);
 
   if (profileQuery.isLoading) {
     return (
@@ -117,7 +131,6 @@ export function ProfileDetailPage() {
     );
   }
 
-  const p = profileQuery.data;
   if (!p || isSeedProfile(p)) {
     return (
       <div className="min-h-screen bg-slate-50 p-8 text-center text-xs">
@@ -133,18 +146,6 @@ export function ProfileDetailPage() {
 
   const photos = p.photos && p.photos.length > 0 ? p.photos : [{ id: 'default', url: '' }];
   const currentPhoto = photos[activePhotoIndex] || photos[0];
-
-  useEffect(() => {
-    if (p?.id) {
-      try {
-        const raw = localStorage.getItem('pm_user_interests');
-        const list = raw ? JSON.parse(raw) : [];
-        if (list.some((item: any) => item.profileId === p.id)) {
-          setInterestSent(true);
-        }
-      } catch {}
-    }
-  }, [p?.id]);
 
   const handleInterest = () => {
     if (interestSent) return;
