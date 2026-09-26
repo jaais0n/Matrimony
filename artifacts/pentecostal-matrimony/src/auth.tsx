@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { AlertCircle, ArrowRight, CheckCircle2, Lock, ShieldCheck, User } from 'lucide-react';
+import { INITIAL_REGISTERED_USERS } from '@workspace/api-client-react';
 
 export interface AuthUser {
   id: string;
@@ -30,6 +31,15 @@ const SEED_USERS: StoredAccount[] = [
     firstName: 'Administrator',
     role: 'admin',
   },
+  ...(Array.isArray(INITIAL_REGISTERED_USERS) ? INITIAL_REGISTERED_USERS : []).map((u: any) => ({
+    id: u.id,
+    username: u.username || (u.email && u.email.includes('@') ? u.email.split('@')[0] : u.email || u.id),
+    email: u.email || `${u.id}@matrimony.local`,
+    password: u.password || 'password123',
+    fullName: u.fullName || 'Member',
+    firstName: u.fullName ? u.fullName.split(' ')[0] : 'Member',
+    role: (u.role === 'admin' ? 'admin' : 'member') as 'admin' | 'member',
+  })),
 ];
 
 export function getRegisteredUsers(): StoredAccount[] {
@@ -43,6 +53,7 @@ export function getRegisteredUsers(): StoredAccount[] {
     return SEED_USERS;
   }
 }
+
 
 export function registerNewUser(account: {
   fullName: string;
@@ -187,7 +198,11 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     // 2. Member and Registered Users check
     const accounts = getRegisteredUsers();
     const matchedAccount = accounts.find(
-      (a) => a.email.toLowerCase() === cleanId || a.username?.toLowerCase() === cleanId
+      (a) =>
+        a.email.toLowerCase() === cleanId ||
+        a.username?.toLowerCase() === cleanId ||
+        a.fullName.toLowerCase() === cleanId ||
+        a.id.toLowerCase() === cleanId
     );
 
     if (matchedAccount) {

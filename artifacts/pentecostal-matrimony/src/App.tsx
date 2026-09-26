@@ -25,21 +25,32 @@ import NotFound from './pages/not-found';
 import { ErrorBoundary } from './components/error-boundary';
 
 import { safeSetLocalStorage } from './utils/storageHelper';
-import { isSeedProfile } from '@workspace/api-client-react';
+import { isSeedProfile, INITIAL_REGISTERED_PROFILES } from '@workspace/api-client-react';
 
 import './index.css';
 
-// Purge any legacy dummy / seed profiles from client localStorage on any device
+// Purge any legacy dummy / seed profiles from client localStorage on any device, and ensure real profiles exist
 export function purgeLocalSeedProfiles() {
   try {
     const raw = localStorage.getItem('pm_registered_profiles');
-    if (raw) {
+    if (!raw) {
+      const initial = (Array.isArray(INITIAL_REGISTERED_PROFILES) ? INITIAL_REGISTERED_PROFILES : []).filter((p: any) => !isSeedProfile(p));
+      safeSetLocalStorage('pm_registered_profiles', initial);
+    } else {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((p) => !isSeedProfile(p));
-        if (cleaned.length !== parsed.length) {
-          localStorage.setItem('pm_registered_profiles', JSON.stringify(cleaned));
+        let cleaned = parsed.filter((p: any) => !isSeedProfile(p));
+        if (cleaned.length === 0 && Array.isArray(INITIAL_REGISTERED_PROFILES) && INITIAL_REGISTERED_PROFILES.length > 0) {
+          cleaned = INITIAL_REGISTERED_PROFILES.filter((p: any) => !isSeedProfile(p));
+        } else if (Array.isArray(INITIAL_REGISTERED_PROFILES)) {
+          const existingIds = new Set(cleaned.map((p: any) => p.id));
+          for (const initP of INITIAL_REGISTERED_PROFILES) {
+            if (!existingIds.has(initP.id) && !isSeedProfile(initP)) {
+              cleaned.push(initP);
+            }
+          }
         }
+        safeSetLocalStorage('pm_registered_profiles', cleaned);
       }
     }
     const myProfRaw = localStorage.getItem('pm_my_profile');
@@ -54,6 +65,7 @@ export function purgeLocalSeedProfiles() {
 
 // Immediate run when module loads
 purgeLocalSeedProfiles();
+
 
 function DataSyncEffect() {
   const queryClient = useQueryClient();

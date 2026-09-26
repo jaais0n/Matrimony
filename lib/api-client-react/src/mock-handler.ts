@@ -8,6 +8,7 @@ import type {
   ProfileSummary,
   VerificationQueueItem,
 } from './generated/api.schemas';
+import { INITIAL_REGISTERED_PROFILES } from './initial-profiles';
 
 // Helpers to get/set persistent browser storage
 function getBrowserStorage<T>(key: string, fallback: T): T {
@@ -592,15 +593,34 @@ export const DEFAULT_SEED_PROFILES: any[] = [
 function getRegisteredProfiles(): any[] {
   const existing = getBrowserStorage<any[]>('pm_registered_profiles', []);
   if (!existing || existing.length === 0) {
-    return [];
+    const initial = INITIAL_REGISTERED_PROFILES.filter((p) => !isSeedProfile(p));
+    setBrowserStorage('pm_registered_profiles', initial);
+    return initial;
   }
   // Strictly filter out any seed/demo profiles that may be cached in browser localStorage
-  const filtered = existing.filter((p) => !isSeedProfile(p));
-  if (filtered.length !== existing.length) {
+  let filtered = existing.filter((p) => !isSeedProfile(p));
+  if (filtered.length === 0 && INITIAL_REGISTERED_PROFILES.length > 0) {
+    filtered = INITIAL_REGISTERED_PROFILES.filter((p) => !isSeedProfile(p));
+    setBrowserStorage('pm_registered_profiles', filtered);
+    return filtered;
+  }
+
+  // Ensure initial user profiles are included across all devices
+  const existingIds = new Set(filtered.map((p) => p.id));
+  let modified = false;
+  for (const initP of INITIAL_REGISTERED_PROFILES) {
+    if (!existingIds.has(initP.id) && !isSeedProfile(initP)) {
+      filtered.push(initP);
+      modified = true;
+    }
+  }
+
+  if (filtered.length !== existing.length || modified) {
     setBrowserStorage('pm_registered_profiles', filtered);
   }
   return filtered;
 }
+
 
 function saveRegisteredProfiles(profiles: MyProfile[]): void {
   const cleaned = profiles.filter((p) => !isSeedProfile(p));
@@ -709,6 +729,15 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     const existing = getBrowserStorage<MyProfile | null>(userProfileKey, null) || getBrowserStorage<MyProfile | null>('pm_my_profile', null);
     if (existing) {
       return existing;
+    }
+
+    const matchedInitial = INITIAL_REGISTERED_PROFILES.find(
+      (p) => p.userId === userId || p.id === `prof_${userId}` || (currentUser?.fullName && p.displayName?.toLowerCase() === currentUser.fullName.toLowerCase())
+    );
+    if (matchedInitial) {
+      setBrowserStorage(userProfileKey, matchedInitial);
+      setBrowserStorage('pm_my_profile', matchedInitial);
+      return matchedInitial;
     }
 
     // Default clean profile for current user

@@ -93,10 +93,36 @@ function isSeedProfile(p) {
   return false;
 }
 
+import fs from 'fs';
+import path from 'path';
+
+function getFallbackStore() {
+  try {
+    const candidatePaths = [
+      path.join(process.cwd(), 'api', 'default-store.json'),
+      path.join(process.cwd(), 'artifacts', 'pentecostal-matrimony', 'api', 'default-store.json'),
+      path.join(process.cwd(), 'artifacts', 'api-server', 'data', 'store.json'),
+    ];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, 'utf8');
+        const parsed = JSON.parse(raw);
+        return {
+          profiles: Array.isArray(parsed.profiles) ? parsed.profiles.filter(pr => !isSeedProfile(pr)) : [],
+          users: Array.isArray(parsed.users) ? parsed.users : [],
+        };
+      }
+    }
+  } catch (err) {
+    console.error('getFallbackStore error', err);
+  }
+  return { profiles: [], users: [] };
+}
+
 async function readStore() {
   try {
     const { blobs } = await list({ prefix: 'pm-profiles-store' });
-    if (!blobs || blobs.length === 0) return { profiles: [], users: [] };
+    if (!blobs || blobs.length === 0) return getFallbackStore();
     const blob = blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
     
     let data = null;
@@ -115,12 +141,14 @@ async function readStore() {
 
     const rawProfiles = Array.isArray(data?.profiles) ? data.profiles : [];
     const cleanedProfiles = rawProfiles.filter(p => !isSeedProfile(p));
+    if (cleanedProfiles.length === 0) return getFallbackStore();
     return { profiles: cleanedProfiles, users: Array.isArray(data?.users) ? data.users : [] };
   } catch (err) {
     console.error('readStore error', err);
-    return { profiles: [], users: [] };
+    return getFallbackStore();
   }
 }
+
 
 async function writeStore(data) {
   try {
