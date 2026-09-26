@@ -26,6 +26,9 @@ const SEED_PROFILE_IDS = new Set([
   'ph_samuel_1',
   'ph_sneha_1',
   'ph_daniel_1',
+  'prof_user_1790356597878',
+  'user_1790356597878',
+  'fssdf',
 ]);
 
 const SEED_PROFILE_NAMES = [
@@ -40,7 +43,9 @@ const SEED_PROFILE_NAMES = [
   'samuel k. cherian',
   'sneha elizabeth mathew',
   'daniel m. varghese',
+  'fssdf',
 ];
+
 
 function isSeedProfile(p) {
   if (!p) return false;

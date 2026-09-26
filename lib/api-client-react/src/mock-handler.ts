@@ -81,6 +81,9 @@ export const SEED_PROFILE_IDS = new Set([
   'ph_samuel_1',
   'ph_sneha_1',
   'ph_daniel_1',
+  'prof_user_1790356597878',
+  'user_1790356597878',
+  'fssdf',
 ]);
 
 export const SEED_PROFILE_NAMES = [
@@ -95,7 +98,9 @@ export const SEED_PROFILE_NAMES = [
   'samuel k. cherian',
   'sneha elizabeth mathew',
   'daniel m. varghese',
+  'fssdf',
 ];
+
 
 export function isSeedProfile(p: any): boolean {
   if (!p) return false;
