@@ -182,18 +182,26 @@ function dedup(list) {
   const result = [];
   for (const item of list) {
     if (!item) continue;
+    if (item.id === 'prof_sync_test' || item.userId === 'user_sync_test') continue;
+    const name = String(item.displayName || '').trim().toLowerCase();
+    const id = item.id || (item.userId ? `prof_${item.userId}` : (name ? `prof_${name}` : `prof_${Date.now()}`));
+    const userId = item.userId || id.replace(/^prof_/, '');
+    const normalizedItem = { ...item, id, userId };
+
     const idx = result.findIndex(e =>
-      (item.id && e.id && item.id === e.id) ||
-      (item.userId && e.userId && item.userId === e.userId)
+      (e.id && e.id === normalizedItem.id) ||
+      (e.userId && e.userId === normalizedItem.userId) ||
+      (name && e.displayName && String(e.displayName).trim().toLowerCase() === name)
     );
     if (idx >= 0) {
-      result[idx] = { ...result[idx], ...item };
+      result[idx] = { ...result[idx], ...normalizedItem };
     } else {
-      result.push(item);
+      result.push(normalizedItem);
     }
   }
   return result;
 }
+
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
