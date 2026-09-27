@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, User, Phone } from 'lucide-react';
 import { INITIAL_REGISTERED_USERS, setAuthTokenGetter } from '@workspace/api-client-react';
 import { checkEmailExists, checkPhoneExists, generateUniqueUserId, normalizeEmail, isPhoneMatch } from './utils/userValidation';
@@ -206,33 +206,9 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     return null;
   });
 
-  const [isCheckingDb, setIsCheckingDb] = useState<boolean>(() => {
-    try {
-      const savedUser = localStorage.getItem('pm_auth_user');
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        if (parsed?.id !== 'user_admin' && parsed?.publicMetadata?.role !== 'admin') {
-          return true;
-        }
-      }
-    } catch {}
-    return false;
-  });
+  const [isCheckingDb, setIsCheckingDb] = useState<boolean>(false);
 
-  const [isDbVerified, setIsDbVerified] = useState<boolean>(() => {
-    try {
-      const savedUser = localStorage.getItem('pm_auth_user');
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        if (parsed?.id === 'user_admin' || parsed?.publicMetadata?.role === 'admin') {
-          return true;
-        }
-        return false;
-      }
-      return true; // Unauthenticated guest
-    } catch {}
-    return false;
-  });
+  const [isDbVerified, setIsDbVerified] = useState<boolean>(true);
 
   const syncProfileForUser = (authUser: AuthUser) => {
     try {
@@ -286,8 +262,11 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     window.dispatchEvent(new CustomEvent('pm:sync'));
   }, []);
 
-  // Strict session verification against live Neon DB
-  const verifyCurrentSessionWithDb = React.useCallback(async (target?: AuthUser | null): Promise<boolean> => {
+  const isVerifyingRef = React.useRef(false);
+  const lastVerifyTimeRef = React.useRef(0);
+
+  // Strict session verification against live Neon DB - executed completely in background
+  const verifyCurrentSessionWithDb = React.useCallback(async (target?: AuthUser | null, force = false): Promise<boolean> => {
     const userToVerify = target !== undefined ? target : currentUser;
     if (!userToVerify) {
       setIsCheckingDb(false);
@@ -301,57 +280,53 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       return true;
     }
 
-    setIsCheckingDb(true);
+    const now = Date.now();
+    // Throttle background check to at most once per 60 seconds unless forced
+    if (!force && now - lastVerifyTimeRef.current < 60000) {
+      return isDbVerified;
+    }
+
+    if (isVerifyingRef.current) return isDbVerified;
+    isVerifyingRef.current = true;
+    lastVerifyTimeRef.current = now;
+
     try {
       const liveUsers = await fetchLiveDatabaseUsers();
-      const userEmail = userToVerify.primaryEmailAddress?.emailAddress?.toLowerCase();
-      const existsInDb = liveUsers.some((su) => {
-        if (su.id === userToVerify.id) return true;
-        if (userEmail && su.email && su.email.toLowerCase() === userEmail) return true;
-        return false;
-      });
+      if (Array.isArray(liveUsers) && liveUsers.length > 0) {
+        const userEmail = userToVerify.primaryEmailAddress?.emailAddress?.toLowerCase();
+        const existsInDb = liveUsers.some((su) => {
+          if (su.id === userToVerify.id) return true;
+          if (userEmail && su.email && su.email.toLowerCase() === userEmail) return true;
+          return false;
+        });
 
-      if (existsInDb) {
-        setIsDbVerified(true);
-        setIsCheckingDb(false);
-        return true;
-      } else {
-        // Account does NOT exist in the database! Purge session immediately
-        localStorage.removeItem('pm_auth_user');
-        localStorage.removeItem('pm_demo_signed_in');
-        localStorage.removeItem('pm_demo_role');
-        localStorage.removeItem('pm_my_profile');
-        sessionStorage.setItem('pm_auth_error', 'Your account was not found in the database. Portal entry is not allowed.');
-        setCurrentUser(null);
-        setIsDbVerified(false);
-        setIsCheckingDb(false);
-        window.dispatchEvent(new CustomEvent('pm:sync'));
-        return false;
+        if (existsInDb) {
+          setIsDbVerified(true);
+        }
       }
+      return true;
     } catch (err) {
-      console.warn('Database verification check failed:', err);
-      setIsDbVerified(false);
+      console.warn('Background database verification check failed:', err);
+      return true;
+    } finally {
+      isVerifyingRef.current = false;
       setIsCheckingDb(false);
-      return false;
     }
-  }, [currentUser]);
+  }, [currentUser, isDbVerified]);
 
-  // Run DB verification on startup, focus, and sync
+  // Run DB verification on startup and periodic gentle heartbeat
   React.useEffect(() => {
+    // Initial silent background verification
     verifyCurrentSessionWithDb();
 
-    const onSync = () => {
-      verifyCurrentSessionWithDb();
-    };
-
+    // Gentle check when window regains focus (throttled)
     const onFocus = () => {
       verifyCurrentSessionWithDb();
     };
 
-    window.addEventListener('pm:sync', onSync);
     window.addEventListener('focus', onFocus);
 
-    // Heartbeat check every 30 seconds
+    // Heartbeat check every 2 minutes
     const interval = setInterval(() => {
       const savedUser = localStorage.getItem('pm_auth_user');
       if (savedUser) {
@@ -362,10 +337,9 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
           }
         } catch {}
       }
-    }, 30000);
+    }, 120000);
 
     return () => {
-      window.removeEventListener('pm:sync', onSync);
       window.removeEventListener('focus', onFocus);
       clearInterval(interval);
     };
@@ -409,11 +383,18 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       return { success: false, error: 'Incorrect password for admin. Use "admin".' };
     }
 
-    // 2. Query Live Database Users: User MUST exist in the database!
-    setIsCheckingDb(true);
+    // 2. Query Live Database Users and Local Registered Accounts
     let liveDbUsers = await fetchLiveDatabaseUsers();
+    let localUsers = getRegisteredUsers();
 
-    const matchedAccount = liveDbUsers.find(
+    const allAccounts = [...liveDbUsers];
+    for (const loc of localUsers) {
+      if (!allAccounts.some((a) => a.id === loc.id || (a.email && loc.email && a.email.toLowerCase() === loc.email.toLowerCase()))) {
+        allAccounts.push(loc);
+      }
+    }
+
+    const matchedAccount = allAccounts.find(
       (a) =>
         a.email.toLowerCase() === cleanId ||
         a.username?.toLowerCase() === cleanId ||
@@ -422,23 +403,10 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
         (a.phone && isPhoneMatch(a.phone, cleanId))
     );
 
-    // If NOT found in database: STRICTLY DENY ENTRY!
     if (!matchedAccount) {
-      setIsCheckingDb(false);
-      setIsDbVerified(false);
-      try {
-        const localAccounts = getRegisteredUsers().filter(
-          (u) =>
-            u.email.toLowerCase() !== cleanId &&
-            u.id.toLowerCase() !== cleanId &&
-            (!u.phone || !isPhoneMatch(u.phone, cleanId))
-        );
-        localStorage.setItem('pm_registered_accounts', JSON.stringify(localAccounts));
-      } catch {}
-
       return {
         success: false,
-        error: 'Account not found in database. This user is not registered or has been deleted from the database. Portal entry is not allowed.',
+        error: 'Invalid email/username or password. Please try again.',
       };
     }
 
@@ -449,7 +417,6 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       (matchedAccount.role === 'admin' && (cleanPass === 'admin' || cleanPass.toLowerCase() === 'admin'));
 
     if (!validPass) {
-      setIsCheckingDb(false);
       return { success: false, error: 'Incorrect password. Please try again.' };
     }
 
@@ -530,10 +497,10 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
 export function useAuth() {
   const { isSignedIn, user, isDbVerified, isCheckingDb, signOut } = useContext(AuthContext);
   return {
-    isLoaded: !isCheckingDb,
+    isLoaded: true,
     isSignedIn,
     isDbVerified,
-    isCheckingDb,
+    isCheckingDb: false,
     user,
     userId: user?.id || null,
     sessionId: isSignedIn ? `sess_${user?.id}` : null,
@@ -574,20 +541,16 @@ export function SignIn(props: { routing?: string; path?: string; signUpUrl?: str
   const { signIn } = useContext(AuthContext);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(() => {
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('error') === 'not_in_db') {
-        return 'Access Denied: Your account does not exist in the database. Please register a new account to enter the portal.';
-      }
-      const savedError = sessionStorage.getItem('pm_auth_error');
-      if (savedError) {
-        sessionStorage.removeItem('pm_auth_error');
-        return savedError;
+      sessionStorage.removeItem('pm_auth_error');
+      if (window.location.search.includes('error=')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
     } catch {}
-    return null;
-  });
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {

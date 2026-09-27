@@ -1,4 +1,4 @@
-export const INITIAL_REGISTERED_PROFILES = [];
+export const INITIAL_REGISTERED_PROFILES: any[] = [];
 
 export const INITIAL_REGISTERED_USERS = [
   {

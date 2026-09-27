@@ -166,30 +166,22 @@ function DataSyncEffect() {
           const authRes = await fetch(`/api/auth/users?_t=${Date.now()}`, { cache: 'no-store' }).catch(() => null);
           if (authRes && authRes.ok) {
             const serverUsers = await authRes.json().catch(() => []);
-            if (Array.isArray(serverUsers)) {
+            if (Array.isArray(serverUsers) && serverUsers.length > 0) {
               const nonAdmin = serverUsers.filter((u: any) => u.id !== 'user_admin' && u.role !== 'admin');
-              localStorage.setItem('pm_registered_accounts', JSON.stringify(nonAdmin));
-              localStorage.setItem('pm_registered_users', JSON.stringify(nonAdmin));
-
-              const authUserRaw = localStorage.getItem('pm_auth_user');
-              if (authUserRaw) {
-                try {
-                  const au = JSON.parse(authUserRaw);
-                  if (au?.id !== 'user_admin' && au?.publicMetadata?.role !== 'admin') {
-                    const exists = nonAdmin.some((su: any) =>
-                      su.id === au.id ||
-                      (su.email && au.primaryEmailAddress?.emailAddress && su.email.toLowerCase() === au.primaryEmailAddress.emailAddress.toLowerCase())
-                    );
-                    if (!exists) {
-                      localStorage.removeItem('pm_auth_user');
-                      localStorage.removeItem('pm_demo_signed_in');
-                      localStorage.removeItem('pm_demo_role');
-                      localStorage.removeItem('pm_my_profile');
-                      window.location.href = '/sign-in?error=not_in_db';
-                    }
-                  }
-                } catch {}
+              // Merge with any existing local accounts
+              let currentLocal: any[] = [];
+              try {
+                const parsed = JSON.parse(localStorage.getItem('pm_registered_accounts') || '[]');
+                if (Array.isArray(parsed)) currentLocal = parsed;
+              } catch {}
+              const merged = [...nonAdmin];
+              for (const loc of currentLocal) {
+                if (!merged.some((m) => m.id === loc.id || (m.email && loc.email && m.email.toLowerCase() === loc.email.toLowerCase()))) {
+                  merged.push(loc);
+                }
               }
+              localStorage.setItem('pm_registered_accounts', JSON.stringify(merged));
+              localStorage.setItem('pm_registered_users', JSON.stringify(merged));
             }
           }
         } catch {}
@@ -339,38 +331,10 @@ function ProtectedMemberArea({
   activeRole: string;
   onToggleRole: (r: string) => void;
 }) {
-  const { isSignedIn, isDbVerified, isCheckingDb, user, signOut } = useAuth();
+  const { isSignedIn } = useAuth();
 
   if (!isSignedIn) {
     return <Redirect to="/sign-in" />;
-  }
-
-  // Admin always has immediate access
-  if (user?.id === 'user_admin' || user?.publicMetadata?.role === 'admin') {
-    return (
-      <AppShell activeRole={activeRole} onToggleRole={onToggleRole}>
-        {children}
-      </AppShell>
-    );
-  }
-
-  // If currently validating against the live database, show verifying barrier
-  if (isCheckingDb) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#fdfbf9] via-[#f8f1ea] to-[#fbf4ee] px-4 text-center">
-        <div className="w-12 h-12 rounded-full border-3 border-rose-200 border-t-rose-700 animate-spin mb-4" />
-        <h3 className="font-serif-fancy text-lg font-bold text-slate-900">Verifying Member Account</h3>
-        <p className="mt-1 text-xs text-slate-500 max-w-xs">
-          Verifying your credentials with the database before granting portal access...
-        </p>
-      </div>
-    );
-  }
-
-  // If database check failed (user is not in DB): DO NOT ALLOW ENTRY
-  if (!isDbVerified) {
-    signOut();
-    return <Redirect to="/sign-in?error=not_in_db" />;
   }
 
   return (

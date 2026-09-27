@@ -317,8 +317,8 @@ export function ProfileDetailPage() {
                     onClick={(e) => {
                       e.preventDefault();
                       initiateConversation(p);
-                      const targetId = p.userId || p.id;
-                      const photo = p.photos?.[0]?.url || p.primaryPhotoUrl || '';
+                      const targetId = (p as any).userId || p.id;
+                      const photo = p.photos?.[0]?.url || (p as any).primaryPhotoUrl || '';
                       setLocation(`/messages?user=${encodeURIComponent(targetId)}&name=${encodeURIComponent(p.displayName)}&photo=${encodeURIComponent(photo)}`);
                     }}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 px-4 py-3 text-xs font-bold uppercase tracking-wider text-rose-800 shadow-xs transition text-center cursor-pointer"

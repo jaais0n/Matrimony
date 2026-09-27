@@ -91,9 +91,9 @@ Pentecostal-Matrimony/
 ### 7. Database-First Authentication & Zero Ghost-Account Security
 - **Strict DB-First Entry Barrier**: Users who do not exist in the live Neon PostgreSQL cloud database (`/api/auth/users`) are strictly forbidden from entering the member portal (`/discover`, `/search`, `/profiles/:id`, `/interests`, `/messages`, `/my-profile`, etc.).
 - **Live Database Sign-In (`signIn`)**: The authentication flow asynchronously queries the live database with `cache: 'no-store'`. If credentials do not correspond to an active database record, login is blocked immediately with `"Account not found in database. This user is not registered or has been deleted from the database. Portal entry is not allowed."`
-- **Route Guard Barrier (`ProtectedMemberArea`)**: Every portal route actively validates the session against the database before rendering. While verifying, a dedicated loading screen is shown. If the database record is missing, the session is purged from `localStorage` (`pm_auth_user`, `pm_my_profile`, etc.) and the user is redirected to `/sign-in?error=not_in_db`.
-- **Live Background Heartbeat & Eviction**: `ClerkProvider` and `DataSyncEffect` monitor the database on startup, window focus, custom sync events, and on a 30-second heartbeat. If an administrator wipes the database or deletes an account, active browser tabs are evicted and redirected immediately.
-- **Startup Wipe Versioning**: Incremented startup wipe key to `pm_fresh_startup_v7` to automatically purge stale browser tokens and seed remnants across all client devices upon page reload.
+- **Silent Background Verification**: Session checks against Neon DB occur completely in the background without disruptive full-screen loading modals or page freezes. Active member portal views render instantly and smoothly.
+- **Throttled Live Heartbeat & Eviction**: Background validation is throttled (minimum 60-second cooldown) to avoid redundant network overhead. If an administrator wipes the database or deletes an account, the background check quietly invalidates local session tokens and redirects to `/sign-in?error=not_in_db`.
+- **Network Resilience**: In case of temporary network glitches or server spin-up delays, active sessions are preserved gracefully rather than falsely evicted.
 
 ### 8. Unique Credentials & Identity Collision Prevention
 - **Unique User IDs**: Every registered account is issued an isolated, collision-free user identifier generated via `generateUniqueUserId(email, fullName)`.

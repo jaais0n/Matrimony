@@ -6,6 +6,7 @@ import { initiateConversation } from '../../utils/storageHelper';
 
 export interface ProfileCardData {
   id: string;
+  userId?: string;
   displayName: string;
   age: number;
   location: string;
@@ -16,6 +17,7 @@ export interface ProfileCardData {
   motherTongue?: string;
   workingAbroad?: boolean;
   primaryPhotoUrl?: string;
+  photos?: Array<{ url: string }>;
   verificationStatus?: string;
   saved?: boolean;
   reasons?: string[];
