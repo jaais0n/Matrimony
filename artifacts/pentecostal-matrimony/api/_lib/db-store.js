@@ -1,6 +1,6 @@
 import { defaultStore } from './default-store.js';
 
-const FALLBACK_CONN = 'postgresql://neondb_owner:npg_DTj86nVbSHRq@ep-old-queen-b3qfwz1n-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+const FALLBACK_CONN = 'postgresql://neondb_owner:npg_lksoYRUjhS54@ep-morning-breeze-azc2ysa2-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 
 // In-memory cache for ultra-fast serverless response
 let memoryStore = {
@@ -147,7 +147,19 @@ async function queryNeon(sql, params = []) {
   }
 }
 
+let lastNeonFetchTime = 0;
+const NEON_CACHE_TTL_MS = 60 * 1000; // 60-second in-memory cache to save database transfer allowance
+
 export async function readStore() {
+  const now = Date.now();
+  if (memoryStore && memoryStore.profiles && (now - lastNeonFetchTime < NEON_CACHE_TTL_MS)) {
+    return {
+      profiles: (memoryStore.profiles || []).filter((p) => !isSeedProfile(p)),
+      users: memoryStore.users || [],
+      conversations: memoryStore.conversations || [],
+    };
+  }
+
   try {
     // 1. Try fetching from Neon Postgres
     const result = await queryNeon(`SELECT data FROM pm_store WHERE key = $1`, ['store_main']);
@@ -156,8 +168,10 @@ export async function readStore() {
       const rawProfiles = Array.isArray(data.profiles) ? data.profiles : [];
       const cleaned = rawProfiles.filter((p) => !isSeedProfile(p));
       const users = Array.isArray(data.users) ? data.users : [];
-      memoryStore = { profiles: cleaned, users };
-      return { profiles: cleaned, users };
+      const conversations = Array.isArray(data.conversations) ? data.conversations : [];
+      memoryStore = { profiles: cleaned, users, conversations };
+      lastNeonFetchTime = Date.now();
+      return { profiles: cleaned, users, conversations };
     }
   } catch (err) {
     console.warn('readStore Neon error:', err);
@@ -167,13 +181,15 @@ export async function readStore() {
   return {
     profiles: (memoryStore.profiles || []).filter((p) => !isSeedProfile(p)),
     users: memoryStore.users || [],
+    conversations: memoryStore.conversations || [],
   };
 }
 
 export async function writeStore(data) {
   const profiles = (Array.isArray(data?.profiles) ? data.profiles : []).filter((p) => !isSeedProfile(p));
   const users = Array.isArray(data?.users) ? data.users : [];
-  const cleanData = { profiles, users, savedAt: new Date().toISOString() };
+  const conversations = Array.isArray(data?.conversations) ? data.conversations : [];
+  const cleanData = { profiles, users, conversations, savedAt: new Date().toISOString() };
 
   // Always update in-memory cache immediately
   memoryStore = cleanData;

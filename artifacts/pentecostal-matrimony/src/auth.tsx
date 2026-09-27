@@ -227,13 +227,41 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
 
     // 2. Member and Registered Users check
     const accounts = getRegisteredUsers();
-    const matchedAccount = accounts.find(
+    let matchedAccount = accounts.find(
       (a) =>
         a.email.toLowerCase() === cleanId ||
         a.username?.toLowerCase() === cleanId ||
         a.fullName.toLowerCase() === cleanId ||
         a.id.toLowerCase() === cleanId
     );
+
+    // If not found in local accounts list, check if a profile matching email, username, or name exists
+    if (!matchedAccount) {
+      try {
+        const rawProfs = localStorage.getItem('pm_registered_profiles');
+        if (rawProfs) {
+          const profs = JSON.parse(rawProfs);
+          const profMatch = profs.find((p: any) =>
+            (p.email && p.email.toLowerCase() === cleanId) ||
+            (p.displayName && p.displayName.trim().toLowerCase() === cleanId) ||
+            (p.userId && String(p.userId).toLowerCase() === cleanId)
+          );
+          if (profMatch) {
+            matchedAccount = {
+              id: profMatch.userId || profMatch.id,
+              email: profMatch.email || (cleanId.includes('@') ? cleanId : `${cleanId}@pentecostalmatrimony.org`),
+              fullName: profMatch.displayName || cleanId,
+              firstName: (profMatch.displayName || cleanId).split(' ')[0],
+              role: 'member',
+              password: cleanPass,
+            };
+            const currentAccs = getRegisteredUsers();
+            currentAccs.push(matchedAccount);
+            localStorage.setItem('pm_registered_accounts', JSON.stringify(currentAccs));
+          }
+        }
+      } catch {}
+    }
 
     if (matchedAccount) {
       // Verify password (case-insensitive fallback for mobile keyboards)
@@ -257,6 +285,28 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
         localStorage.setItem('pm_demo_signed_in', 'true');
         localStorage.setItem('pm_demo_role', matchedAccount.role);
         syncProfileForUser(authUser);
+
+        // Immediate background pull of server profiles to restore profile data across devices
+        fetch('/api/profiles')
+          .then((r) => r.json())
+          .then((data) => {
+            const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+            if (items.length > 0) {
+              const myMatch = items.find((p: any) =>
+                p.userId === authUser.id ||
+                p.id === `prof_${authUser.id}` ||
+                (authUser.fullName && p.displayName && p.displayName.trim().toLowerCase() === authUser.fullName.trim().toLowerCase()) ||
+                (authUser.primaryEmailAddress?.emailAddress && p.email && p.email.toLowerCase() === authUser.primaryEmailAddress.emailAddress.toLowerCase())
+              );
+              if (myMatch) {
+                localStorage.setItem('pm_my_profile', JSON.stringify(myMatch));
+                localStorage.setItem(`pm_user_profile_${authUser.id}`, JSON.stringify(myMatch));
+              }
+              window.dispatchEvent(new CustomEvent('pm:sync'));
+            }
+          })
+          .catch(() => {});
+
         return { success: true, user: authUser };
       } else {
         return { success: false, error: 'Incorrect password. Please try again.' };

@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
   // GET /api/profiles — return all published profiles (never seed profiles)
   if (req.method === 'GET') {
-    res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=30');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     const published = store.profiles.filter(p => !isSeedProfile(p) && p.published !== false);
     res.status(200).json({
       items: published,

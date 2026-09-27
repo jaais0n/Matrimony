@@ -213,10 +213,27 @@ export function deduplicateProfiles<T extends { id?: string; userId?: string; di
   return result;
 }
 
-export function initiateConversation(profile: any): string {
+import { getDeterministicConvId } from './firebaseHelper';
+
+export function initiateConversation(profile: any, currentUserId?: string): string {
   if (!profile) return '';
-  const partId = String(profile.id || profile.userId || `user_${Date.now()}`);
-  const convId = `conv_${partId}`;
+  const partId = String(profile.userId || profile.id || `user_${Date.now()}`);
+
+  let myId = currentUserId || '';
+  if (!myId) {
+    try {
+      const raw = localStorage.getItem('pm_auth_user');
+      if (raw) myId = JSON.parse(raw).id;
+    } catch {}
+  }
+  if (!myId) {
+    try {
+      const myProfRaw = localStorage.getItem('pm_my_profile');
+      if (myProfRaw) myId = JSON.parse(myProfRaw).userId || JSON.parse(myProfRaw).id;
+    } catch {}
+  }
+
+  const convId = myId ? getDeterministicConvId(myId, partId) : `conv_${partId}`;
   const partName = profile.displayName || 'Believer Candidate';
   const partAge = profile.age || 28;
   const partPhoto = profile.photos && profile.photos[0] ? profile.photos[0].url : (profile.primaryPhotoUrl || '');
@@ -248,26 +265,17 @@ export function initiateConversation(profile: any): string {
       participantOccupation: partOcc,
       participantDenomination: partDenom,
       status: 'active',
-      lastMessageText: 'Grace and peace to you in Christ Jesus.',
+      lastMessageText: 'No messages yet.',
       lastMessageAt: new Date().toISOString(),
       unreadCount: 0,
-      messages: [
-        {
-          id: `msg_sys_${Date.now()}`,
-          senderId: 'system',
-          senderName: 'Platform Stewards',
-          content: 'Mutual connection confirmed. Messages automatically delete after 24 hours for member privacy.',
-          timestamp: new Date().toISOString(),
-          read: true,
-        },
-      ],
+      messages: [],
     };
 
     convs.unshift(newConv);
     localStorage.setItem('pm_user_conversations', JSON.stringify(convs));
     localStorage.setItem('pm_active_conv_id', convId);
 
-    // Also sync to serverless API in background
+    // Sync to serverless API in background
     fetch('/api/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
