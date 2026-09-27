@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vercel Serverless Function: /api/conversations
  * Real-time messaging and conversation synchronization backed by Neon PostgreSQL.
  * Persistent chat history like WhatsApp.
@@ -24,8 +24,14 @@ function userIsParticipant(conv, cleanUser) {
   if (pClean === cleanUser || creatorClean === cleanUser) return true;
   // For deterministic IDs like conv_john_sura, check parts
   const cId = (conv.id || '').toLowerCase();
+  if (cId.includes(cleanUser)) return true;
   const convParts = cId.replace(/^conv_/, '').split('_');
-  return convParts.includes(cleanUser);
+  if (convParts.includes(cleanUser)) return true;
+  // If user sent any message in this conversation
+  if (Array.isArray(conv.messages) && conv.messages.some((m) => cleanIdKey(m.senderId) === cleanUser)) {
+    return true;
+  }
+  return false;
 }
 
 export default async function handler(req, res) {
@@ -55,7 +61,27 @@ export default async function handler(req, res) {
     }
     if (currentUserId) {
       const cleanUser = cleanIdKey(currentUserId);
-      const userConvs = store.conversations.filter((c) => userIsParticipant(c, cleanUser));
+      const userConvs = store.conversations
+        .filter((c) => userIsParticipant(c, cleanUser))
+        .map((c) => {
+          const pClean = cleanIdKey(c.participantId || '');
+          const cClean = cleanIdKey(c.creatorId || '');
+          // If the requester is participantId, invert so requester sees creator as participant
+          if (pClean === cleanUser && cClean && cClean !== cleanUser) {
+            const creatorProf = (store.profiles || []).find((p) => cleanIdKey(p.userId || p.id) === cClean);
+            return {
+              ...c,
+              participantId: c.creatorId,
+              participantName: c.creatorName || creatorProf?.displayName || 'Believer Candidate',
+              participantPhoto: c.creatorPhoto || (creatorProf?.photos?.[0]?.url || creatorProf?.primaryPhotoUrl) || '',
+              participantAge: creatorProf?.age || c.participantAge || 28,
+              participantLocation: (creatorProf?.location ? [creatorProf.location, creatorProf.country].filter(Boolean).join(', ') : '') || c.participantLocation || 'India',
+              participantOccupation: creatorProf?.occupation || c.participantOccupation || 'Professional',
+              participantDenomination: creatorProf?.denomination || c.participantDenomination || 'Pentecostal',
+            };
+          }
+          return c;
+        });
       res.status(200).json(userConvs);
       return;
     }
@@ -71,7 +97,7 @@ export default async function handler(req, res) {
       let targetIndex = store.conversations.findIndex((c) => c.id === convId);
 
       const newMsg = {
-        id: body.id || msg__,
+        id: body.id || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         senderId: body.senderId || 'You',
         senderName: body.senderName || 'You',
         content: body.content || '',
@@ -87,6 +113,8 @@ export default async function handler(req, res) {
         store.conversations.unshift({
           id: convId,
           creatorId: body.senderId || currentUserId || '',
+          creatorName: body.senderName || '',
+          creatorPhoto: body.senderPhoto || '',
           participantId: body.recipientId || '',
           participantName: body.recipientName || 'Believer Candidate',
           participantAge: body.recipientAge || 28,
@@ -105,6 +133,11 @@ export default async function handler(req, res) {
 
       if (targetIndex >= 0) {
         const conv = store.conversations[targetIndex];
+        // Populate creator name/photo if missing
+        if (body.senderId && cleanIdKey(body.senderId) === cleanIdKey(conv.creatorId)) {
+          if (body.senderName && !conv.creatorName) conv.creatorName = body.senderName;
+          if (body.senderPhoto && !conv.creatorPhoto) conv.creatorPhoto = body.senderPhoto;
+        }
         const alreadyExists = (conv.messages || []).some((m) => m.id === newMsg.id);
         if (!alreadyExists) {
           conv.messages = Array.isArray(conv.messages) ? [...conv.messages, newMsg] : [newMsg];
@@ -120,8 +153,8 @@ export default async function handler(req, res) {
       return;
     }
 
-    const participantId = body.participantId || user_;
-    const convId = body.id || conv__;
+    const participantId = body.participantId || `user_${Date.now()}`;
+    const convId = body.id || `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     const existingIndex = store.conversations.findIndex((c) => {
       if (c.id === convId) return true;
@@ -135,6 +168,8 @@ export default async function handler(req, res) {
     const newConv = {
       id: convId,
       creatorId: body.creatorId || currentUserId || '',
+      creatorName: body.creatorName || body.senderName || '',
+      creatorPhoto: body.creatorPhoto || body.senderPhoto || '',
       participantId,
       participantName: body.participantName || 'Believer Candidate',
       participantAge: body.participantAge || 28,

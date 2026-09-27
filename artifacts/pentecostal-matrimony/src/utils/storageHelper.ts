@@ -297,11 +297,64 @@ export function initiateConversation(profile: any, currentUserId?: string): stri
     localStorage.setItem(userKey, JSON.stringify(convs));
     localStorage.setItem('pm_active_conv_id', convId);
 
+    // Also populate recipient's inbox so instant switching/cross-tab sees the conversation immediately
+    const cleanPartKey = cleanUserIdKey(partId);
+    if (cleanPartKey && cleanPartKey !== cleanUserIdKey(myId)) {
+      const recipientKey = `pm_user_conversations_${cleanPartKey}`;
+      try {
+        let recipientConvs: any[] = [];
+        const rRaw = localStorage.getItem(recipientKey);
+        if (rRaw) recipientConvs = JSON.parse(rRaw);
+        if (!Array.isArray(recipientConvs)) recipientConvs = [];
+        const rIdx = recipientConvs.findIndex((c) => c.id === convId);
+        if (rIdx < 0) {
+          let myName = 'Believer Candidate';
+          let myPhoto = '';
+          try {
+            const authUser = JSON.parse(localStorage.getItem('pm_auth_user') || '{}');
+            myName = authUser.fullName || myName;
+            const myProf = JSON.parse(localStorage.getItem('pm_my_profile') || '{}');
+            myPhoto = myProf.photos?.[0]?.url || myProf.primaryPhotoUrl || '';
+          } catch {}
+          recipientConvs.unshift({
+            id: convId,
+            participantId: myId,
+            participantName: myName,
+            participantPhoto: myPhoto,
+            participantAge: 28,
+            participantLocation: 'India',
+            participantOccupation: 'Member',
+            participantDenomination: 'Pentecostal',
+            status: 'active',
+            lastMessageText: 'No messages yet.',
+            lastMessageAt: new Date().toISOString(),
+            unreadCount: 0,
+            messages: [],
+          });
+          localStorage.setItem(recipientKey, JSON.stringify(recipientConvs));
+        }
+      } catch {}
+    }
+
     // Sync to serverless API in background
+    let myCreatorName = 'Believer Candidate';
+    let myCreatorPhoto = '';
+    try {
+      const authUser = JSON.parse(localStorage.getItem('pm_auth_user') || '{}');
+      myCreatorName = authUser.fullName || myCreatorName;
+      const myProf = JSON.parse(localStorage.getItem('pm_my_profile') || '{}');
+      myCreatorPhoto = myProf.photos?.[0]?.url || myProf.primaryPhotoUrl || '';
+    } catch {}
+
     fetch('/api/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newConv, creatorId: myId }),
+      body: JSON.stringify({
+        ...newConv,
+        creatorId: myId,
+        creatorName: myCreatorName,
+        creatorPhoto: myCreatorPhoto,
+      }),
     }).catch(() => {});
 
     return convId;
