@@ -88,15 +88,29 @@ Pentecostal-Matrimony/
 - **Removed Unnecessary Publish Checkbox**: In `MyProfilePage`, removed the explicit "Publish profile to public Discover directory" checkbox; profiles default to published seamlessly upon save.
 - **End-to-End Messaging & Interest Actions**: Clicking "Message" on any profile card or detail page immediately opens the candidate's direct conversation thread in `/messages`, with backend persistence for message sending and interest acceptance.
 
+### 7. Database-First Authentication & Zero Ghost-Account Security
+- **Strict DB-First Entry Barrier**: Users who do not exist in the live Neon PostgreSQL cloud database (`/api/auth/users`) are strictly forbidden from entering the member portal (`/discover`, `/search`, `/profiles/:id`, `/interests`, `/messages`, `/my-profile`, etc.).
+- **Live Database Sign-In (`signIn`)**: The authentication flow asynchronously queries the live database with `cache: 'no-store'`. If credentials do not correspond to an active database record, login is blocked immediately with `"Account not found in database. This user is not registered or has been deleted from the database. Portal entry is not allowed."`
+- **Route Guard Barrier (`ProtectedMemberArea`)**: Every portal route actively validates the session against the database before rendering. While verifying, a dedicated loading screen is shown. If the database record is missing, the session is purged from `localStorage` (`pm_auth_user`, `pm_my_profile`, etc.) and the user is redirected to `/sign-in?error=not_in_db`.
+- **Live Background Heartbeat & Eviction**: `ClerkProvider` and `DataSyncEffect` monitor the database on startup, window focus, custom sync events, and on a 30-second heartbeat. If an administrator wipes the database or deletes an account, active browser tabs are evicted and redirected immediately.
+- **Startup Wipe Versioning**: Incremented startup wipe key to `pm_fresh_startup_v7` to automatically purge stale browser tokens and seed remnants across all client devices upon page reload.
+
+### 8. Unique Credentials & Identity Collision Prevention
+- **Unique User IDs**: Every registered account is issued an isolated, collision-free user identifier generated via `generateUniqueUserId(email, fullName)`.
+- **Unique Email Constraint**: Prohibits multiple accounts with the same Gmail/email address across client forms (`OnboardingPage`, `SignUp`) and serverless handlers (`/api/auth/register`).
+- **Unique Phone Constraint**: Prohibits multiple accounts with the same phone number (accounting for country codes and 10-digit national numbers) via `isPhoneMatch` and server validation.
+
 ---
 
 ## 🔒 Security & Privacy Controls
 - Photo visibility controls (`all_members`, `verified_only`, `on_request`).
 - Soft deletion / profile unpublishing toggles (`published !== false`).
 - Full client-side data isolation per user key.
+- Authoritative cloud database verification prior to portal access.
 
 ---
 
 ## 🏃 Useful Commands
 - **Run Frontend Dev Server**: `npm run dev`
 - **Build Workspace**: `npm run build`
+
