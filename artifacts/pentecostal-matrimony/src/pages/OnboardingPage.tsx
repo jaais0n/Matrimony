@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Lock, Shield, Upload, User, Star, Trash2, Camera, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Lock, Shield, Upload, User, Star, Trash2, Camera, Sparkles, AlertCircle } from 'lucide-react';
 import { registerNewUser, useAuthActions } from '../auth';
+import { checkEmailExists, checkPhoneExists, normalizeEmail } from '../utils/userValidation';
 import { compressImage, getApproximateKB, safeSetLocalStorage } from '../utils/storageHelper';
 import { uploadPhotoToCloudinary } from '../utils/cloudinaryHelper';
 import { isSeedProfile } from '@workspace/api-client-react';
@@ -100,9 +101,70 @@ export function OnboardingPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishingMessage, setPublishingMessage] = useState('Creating your verified member account...');
 
+  const [step2Error, setStep2Error] = useState<string | null>(null);
+
   const totalSteps = 10;
 
+  const validateStep2 = (): boolean => {
+    const fullName = accountData.fullName.trim();
+    const emailClean = normalizeEmail(accountData.email);
+    const phoneClean = accountData.phone.trim();
+    const pass = accountData.password.trim();
+
+    if (!fullName) {
+      setStep2Error('Please enter your full name.');
+      return false;
+    }
+
+    if (!emailClean || !emailClean.includes('@') || !emailClean.includes('.')) {
+      setStep2Error('Please enter a valid email address.');
+      return false;
+    }
+
+    // Prohibit duplicate emails / Gmails
+    if (checkEmailExists(emailClean)) {
+      setStep2Error(`An account with the email "${emailClean}" already exists. Multiple accounts with the same email are not allowed. Please sign in or use another email.`);
+      return false;
+    }
+
+    if (!phoneClean) {
+      setStep2Error('Please enter your phone number.');
+      return false;
+    }
+
+    if (phoneClean.replace(/\D/g, '').length < 10) {
+      setStep2Error('Please enter a valid 10-digit phone number.');
+      return false;
+    }
+
+    // Prohibit duplicate phone numbers
+    if (checkPhoneExists(phoneClean)) {
+      setStep2Error(`The phone number "${phoneClean}" is already registered to another account. Multiple accounts with the same phone number are not allowed.`);
+      return false;
+    }
+
+    if (!pass || pass.length < 4) {
+      setStep2Error('Password must be at least 4 characters long.');
+      return false;
+    }
+
+    if (!accountData.dateOfBirth) {
+      setStep2Error('Please select your date of birth.');
+      return false;
+    }
+
+    setStep2Error(null);
+    return true;
+  };
+
   const nextStep = () => {
+    if (currentStep === 2) {
+      if (!validateStep2()) {
+        window.scrollTo({ top: 100, behavior: 'smooth' });
+        return;
+      }
+    }
+    setStep2Error(null);
     if (currentStep < totalSteps) {
       setCurrentStep((prev) => prev + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -196,13 +258,15 @@ export function OnboardingPage() {
 
     try {
       const userEmail = accountData.email.trim();
+      const userPhone = accountData.phone.trim();
       const userPass = accountData.password.trim();
       const userName = accountData.fullName.trim() || basicsData.displayName.trim() || 'New Believer';
 
-      // 1. Authenticate & register member account
+      // 1. Authenticate & register member account with unique user ID, unique email, and unique phone
       const registered = registerNewUser({
         fullName: userName,
         email: userEmail || 'user@example.com',
+        phone: userPhone,
         password: userPass || 'password123',
         role: 'member',
       });
@@ -217,6 +281,8 @@ export function OnboardingPage() {
       const newProfile = {
         id: `prof_${registered.id}`,
         userId: registered.id,
+        email: userEmail,
+        phone: userPhone,
         displayName: basicsData.displayName.trim() || userName,
         dateOfBirth: accountData.dateOfBirth || '',
         age: Number(basicsData.age) || undefined,
@@ -364,8 +430,15 @@ export function OnboardingPage() {
               <p className="text-xs font-bold text-rose-700 uppercase tracking-wider mb-1">Step 2</p>
               <h2 className="text-2xl font-bold text-slate-900">Account Creation</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Your account credentials will remain strictly private and secure.
+                Your account credentials will remain strictly private and secure. Each account must have a unique email and phone number.
               </p>
+
+              {step2Error && (
+                <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-xs font-semibold text-rose-800 animate-in fade-in">
+                  <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
+                  <span>{step2Error}</span>
+                </div>
+              )}
 
               <div className="mt-6 space-y-4">
                 <div>

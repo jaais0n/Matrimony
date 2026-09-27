@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
-import { AlertCircle, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, User } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, User, Phone } from 'lucide-react';
 import { INITIAL_REGISTERED_USERS, setAuthTokenGetter } from '@workspace/api-client-react';
+import { checkEmailExists, checkPhoneExists, generateUniqueUserId, normalizeEmail, isPhoneMatch } from './utils/userValidation';
 
 // Configure bearer token provider for automatic authentication on all API calls
 setAuthTokenGetter(() => {
@@ -28,6 +29,7 @@ interface StoredAccount {
   id: string;
   username?: string;
   email: string;
+  phone?: string;
   password?: string;
   fullName: string;
   firstName: string;
@@ -39,37 +41,11 @@ const SEED_USERS: StoredAccount[] = [
     id: 'user_admin',
     username: 'admin',
     email: 'admin@pentecostalmatrimony.org',
+    phone: '+91 98765 00000',
     password: 'admin',
     fullName: 'Steward Administrator',
     firstName: 'Administrator',
     role: 'admin',
-  },
-  {
-    id: 'user_john',
-    username: 'john',
-    email: 'john@gmail.com',
-    password: '123',
-    fullName: 'John',
-    firstName: 'John',
-    role: 'member',
-  },
-  {
-    id: 'user_sura',
-    username: 'sura',
-    email: 'sura@gmail.com',
-    password: '123',
-    fullName: 'Suru',
-    firstName: 'Suru',
-    role: 'member',
-  },
-  {
-    id: 'user_sura',
-    username: 'suru',
-    email: 'suru@gmail.com',
-    password: '123',
-    fullName: 'Suru',
-    firstName: 'Suru',
-    role: 'member',
   },
   ...(Array.isArray(INITIAL_REGISTERED_USERS) ? INITIAL_REGISTERED_USERS : []).map((u: any) => ({
     id: u.id,
@@ -98,17 +74,38 @@ export function getRegisteredUsers(): StoredAccount[] {
 export function registerNewUser(account: {
   fullName: string;
   email: string;
+  phone?: string;
   password?: string;
   role?: 'admin' | 'member';
 }): StoredAccount {
+  const emailClean = normalizeEmail(account.email);
+  if (!emailClean) {
+    throw new Error('Please enter a valid email address.');
+  }
+
+  // Enforce unique email: Multiple accounts with the same Gmail/email are strictly not allowed
+  if (checkEmailExists(emailClean)) {
+    throw new Error(`An account with the email "${emailClean}" already exists. Multiple accounts with the same email are not allowed.`);
+  }
+
+  // Enforce unique phone: Multiple accounts with the same phone number are strictly not allowed
+  const phoneClean = account.phone ? account.phone.trim() : '';
+  if (phoneClean && checkPhoneExists(phoneClean)) {
+    throw new Error(`The phone number "${phoneClean}" is already registered to another account. Multiple accounts with the same phone number are not allowed.`);
+  }
+
   const allCurrent = getRegisteredUsers().filter(u => !SEED_USERS.some(s => s.id === u.id));
   const firstName = account.fullName.trim().split(' ')[0] || 'Member';
-  const emailClean = account.email.trim().toLowerCase();
-  
+  const username = emailClean.includes('@') ? emailClean.split('@')[0] : emailClean;
+
+  // Generate completely separate, unique user ID for this user
+  const uniqueId = generateUniqueUserId(emailClean, account.fullName);
+
   const newUser: StoredAccount = {
-    id: `user_${Date.now()}`,
-    username: emailClean.includes('@') ? emailClean.split('@')[0] : emailClean,
+    id: uniqueId,
+    username,
     email: emailClean,
+    phone: phoneClean || undefined,
     password: account.password || 'password123',
     fullName: account.fullName.trim(),
     firstName,
@@ -124,10 +121,13 @@ export function registerNewUser(account: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        id: newUser.id,
         email: newUser.email,
+        phone: newUser.phone,
         fullName: newUser.fullName,
         password: newUser.password,
         role: newUser.role,
+        isNewRegistration: true,
       }),
     }).catch(() => {});
   } catch {}
@@ -271,10 +271,11 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
         a.email.toLowerCase() === cleanId ||
         a.username?.toLowerCase() === cleanId ||
         a.fullName.toLowerCase() === cleanId ||
-        a.id.toLowerCase() === cleanId
+        a.id.toLowerCase() === cleanId ||
+        (a.phone && isPhoneMatch(a.phone, cleanId))
     );
 
-    // If not found in local accounts list, check if a profile matching email, username, or name exists
+    // If not found in local accounts list, check if a profile matching email, phone, username, or name exists
     if (!matchedAccount) {
       try {
         const rawProfs = localStorage.getItem('pm_registered_profiles');
@@ -282,6 +283,7 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
           const profs = JSON.parse(rawProfs);
           const profMatch = profs.find((p: any) =>
             (p.email && p.email.toLowerCase() === cleanId) ||
+            (p.phone && isPhoneMatch(p.phone, cleanId)) ||
             (p.displayName && p.displayName.trim().toLowerCase() === cleanId) ||
             (p.userId && String(p.userId).toLowerCase() === cleanId)
           );
@@ -289,6 +291,7 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
             matchedAccount = {
               id: profMatch.userId || profMatch.id,
               email: profMatch.email || (cleanId.includes('@') ? cleanId : `${cleanId}@pentecostalmatrimony.org`),
+              phone: profMatch.phone,
               fullName: profMatch.displayName || cleanId,
               firstName: (profMatch.displayName || cleanId).split(' ')[0],
               role: 'member',
@@ -415,7 +418,12 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       const toRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_active_conv_'))) {
+        if (
+          k &&
+          (k.startsWith('pm_user_profile_') ||
+            k.startsWith('pm_active_conv_') ||
+            k.startsWith('pm_user_conversations_'))
+        ) {
           toRemove.push(k);
         }
       }
@@ -610,17 +618,46 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
   const { signIn } = useContext(AuthContext);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError('Please fill in all fields.');
+    const cleanName = name.trim();
+    const cleanEmail = normalizeEmail(email);
+    const cleanPhone = phone.trim();
+    const cleanPass = password.trim();
+
+    if (!cleanName || !cleanEmail || !cleanPass) {
+      setError('Please fill in all required fields.');
       return;
     }
-    if (password.length < 4) {
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
+    // Check unique email constraint
+    if (checkEmailExists(cleanEmail)) {
+      setError(`An account with the email "${cleanEmail}" already exists. Multiple accounts with the same Gmail/email are not allowed.`);
+      return;
+    }
+
+    // Check unique phone constraint
+    if (cleanPhone) {
+      if (cleanPhone.replace(/\D/g, '').length < 10) {
+        setError('Please enter a valid 10-digit phone number.');
+        return;
+      }
+      if (checkPhoneExists(cleanPhone)) {
+        setError(`The phone number "${cleanPhone}" is already registered to another account. Multiple accounts with the same phone number are not allowed.`);
+        return;
+      }
+    }
+
+    if (cleanPass.length < 4) {
       setError('Password must be at least 4 characters.');
       return;
     }
@@ -630,17 +667,18 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
     setTimeout(() => {
       try {
         registerNewUser({
-          fullName: name,
-          email: email,
-          password: password,
+          fullName: cleanName,
+          email: cleanEmail,
+          phone: cleanPhone || undefined,
+          password: cleanPass,
           role: 'member',
         });
 
-        signIn(email, password);
+        signIn(cleanEmail, cleanPass);
         window.location.href = '/discover';
-      } catch {
+      } catch (err: any) {
         setIsLoading(false);
-        setError('Registration failed. Please try again.');
+        setError(err.message || 'Registration failed. Please try again.');
       }
     }, 450);
   };
@@ -684,6 +722,18 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
             onChange={(e) => setEmail(e.target.value)}
             className="w-full h-11 rounded-xl border border-[#ebdcd0] bg-white px-3.5 text-xs text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/50 focus:outline-none transition shadow-2xs"
             required
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+            Phone number
+          </label>
+          <input
+            type="tel"
+            placeholder="+91 98765 43210"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full h-11 rounded-xl border border-[#ebdcd0] bg-white px-3.5 text-xs text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/50 focus:outline-none transition shadow-2xs"
           />
         </div>
         <div>

@@ -157,7 +157,9 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
               e.preventDefault();
               e.stopPropagation();
               initiateConversation(profile);
-              setLocation(`/messages?user=${profile.id}&name=${encodeURIComponent(profile.displayName)}`);
+              const targetId = profile.userId || profile.id;
+              const photo = profile.photos?.[0]?.url || profile.primaryPhotoUrl || '';
+              setLocation(`/messages?user=${encodeURIComponent(targetId)}&name=${encodeURIComponent(profile.displayName)}&photo=${encodeURIComponent(photo)}`);
             }}
             className="h-10 w-full flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100/90 hover:border-rose-300 text-rose-800 px-3 text-xs font-bold tracking-wide transition shadow-2xs text-center cursor-pointer"
           >

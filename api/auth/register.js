@@ -1,6 +1,10 @@
 /**
  * Vercel Serverless Function: /api/auth/register
  * Persists registered accounts across devices backed by Neon PostgreSQL.
+ * Enforces:
+ * 1. Unique separate User ID for every user
+ * 2. Unique Email constraint (multiple accounts with same Gmail/email prohibited)
+ * 3. Unique Phone Number constraint (multiple accounts with same phone number prohibited)
  */
 
 import { readStore, writeStore } from '../_lib/db-store.js';
@@ -27,20 +31,57 @@ export default async function handler(req, res) {
   }
 
   const store = await readStore();
+  const users = store.users || [];
   const emailClean = String(account.email).trim().toLowerCase();
-  const existingIdx = store.users.findIndex(u => u.email?.toLowerCase() === emailClean);
+
+  // 1. Enforce Unique Email Constraint
+  const existingEmailIdx = users.findIndex(u => u.email?.toLowerCase() === emailClean);
+  if (existingEmailIdx >= 0) {
+    const existing = users[existingEmailIdx];
+    // If different user ID or explicitly marked as new registration
+    if (account.isNewRegistration || (account.id && existing.id !== account.id)) {
+      res.status(409).json({
+        error: `An account with the email "${emailClean}" already exists. Multiple accounts with the same Gmail/email are not allowed.`,
+      });
+      return;
+    }
+  }
+
+  // 2. Enforce Unique Phone Number Constraint
+  const rawPhone = account.phone ? String(account.phone).trim() : '';
+  const phoneDigits = rawPhone.replace(/\D/g, '');
+  if (phoneDigits.length >= 10) {
+    const existingPhoneUser = users.find(u => {
+      const uPhone = String(u.phone || '').replace(/\D/g, '');
+      if (!uPhone || uPhone.length < 10) return false;
+      const isMatch = uPhone.slice(-10) === phoneDigits.slice(-10);
+      return isMatch && (!account.id || u.id !== account.id);
+    });
+
+    if (existingPhoneUser) {
+      res.status(409).json({
+        error: `The phone number "${rawPhone}" is already registered to another account. Multiple accounts with the same phone number are not allowed.`,
+      });
+      return;
+    }
+  }
+
+  // 3. Guarantee separate unique user ID
+  const uniqueId = account.id || `user_${emailClean.split('@')[0].replace(/[^a-z0-9]/g, '')}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
 
   const newUser = {
-    id: account.id || (existingIdx >= 0 ? store.users[existingIdx].id : `user_${Date.now()}`),
+    id: uniqueId,
     email: emailClean,
+    phone: rawPhone || undefined,
     fullName: account.fullName || (emailClean.includes('@') ? emailClean.split('@')[0] : emailClean),
     firstName: account.firstName || account.fullName?.split(' ')[0] || 'Member',
     password: account.password || 'password123',
     role: account.role || 'member',
+    createdAt: account.createdAt || new Date().toISOString(),
   };
 
-  if (existingIdx >= 0) {
-    store.users[existingIdx] = { ...store.users[existingIdx], ...newUser };
+  if (existingEmailIdx >= 0) {
+    store.users[existingEmailIdx] = { ...store.users[existingEmailIdx], ...newUser };
   } else {
     store.users.push(newUser);
   }

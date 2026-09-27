@@ -265,8 +265,16 @@ export function initiateConversation(profile: any, currentUserId?: string): stri
       (c) => c.id === convId || cleanUserIdKey(c.participantId) === cleanUserIdKey(partId)
     );
     if (existingIndex >= 0) {
-      localStorage.setItem('pm_active_conv_id', convs[existingIndex].id);
-      return convs[existingIndex].id;
+      // Ensure canonical ID and photo are preserved
+      convs[existingIndex].id = convId;
+      if (!convs[existingIndex].participantPhoto && partPhoto) {
+        convs[existingIndex].participantPhoto = partPhoto;
+      }
+      try {
+        localStorage.setItem(userKey, JSON.stringify(convs));
+      } catch {}
+      localStorage.setItem('pm_active_conv_id', convId);
+      return convId;
     }
 
     const newConv = {

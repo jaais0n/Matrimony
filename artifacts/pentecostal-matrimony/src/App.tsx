@@ -187,13 +187,13 @@ function DataSyncEffect() {
     };
 
     // 1. Initial sync on mount
-    syncData(false);
+    syncData();
 
     // 2. Debounced sync when user saves profile or registers (custom event)
     const onSyncEvent = () => {
       clearTimeout(syncDebounceTimer);
       syncDebounceTimer = setTimeout(() => {
-        syncData(true);
+        syncData();
       }, 1500);
     };
     window.addEventListener('pm:sync', onSyncEvent);
@@ -203,7 +203,7 @@ function DataSyncEffect() {
       const now = Date.now();
       if (now - lastFocusSync > 180000) {
         lastFocusSync = now;
-        syncData(false);
+        syncData();
       }
     };
     window.addEventListener('focus', onFocus);
@@ -211,7 +211,7 @@ function DataSyncEffect() {
     // 4. Gentle periodic poll (every 3 minutes only when document is visible)
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        syncData(false);
+        syncData();
       }
     }, 180000);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import {
@@ -36,7 +36,7 @@ function getStoredConversations(currentUserId?: string): Conversation[] {
   try {
     const cleanId = cleanUserIdKey(currentUserId || '');
     const key = cleanId ? `pm_user_conversations_${cleanId}` : 'pm_user_conversations';
-    const raw = localStorage.getItem(key) || (cleanId ? localStorage.getItem('pm_user_conversations') : null);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -86,6 +86,73 @@ export function MessagesPage() {
     return 'You';
   }, [user?.fullName]);
 
+  const currentUserPhoto = useMemo(() => {
+    if (user?.imageUrl) return user.imageUrl;
+    try {
+      const myProf = localStorage.getItem('pm_my_profile');
+      if (myProf) {
+        const parsed = JSON.parse(myProf);
+        const p = parsed.photos?.[0]?.url || parsed.primaryPhotoUrl;
+        if (p) return p;
+      }
+    } catch {}
+    try {
+      const raw = localStorage.getItem('pm_auth_user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.photoUrl || parsed.photo) return parsed.photoUrl || parsed.photo;
+      }
+    } catch {}
+    try {
+      const raw = localStorage.getItem('pm_registered_profiles');
+      if (raw) {
+        const profs = JSON.parse(raw);
+        const cleanMy = cleanUserIdKey(currentUserId);
+        const match = profs.find((p: any) =>
+          cleanUserIdKey(p.userId || p.id) === cleanMy ||
+          (p.displayName && currentUserName && p.displayName.trim().toLowerCase() === currentUserName.trim().toLowerCase())
+        );
+        if (match) {
+          const p = match.photos?.[0]?.url || match.primaryPhotoUrl;
+          if (p) return p;
+        }
+      }
+    } catch {}
+    if (cleanUserIdKey(currentUserId) === 'sura') {
+      return 'https://res.cloudinary.com/suvkbjww/image/upload/v1790445115/eljlyxdlh0rkbg4pqoih.jpg';
+    }
+    return '';
+  }, [user?.imageUrl, currentUserId, currentUserName]);
+
+  const findParticipantPhoto = useCallback((participantId: string, participantName?: string): string => {
+    const cleanPart = cleanUserIdKey(participantId);
+    const cleanName = (participantName || '').trim().toLowerCase();
+
+    // 1. Check all registered profiles in localStorage
+    try {
+      const raw = localStorage.getItem('pm_registered_profiles');
+      if (raw) {
+        const profs = JSON.parse(raw);
+        const found = profs.find((p: any) => {
+          const pClean = cleanUserIdKey(p.userId || p.id);
+          const pName = (p.displayName || '').trim().toLowerCase();
+          return pClean === cleanPart || (cleanName && pName === cleanName);
+        });
+        if (found) {
+          const url = found.photos?.[0]?.url || found.primaryPhotoUrl;
+          if (url) return url;
+        }
+      }
+    } catch {}
+
+    // 2. Fallback for Suru
+    if (cleanPart === 'sura' || cleanName.includes('suru') || cleanName.includes('sura')) {
+      return 'https://res.cloudinary.com/suvkbjww/image/upload/v1790445115/eljlyxdlh0rkbg4pqoih.jpg';
+    }
+
+    return '';
+  }, []);
+
   const [selectedConvId, setSelectedConvId] = useState<string>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -103,7 +170,14 @@ export function MessagesPage() {
       }
       const savedActive = localStorage.getItem('pm_active_conv_id');
       if (savedActive) return savedActive;
-      const initial = getStoredConversations();
+      // Read from user-scoped key, not global key
+      const myId = (() => {
+        try {
+          const raw = localStorage.getItem('pm_auth_user');
+          return raw ? JSON.parse(raw).id : '';
+        } catch { return ''; }
+      })();
+      const initial = getStoredConversations(myId);
       return initial[0]?.id || '';
     } catch {
       return '';
@@ -178,7 +252,9 @@ export function MessagesPage() {
       });
       const lastMsg = valid[valid.length - 1];
       const nameKey = (c.participantName || '').trim().toLowerCase();
-      const participantKey = nameKey || partClean || c.id;
+      const participantKey = partClean || nameKey || c.id;
+      const canonicalConvId = getDeterministicConvId(currentUserId, c.participantId);
+      const photo = c.participantPhoto || findParticipantPhoto(c.participantId, c.participantName);
 
       const existing = map.get(participantKey);
       const convTime = new Date(lastMsg ? lastMsg.timestamp : (c.lastMessageAt || 0)).getTime();
@@ -187,7 +263,8 @@ export function MessagesPage() {
       if (!existing || convTime >= existingTime) {
         map.set(participantKey, {
           ...c,
-          id: c.id,
+          id: canonicalConvId,
+          participantPhoto: photo || existing?.participantPhoto || '',
           messages: valid,
           lastMessageText: lastMsg ? lastMsg.content : sanitizeText(c.lastMessageText),
           lastMessageAt: lastMsg ? lastMsg.timestamp : c.lastMessageAt,
@@ -204,28 +281,30 @@ export function MessagesPage() {
       if (fi.participantName && myCleanName && fi.participantName.trim().toLowerCase() === myCleanName) continue;
 
       const nameKey = (fi.participantName || '').trim().toLowerCase();
-      const participantKey = nameKey || partClean || fi.id;
+      const participantKey = partClean || nameKey || fi.id;
+      const canonicalConvId = getDeterministicConvId(currentUserId, fi.participantId);
+      const photo = fi.participantPhoto || findParticipantPhoto(fi.participantId, fi.participantName);
       const existing = map.get(participantKey);
 
       if (existing) {
         const fiTime = new Date(fi.lastMessageAt || 0).getTime();
         const existingTime = new Date(existing.lastMessageAt || 0).getTime();
-        const isCanonical = fi.id.startsWith('conv_') && (fi.id.includes(myCleanId) || fi.id.includes('john') || fi.id.includes('sura'));
         map.set(participantKey, {
           ...existing,
-          id: isCanonical ? fi.id : (fiTime >= existingTime ? (fi.id || existing.id) : existing.id),
+          id: canonicalConvId,
+          participantPhoto: photo || existing.participantPhoto || '',
           lastMessageText: sanitizeText(fi.lastMessageText) || existing.lastMessageText,
           lastMessageAt: fiTime >= existingTime ? (fi.lastMessageAt || existing.lastMessageAt) : existing.lastMessageAt,
           unreadCount: fi.unreadCount ?? existing.unreadCount,
         });
       } else {
         map.set(participantKey, {
-          id: fi.id,
+          id: canonicalConvId,
           participantId: fi.participantId,
           participantName: fi.participantName || 'Believer Candidate',
           participantAge: fi.participantAge || 28,
           participantLocation: fi.participantLocation || 'India',
-          participantPhoto: fi.participantPhoto || '',
+          participantPhoto: photo,
           participantOccupation: fi.participantOccupation || 'Professional',
           participantDenomination: fi.participantDenomination || 'Pentecostal',
           status: 'active',
@@ -240,7 +319,7 @@ export function MessagesPage() {
     const list = Array.from(map.values());
     list.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
     return list;
-  }, [rawConversations, firebaseInbox, currentUserId, currentUserName]);
+  }, [rawConversations, firebaseInbox, currentUserId, currentUserName, findParticipantPhoto]);
 
   const activeConversation = useMemo(() => {
     if (!selectedConvId && conversations.length > 0) return conversations[0];
@@ -248,9 +327,15 @@ export function MessagesPage() {
       (c) =>
         c.id === selectedConvId ||
         c.participantId === selectedConvId ||
-        cleanUserIdKey(c.participantId) === cleanUserIdKey(selectedConvId)
+        cleanUserIdKey(c.participantId) === cleanUserIdKey(selectedConvId) ||
+        getDeterministicConvId(currentUserId, c.participantId) === selectedConvId
     );
-    if (found) return found;
+    if (found) {
+      return {
+        ...found,
+        participantPhoto: found.participantPhoto || findParticipantPhoto(found.participantId, found.participantName),
+      };
+    }
 
     // If not found in conversation list yet, check if registered candidate profile exists
     try {
@@ -260,16 +345,19 @@ export function MessagesPage() {
         const cand = profs.find(
           (p: any) =>
             selectedConvId.includes(cleanUserIdKey(p.id)) ||
-            selectedConvId.includes(cleanUserIdKey(p.userId))
+            selectedConvId.includes(cleanUserIdKey(p.userId)) ||
+            cleanUserIdKey(p.id) === cleanUserIdKey(selectedConvId) ||
+            cleanUserIdKey(p.userId) === cleanUserIdKey(selectedConvId)
         );
         if (cand) {
+          const photo = cand.photos?.[0]?.url || cand.primaryPhotoUrl || findParticipantPhoto(cand.userId || cand.id, cand.displayName);
           return {
-            id: selectedConvId,
+            id: getDeterministicConvId(currentUserId, cand.userId || cand.id),
             participantId: cand.userId || cand.id,
             participantName: cand.displayName || 'Believer Candidate',
             participantAge: cand.age || 28,
             participantLocation: [cand.location, cand.country].filter(Boolean).join(', ') || 'India',
-            participantPhoto: cand.photos?.[0]?.url || cand.primaryPhotoUrl || '',
+            participantPhoto: photo,
             participantOccupation: cand.occupation || 'Professional',
             participantDenomination: cand.denomination || 'Pentecostal',
             status: 'active',
@@ -283,7 +371,7 @@ export function MessagesPage() {
     } catch {}
 
     return conversations[0] || null;
-  }, [conversations, selectedConvId]);
+  }, [conversations, selectedConvId, currentUserId, findParticipantPhoto]);
 
   // Real-time Firebase WebSocket/SSE listener for live chat streaming
   useEffect(() => {
@@ -308,22 +396,27 @@ export function MessagesPage() {
       };
     } else {
       setFirebaseActive(false);
+      return undefined;
     }
   }, [activeConversation?.id, currentUserId]);
 
-  // Handle ?user= and ?name= query parameters
+  // Handle ?user= and ?name= and ?photo= query parameters
   useEffect(() => {
     const searchStr = window.location.search || (location.includes('?') ? location.split('?')[1] : '');
     const params = new URLSearchParams(searchStr);
     const targetUserId = params.get('user');
     const targetName = params.get('name');
+    const targetPhoto = params.get('photo');
 
     if (targetUserId) {
       let matchedProfile: any = null;
       try {
         const raw = localStorage.getItem('pm_registered_profiles');
         const profiles = raw ? JSON.parse(raw) : [];
-        matchedProfile = profiles.find((p: any) => p.id === targetUserId || p.userId === targetUserId);
+        matchedProfile = profiles.find((p: any) =>
+          cleanUserIdKey(p.id) === cleanUserIdKey(targetUserId) ||
+          cleanUserIdKey(p.userId) === cleanUserIdKey(targetUserId)
+        );
       } catch {}
 
       const convId = initiateConversation(
@@ -331,6 +424,8 @@ export function MessagesPage() {
           id: targetUserId,
           userId: targetUserId,
           displayName: targetName ? decodeURIComponent(targetName) : 'Believer Candidate',
+          photos: targetPhoto ? [{ url: decodeURIComponent(targetPhoto) }] : [],
+          primaryPhotoUrl: targetPhoto ? decodeURIComponent(targetPhoto) : '',
         },
         currentUserId
       );
@@ -401,6 +496,7 @@ export function MessagesPage() {
       } else {
         localConvs.unshift({
           ...activeConversation,
+          status: (activeConversation.status ?? 'active') as 'active' | 'ended' | 'blocked',
           lastMessageText: userText,
           lastMessageAt: tempUserMsg.timestamp,
           messages: [tempUserMsg],
@@ -411,15 +507,17 @@ export function MessagesPage() {
 
     // 2. Stream to Firebase Realtime Database for instant cross-device delivery (<50ms)
     if (isFirebaseConfigured()) {
+      const recipientPhoto = activeConversation.participantPhoto || findParticipantPhoto(activeConversation.participantId, activeConversation.participantName);
       sendFirebaseMessage(activeConversation.id, tempUserMsg, {
         senderUser: {
           id: currentUserId,
           name: currentUserName,
+          photo: currentUserPhoto,
         },
         recipientUser: {
           id: activeConversation.participantId,
           name: activeConversation.participantName,
-          photo: activeConversation.participantPhoto,
+          photo: recipientPhoto,
           location: activeConversation.participantLocation,
           denomination: activeConversation.participantDenomination,
           age: activeConversation.participantAge,
@@ -433,9 +531,16 @@ export function MessagesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         conversationId: activeConversation.id,
+        id: tempUserMsg.id,
         content: userText,
         senderId: currentUserId,
         senderName: currentUserName,
+        timestamp: tempUserMsg.timestamp,
+        recipientId: activeConversation.participantId,
+        recipientName: activeConversation.participantName,
+        recipientAge: activeConversation.participantAge,
+        recipientLocation: activeConversation.participantLocation,
+        recipientPhoto: activeConversation.participantPhoto,
       }),
     }).catch(() => {});
   };
@@ -653,6 +758,9 @@ export function MessagesPage() {
                               src={c.participantPhoto}
                               alt={c.participantName}
                               className="h-11 w-11 rounded-full border border-slate-200 object-cover shadow-xs"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
                             />
                           ) : (
                             <div className="h-11 w-11 rounded-full border border-rose-200 bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs shadow-xs">
@@ -709,6 +817,9 @@ export function MessagesPage() {
                             src={activeConversation.participantPhoto}
                             alt={activeConversation.participantName}
                             className="h-10 w-10 rounded-full border border-slate-200 object-cover shadow-xs"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
                           />
                         ) : (
                           <div className="h-10 w-10 rounded-full border border-rose-200 bg-rose-50 text-rose-700 flex items-center justify-center font-bold text-xs shadow-xs">
@@ -816,26 +927,64 @@ export function MessagesPage() {
                           );
                         }
 
+                        const participantPhoto = activeConversation.participantPhoto || findParticipantPhoto(activeConversation.participantId, activeConversation.participantName);
+
                         return (
                           <div
                             key={m.id}
-                            className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                            className={`flex gap-2.5 items-end ${isMe ? 'justify-end' : 'justify-start'}`}
                           >
-                            <div
-                              className={`max-w-[85%] sm:max-w-[75%] p-3.5 text-xs leading-relaxed shadow-xs ${
-                                isMe
-                                  ? 'bg-rose-700 text-white rounded-2xl rounded-tr-xs'
-                                  : 'bg-white border border-slate-200 text-slate-900 rounded-2xl rounded-tl-xs'
-                              }`}
-                            >
-                              <p>{m.content}</p>
+                            {/* Candidate Avatar for incoming messages */}
+                            {!isMe && (
+                              <div className="shrink-0 mb-4">
+                                {participantPhoto ? (
+                                  <img
+                                    src={participantPhoto}
+                                    alt={activeConversation.participantName}
+                                    className="h-8 w-8 rounded-full border border-slate-200 object-cover shadow-2xs"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="h-8 w-8 rounded-full border border-rose-200 bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-[10px] shadow-2xs">
+                                    {activeConversation.participantName.slice(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%] sm:max-w-[70%]`}>
+                              <div
+                                className={`p-3.5 text-xs leading-relaxed shadow-xs ${
+                                  isMe
+                                    ? 'bg-rose-700 text-white rounded-2xl rounded-br-xs'
+                                    : 'bg-white border border-slate-200 text-slate-900 rounded-2xl rounded-bl-xs'
+                                }`}
+                              >
+                                <p>{m.content}</p>
+                              </div>
+                              <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 px-1">
+                                <span>
+                                  {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                {isMe && <CheckCheck size={13} className="text-rose-600" />}
+                              </div>
                             </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 px-1">
-                              <span>
-                                {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                              {isMe && <CheckCheck size={13} className="text-rose-600" />}
-                            </div>
+
+                            {/* User Avatar for outgoing messages */}
+                            {isMe && currentUserPhoto && (
+                              <div className="shrink-0 mb-4">
+                                <img
+                                  src={currentUserPhoto}
+                                  alt={currentUserName}
+                                  className="h-8 w-8 rounded-full border border-rose-200 object-cover shadow-2xs"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
                           </div>
                         );
                       })
