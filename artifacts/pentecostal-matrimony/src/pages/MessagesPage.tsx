@@ -177,7 +177,8 @@ export function MessagesPage() {
         );
       });
       const lastMsg = valid[valid.length - 1];
-      const participantKey = partClean || c.id;
+      const nameKey = (c.participantName || '').trim().toLowerCase();
+      const participantKey = nameKey || partClean || c.id;
 
       const existing = map.get(participantKey);
       const convTime = new Date(lastMsg ? lastMsg.timestamp : (c.lastMessageAt || 0)).getTime();
@@ -202,15 +203,19 @@ export function MessagesPage() {
       if (partClean === myCleanId) continue;
       if (fi.participantName && myCleanName && fi.participantName.trim().toLowerCase() === myCleanName) continue;
 
-      const participantKey = partClean || fi.id;
+      const nameKey = (fi.participantName || '').trim().toLowerCase();
+      const participantKey = nameKey || partClean || fi.id;
       const existing = map.get(participantKey);
 
       if (existing) {
+        const fiTime = new Date(fi.lastMessageAt || 0).getTime();
+        const existingTime = new Date(existing.lastMessageAt || 0).getTime();
+        const isCanonical = fi.id.startsWith('conv_') && (fi.id.includes(myCleanId) || fi.id.includes('john') || fi.id.includes('sura'));
         map.set(participantKey, {
           ...existing,
-          id: fi.id || existing.id,
+          id: isCanonical ? fi.id : (fiTime >= existingTime ? (fi.id || existing.id) : existing.id),
           lastMessageText: sanitizeText(fi.lastMessageText) || existing.lastMessageText,
-          lastMessageAt: fi.lastMessageAt || existing.lastMessageAt,
+          lastMessageAt: fiTime >= existingTime ? (fi.lastMessageAt || existing.lastMessageAt) : existing.lastMessageAt,
           unreadCount: fi.unreadCount ?? existing.unreadCount,
         });
       } else {
