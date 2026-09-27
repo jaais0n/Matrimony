@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Briefcase, Church, Globe, GraduationCap, Heart, MapPin, MessageCircle } from 'lucide-react';
 import { VerificationBadge } from './VerificationBadge';
+import { BlurImage } from './BlurImage';
 import { initiateConversation } from '../../utils/storageHelper';
 
 export interface ProfileCardData {
@@ -53,18 +54,13 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
     <article className="group relative flex flex-col rounded-2xl border border-[#ebdcd0] bg-white/90 backdrop-blur-xs luxury-card-shadow transition-all duration-300 hover:border-rose-300 hover:shadow-xl overflow-hidden">
       {/* Photo Frame in Full Natural Color */}
       <Link href={`/profiles/${profile.id}`} className="relative block aspect-[1.12] w-full overflow-hidden bg-slate-100">
-        {profile.primaryPhotoUrl ? (
-          <img
-            src={profile.primaryPhotoUrl}
-            alt={profile.displayName}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center font-bold text-3xl text-rose-300 bg-rose-50">
-            {initials}
-          </div>
-        )}
+        <BlurImage
+          src={profile.primaryPhotoUrl}
+          alt={profile.displayName}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          fallbackInitials={initials}
+          loading="lazy"
+        />
 
         {/* Verification Pill on Photo */}
         {profile.verificationStatus === 'verified' && (

@@ -6,7 +6,6 @@ import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from './aut
 
 import { Navbar } from './components/ui/Navbar';
 import { BottomNav } from './components/ui/BottomNav';
-import { Footer } from './components/ui/Footer';
 
 import type { ComponentType } from 'react';
 
@@ -261,7 +260,6 @@ function AppShell({
     <div className="min-h-screen flex flex-col bg-[#ffffff] text-black">
       <Navbar activeRole={activeRole} onToggleRole={onToggleRole} />
       <main className="flex-1">{children}</main>
-      <Footer />
       <BottomNav />
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
+import { BlurImage } from '../components/ui/BlurImage';
 import {
   AlertCircle,
   ArrowRight,
@@ -491,7 +492,7 @@ export function MyProfilePage() {
               <div className="relative group">
                 <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden border-2 border-rose-400/40 bg-slate-800 shadow-md">
                   {primaryPhoto ? (
-                    <img src={primaryPhoto} alt="Profile" className="h-full w-full object-cover" />
+                    <BlurImage src={primaryPhoto} alt="Profile" className="h-full w-full object-cover" />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center bg-rose-900/50 text-rose-300">
                       <User size={36} />
@@ -728,13 +729,14 @@ export function MyProfilePage() {
                               }`}
                             >
                               <div className="aspect-[4/5] w-full overflow-hidden bg-slate-100 relative">
-                                <img
+                                <BlurImage
                                   src={photo.url}
                                   alt={`Photo ${slotIndex + 1}`}
                                   className="h-full w-full object-cover"
+                                  showSpinner
                                 />
                                 {photo.isPrimary && (
-                                  <div className="absolute top-2 left-2">
+                                  <div className="absolute top-2 left-2 z-10">
                                     <span className="inline-flex items-center gap-1 rounded-md bg-rose-700 text-white text-[10px] font-bold px-2 py-0.5 shadow-sm">
                                       <Star size={10} className="fill-white" /> Primary
                                     </span>

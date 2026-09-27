@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useGetProfile, useSaveProfile, useSendInterest, useUnsaveProfile, isSeedProfile } from '@workspace/api-client-react';
 import { VerificationBadge } from '../components/ui/VerificationBadge';
+import { BlurImage } from '../components/ui/BlurImage';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
 import { initiateConversation } from '../utils/storageHelper';
@@ -214,17 +215,12 @@ export function ProfileDetailPage() {
             {/* Photo Gallery (Left) in Full Natural Color */}
             <div className="md:col-span-5">
               <div className="relative aspect-[1.08] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm">
-                {currentPhoto.url ? (
-                  <img
-                    src={currentPhoto.url}
-                    alt={p.displayName}
-                    className="h-full w-full object-cover transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center font-bold text-4xl text-rose-300 bg-rose-50">
-                    {p.displayName.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
+                <BlurImage
+                  src={currentPhoto.url}
+                  alt={p.displayName}
+                  className="h-full w-full object-cover transition-transform duration-500"
+                  fallbackInitials={p.displayName.slice(0, 2).toUpperCase()}
+                />
                 {p.verificationStatus === 'verified' && (
                   <div className="absolute left-3 top-3">
                     <VerificationBadge size="md" />
@@ -243,7 +239,7 @@ export function ProfileDetailPage() {
                         activePhotoIndex === idx ? 'border-2 border-rose-600 shadow-sm' : 'border-slate-200 opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <img src={ph.url} alt="" className="h-full w-full object-cover" />
+                      <BlurImage src={ph.url} alt="" className="h-full w-full object-cover" />
                     </button>
                   ))}
                 </div>
