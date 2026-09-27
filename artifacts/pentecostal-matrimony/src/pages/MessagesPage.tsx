@@ -1164,8 +1164,8 @@ export function MessagesPage() {
                             {activeConversation.participantName.slice(0, 2).toUpperCase()}
                           </div>
                         )}
-                        {/* Green dot: only when logged in or typing */}
-                        {(isParticipantOnline || isTyping) && (
+                        {/* Green dot: only when logged in */}
+                        {isParticipantOnline && (
                           <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 shadow-xs" title="Online now" />
                         )}
                       </div>
@@ -1174,30 +1174,15 @@ export function MessagesPage() {
                           {activeConversation.participantName}
                           {typeof activeConversation.participantAge === 'number' && activeConversation.participantAge > 0 ? `, ${activeConversation.participantAge}` : ''}
                         </h2>
-                        {isTyping ? (
-                          <p className="text-[11px] font-bold text-rose-600 truncate flex items-center gap-1 animate-pulse">
-                            typing...
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-slate-500 truncate">
-                            {activeConversation.participantLocation} · <span className="text-rose-700 font-medium">{activeConversation.participantDenomination}</span>
-                          </p>
-                        )}
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {activeConversation.participantLocation} · <span className="text-rose-700 font-medium">{activeConversation.participantDenomination}</span>
+                        </p>
                       </div>
                     </div>
 
                     <div className="relative shrink-0 flex items-center gap-2">
-                      {/* Real-time Status Badge: Typing Indicator (Screenshot 1) / Online (Screenshot 2) / Offline */}
-                      {isTyping ? (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/90 px-2.5 py-1 rounded-full shadow-2xs animate-in fade-in">
-                          <span>{activeConversation.participantName} is typing</span>
-                          <span className="flex gap-1 items-center">
-                            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-bounce [animation-delay:-0.3s]" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-bounce [animation-delay:-0.15s]" />
-                            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-bounce" />
-                          </span>
-                        </span>
-                      ) : isParticipantOnline ? (
+                      {/* Real-time Status Badge: Online / Offline */}
+                      {isParticipantOnline ? (
                         <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md shadow-2xs">
                           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Online
                         </span>
