@@ -116,6 +116,27 @@ apiRouter.get('/auth/users', (_req: Request, res: Response) => {
   );
 });
 
+apiRouter.delete('/auth/users', (req: Request, res: Response) => {
+  const { all, id } = req.query;
+  if (all === 'true' || req.body?.all === true) {
+    usersStore = usersStore.filter((u) => u.id === 'user_admin' || u.role === 'admin');
+    profilesStore = [];
+    conversationsStore = [];
+    saveStoreToDisk();
+    res.json({ success: true, count: usersStore.length });
+    return;
+  }
+  if (id) {
+    const cleanId = String(id).trim().toLowerCase();
+    usersStore = usersStore.filter((u) => u.id !== cleanId && u.email.toLowerCase() !== cleanId);
+    profilesStore = profilesStore.filter((p) => p.userId !== cleanId && p.id !== cleanId);
+    saveStoreToDisk();
+    res.json({ success: true, deleted: id });
+    return;
+  }
+  res.status(400).json({ error: 'Missing all=true or id' });
+});
+
 apiRouter.post('/auth/register', (req: Request, res: Response) => {
   const { email, phone, password, fullName, role = 'user' } = req.body;
   const emailClean = (email || '').trim().toLowerCase();

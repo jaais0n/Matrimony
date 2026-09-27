@@ -263,7 +263,7 @@ export function OnboardingPage() {
       const userName = accountData.fullName.trim() || basicsData.displayName.trim() || 'New Believer';
 
       // 1. Authenticate & register member account with unique user ID, unique email, and unique phone
-      const registered = registerNewUser({
+      const registered = await registerNewUser({
         fullName: userName,
         email: userEmail || 'user@example.com',
         phone: userPhone,

@@ -58,6 +58,34 @@ const SEED_USERS: StoredAccount[] = [
   })),
 ];
 
+export async function fetchLiveDatabaseUsers(): Promise<StoredAccount[]> {
+  try {
+    const res = await fetch(`/api/auth/users?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+      },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map((u: any) => ({
+      id: u.id,
+      username: u.username || (u.email && u.email.includes('@') ? u.email.split('@')[0] : u.email || u.id),
+      email: u.email || `${u.id}@matrimony.local`,
+      phone: u.phone,
+      password: u.password || 'password123',
+      fullName: u.fullName || 'Member',
+      firstName: u.firstName || (u.fullName ? u.fullName.split(' ')[0] : 'Member'),
+      role: (u.role === 'admin' ? 'admin' : 'member') as 'admin' | 'member',
+    }));
+  } catch (err) {
+    console.warn('Failed to fetch live database users:', err);
+    return [];
+  }
+}
+
 export function getRegisteredUsers(): StoredAccount[] {
   try {
     const raw = localStorage.getItem('pm_registered_accounts');
@@ -70,14 +98,13 @@ export function getRegisteredUsers(): StoredAccount[] {
   }
 }
 
-
-export function registerNewUser(account: {
+export async function registerNewUser(account: {
   fullName: string;
   email: string;
   phone?: string;
   password?: string;
   role?: 'admin' | 'member';
-}): StoredAccount {
+}): Promise<StoredAccount> {
   const emailClean = normalizeEmail(account.email);
   if (!emailClean) {
     throw new Error('Please enter a valid email address.');
@@ -112,12 +139,9 @@ export function registerNewUser(account: {
     role: account.role || 'member',
   };
 
-  allCurrent.push(newUser);
-  localStorage.setItem('pm_registered_accounts', JSON.stringify(allCurrent));
-
-  // Sync with backend API server
+  // 1. Sync with backend API server and persist in Neon DB
   try {
-    fetch('/api/auth/register', {
+    const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -129,8 +153,21 @@ export function registerNewUser(account: {
         role: newUser.role,
         isNewRegistration: true,
       }),
-    }).catch(() => {});
-  } catch {}
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => null);
+      if (errJson?.error) {
+        throw new Error(errJson.error);
+      }
+    }
+  } catch (err: any) {
+    if (err.message && (err.message.includes('already exists') || err.message.includes('already registered'))) {
+      throw err;
+    }
+  }
+
+  allCurrent.push(newUser);
+  localStorage.setItem('pm_registered_accounts', JSON.stringify(allCurrent));
 
   return newUser;
 }
@@ -138,105 +175,63 @@ export function registerNewUser(account: {
 interface AuthContextType {
   isSignedIn: boolean;
   user: AuthUser | null;
-  signIn: (identifier: string, pass: string) => { success: boolean; error?: string; user?: AuthUser };
-  signInAs: (role: 'admin' | 'member') => void;
+  isDbVerified: boolean;
+  isCheckingDb: boolean;
+  signIn: (identifier: string, pass: string) => Promise<{ success: boolean; error?: string; user?: AuthUser }>;
+  signInAs: (role: 'admin' | 'member') => Promise<void>;
   signOut: () => void;
+  verifyCurrentSessionWithDb: (targetUser?: AuthUser | null) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   isSignedIn: false,
   user: null,
-  signIn: () => ({ success: false }),
-  signInAs: () => {},
+  isDbVerified: false,
+  isCheckingDb: false,
+  signIn: async () => ({ success: false }),
+  signInAs: async () => {},
   signOut: () => {},
+  verifyCurrentSessionWithDb: async () => false,
 });
 
 export function ClerkProvider(props: { children: React.ReactNode; publishableKey?: string; [key: string]: any }) {
-
-  // Sync users with backend API server on startup
-  React.useEffect(() => {
-    fetch('/api/auth/users')
-      .then((res) => {
-        const ct = res.headers.get('content-type') || '';
-        if (ct.includes('application/json')) return res.json();
-        return [];
-      })
-      .then((serverUsers: any[]) => {
-        if (Array.isArray(serverUsers)) {
-          const nonAdmin = serverUsers.filter((u) => u.id !== 'user_admin' && u.role !== 'admin');
-          if (nonAdmin.length === 0) {
-            // Server database is wiped clean! Clear local accounts so deleted users cannot log in
-            localStorage.setItem('pm_registered_accounts', '[]');
-            localStorage.setItem('pm_registered_users', '[]');
-            const authUserRaw = localStorage.getItem('pm_auth_user');
-            if (authUserRaw) {
-              try {
-                const u = JSON.parse(authUserRaw);
-                if (u?.id !== 'user_admin' && u?.publicMetadata?.role !== 'admin') {
-                  localStorage.removeItem('pm_auth_user');
-                  localStorage.removeItem('pm_demo_signed_in');
-                  localStorage.removeItem('pm_demo_role');
-                  setCurrentUser(null);
-                }
-              } catch {}
-            }
-          } else {
-            // Keep local accounts in sync with database
-            localStorage.setItem('pm_registered_accounts', JSON.stringify(nonAdmin));
-            const authUserRaw = localStorage.getItem('pm_auth_user');
-            if (authUserRaw) {
-              try {
-                const u = JSON.parse(authUserRaw);
-                if (u?.id !== 'user_admin' && u?.publicMetadata?.role !== 'admin') {
-                  const exists = nonAdmin.some(
-                    (su: any) =>
-                      su.id === u.id ||
-                      (su.email && u.primaryEmailAddress?.emailAddress && su.email.toLowerCase() === u.primaryEmailAddress.emailAddress.toLowerCase())
-                  );
-                  if (!exists) {
-                    localStorage.removeItem('pm_auth_user');
-                    localStorage.removeItem('pm_demo_signed_in');
-                    localStorage.removeItem('pm_demo_role');
-                    setCurrentUser(null);
-                  }
-                }
-              } catch {}
-            }
-          }
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     try {
       const savedUser = localStorage.getItem('pm_auth_user');
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
-        if (parsed?.id === 'user_admin' || parsed?.publicMetadata?.role === 'admin') {
-          return parsed;
-        }
-        // Non-admin: strictly verify account exists in registered accounts list
-        const registered = getRegisteredUsers();
-        const exists = registered.some(
-          (a) =>
-            a.id === parsed.id ||
-            (parsed.primaryEmailAddress?.emailAddress &&
-              a.email.toLowerCase() === parsed.primaryEmailAddress.emailAddress.toLowerCase())
-        );
-        if (exists) {
-          return parsed;
-        }
-        // Account does not exist (deleted or DB wiped): invalidate cached session immediately
-        localStorage.removeItem('pm_auth_user');
-        localStorage.removeItem('pm_demo_signed_in');
-        localStorage.removeItem('pm_demo_role');
-        return null;
+        return parsed;
       }
-    } catch {
-      // Fallback
-    }
+    } catch {}
     return null;
+  });
+
+  const [isCheckingDb, setIsCheckingDb] = useState<boolean>(() => {
+    try {
+      const savedUser = localStorage.getItem('pm_auth_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed?.id !== 'user_admin' && parsed?.publicMetadata?.role !== 'admin') {
+          return true;
+        }
+      }
+    } catch {}
+    return false;
+  });
+
+  const [isDbVerified, setIsDbVerified] = useState<boolean>(() => {
+    try {
+      const savedUser = localStorage.getItem('pm_auth_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed?.id === 'user_admin' || parsed?.publicMetadata?.role === 'admin') {
+          return true;
+        }
+        return false;
+      }
+      return true; // Unauthenticated guest
+    } catch {}
+    return false;
   });
 
   const syncProfileForUser = (authUser: AuthUser) => {
@@ -261,137 +256,14 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
           return;
         }
       }
-      // If no profile exists yet for this user, clear pm_my_profile so someone else's profile doesn't show
       localStorage.removeItem('pm_my_profile');
     } catch {}
   };
 
-  const signIn = (identifier: string, pass: string): { success: boolean; error?: string; user?: AuthUser } => {
-    const cleanId = identifier.trim().toLowerCase();
-    const cleanPass = pass.trim();
-
-    if (!cleanId || !cleanPass) {
-      return { success: false, error: 'Please enter both username/email and password.' };
-    }
-
-    // 1. Direct Admin Login
-    if ((cleanId === 'admin' || cleanId === 'admin@pentecostalmatrimony.org') && (cleanPass.toLowerCase() === 'admin' || cleanPass === 'admin')) {
-      const adminUser: AuthUser = {
-        id: 'user_admin',
-        firstName: 'Administrator',
-        fullName: 'Steward Administrator',
-        primaryEmailAddress: { emailAddress: 'admin@pentecostalmatrimony.org' },
-        publicMetadata: { role: 'admin' },
-        username: 'admin',
-      };
-      setCurrentUser(adminUser);
-      localStorage.setItem('pm_auth_user', JSON.stringify(adminUser));
-      localStorage.setItem('pm_demo_signed_in', 'true');
-      localStorage.setItem('pm_demo_role', 'admin');
-      syncProfileForUser(adminUser);
-      return { success: true, user: adminUser };
-    }
-
-
-    // 2. Member and Registered Users check
-    const accounts = getRegisteredUsers();
-    const matchedAccount = accounts.find(
-      (a) =>
-        a.email.toLowerCase() === cleanId ||
-        a.username?.toLowerCase() === cleanId ||
-        a.fullName.toLowerCase() === cleanId ||
-        a.id.toLowerCase() === cleanId ||
-        (a.phone && isPhoneMatch(a.phone, cleanId))
-    );
-
-    if (matchedAccount) {
-      // Verify password
-      const validPass =
-        matchedAccount.password === cleanPass ||
-        matchedAccount.password?.toLowerCase() === cleanPass.toLowerCase() ||
-        (matchedAccount.role === 'admin' && (cleanPass === 'admin' || cleanPass.toLowerCase() === 'admin'));
-
-      if (validPass) {
-        const authUser: AuthUser = {
-          id: matchedAccount.id,
-          firstName: matchedAccount.firstName,
-          fullName: matchedAccount.fullName,
-          primaryEmailAddress: { emailAddress: matchedAccount.email },
-          publicMetadata: { role: matchedAccount.role },
-          username: matchedAccount.username,
-        };
-        setCurrentUser(authUser);
-        localStorage.setItem('pm_auth_user', JSON.stringify(authUser));
-        localStorage.setItem('pm_demo_signed_in', 'true');
-        localStorage.setItem('pm_demo_role', matchedAccount.role);
-        syncProfileForUser(authUser);
-
-        // Immediate background pull of current user's profile from database
-        fetch(`/api/profiles/me?userId=${encodeURIComponent(authUser.id)}`)
-          .then((r) => r.json())
-          .then((myProfile) => {
-            if (myProfile && !myProfile.notFound && (myProfile.displayName || myProfile.location || myProfile.photos?.length)) {
-              localStorage.setItem('pm_my_profile', JSON.stringify(myProfile));
-              localStorage.setItem(`pm_user_profile_${authUser.id}`, JSON.stringify(myProfile));
-              window.dispatchEvent(new CustomEvent('pm:sync'));
-            }
-          })
-          .catch(() => {});
-
-        // Background pull of server profiles to restore profile data across devices
-        fetch('/api/profiles')
-          .then((r) => r.json())
-          .then((data) => {
-            const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
-            if (items.length > 0) {
-              const myMatch = items.find((p: any) =>
-                p.userId === authUser.id ||
-                p.id === `prof_${authUser.id}` ||
-                (authUser.fullName && p.displayName && p.displayName.trim().toLowerCase() === authUser.fullName.trim().toLowerCase()) ||
-                (authUser.primaryEmailAddress?.emailAddress && p.email && p.email.toLowerCase() === authUser.primaryEmailAddress.emailAddress.toLowerCase())
-              );
-              if (myMatch) {
-                localStorage.setItem('pm_my_profile', JSON.stringify(myMatch));
-                localStorage.setItem(`pm_user_profile_${authUser.id}`, JSON.stringify(myMatch));
-              }
-              window.dispatchEvent(new CustomEvent('pm:sync'));
-            }
-          })
-          .catch(() => {});
-
-        return { success: true, user: authUser };
-      } else {
-        return { success: false, error: 'Incorrect password. Please try again.' };
-      }
-    }
-
-    if (cleanId === 'admin') {
-      return { success: false, error: 'Incorrect password for admin. Use "admin".' };
-    }
-
-    // Account does not exist or has been deleted from database
-    return {
-      success: false,
-      error: 'Account not found. This user is not registered or has been deleted.',
-    };
-  };
-
-  const signInAs = (role: 'admin' | 'member') => {
-    if (role === 'admin') {
-      signIn('admin', 'admin');
-    } else {
-      const realMembers = getRegisteredUsers().filter((u) => u.role !== 'admin');
-      if (realMembers.length > 0) {
-        const latest = realMembers[realMembers.length - 1];
-        signIn(latest.email, latest.password || 'password123');
-      } else {
-        signIn('admin', 'admin');
-      }
-    }
-  };
-
-  const signOut = () => {
+  const signOut = React.useCallback(() => {
     setCurrentUser(null);
+    setIsDbVerified(false);
+    setIsCheckingDb(false);
     localStorage.removeItem('pm_auth_user');
     localStorage.removeItem('pm_my_profile');
     localStorage.removeItem('pm_active_conv_id');
@@ -412,26 +284,261 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       toRemove.forEach((k) => localStorage.removeItem(k));
     } catch {}
     window.dispatchEvent(new CustomEvent('pm:sync'));
+  }, []);
+
+  // Strict session verification against live Neon DB
+  const verifyCurrentSessionWithDb = React.useCallback(async (target?: AuthUser | null): Promise<boolean> => {
+    const userToVerify = target !== undefined ? target : currentUser;
+    if (!userToVerify) {
+      setIsCheckingDb(false);
+      setIsDbVerified(true);
+      return true;
+    }
+
+    if (userToVerify.id === 'user_admin' || userToVerify.publicMetadata?.role === 'admin') {
+      setIsDbVerified(true);
+      setIsCheckingDb(false);
+      return true;
+    }
+
+    setIsCheckingDb(true);
+    try {
+      const liveUsers = await fetchLiveDatabaseUsers();
+      const userEmail = userToVerify.primaryEmailAddress?.emailAddress?.toLowerCase();
+      const existsInDb = liveUsers.some((su) => {
+        if (su.id === userToVerify.id) return true;
+        if (userEmail && su.email && su.email.toLowerCase() === userEmail) return true;
+        return false;
+      });
+
+      if (existsInDb) {
+        setIsDbVerified(true);
+        setIsCheckingDb(false);
+        return true;
+      } else {
+        // Account does NOT exist in the database! Purge session immediately
+        localStorage.removeItem('pm_auth_user');
+        localStorage.removeItem('pm_demo_signed_in');
+        localStorage.removeItem('pm_demo_role');
+        localStorage.removeItem('pm_my_profile');
+        sessionStorage.setItem('pm_auth_error', 'Your account was not found in the database. Portal entry is not allowed.');
+        setCurrentUser(null);
+        setIsDbVerified(false);
+        setIsCheckingDb(false);
+        window.dispatchEvent(new CustomEvent('pm:sync'));
+        return false;
+      }
+    } catch (err) {
+      console.warn('Database verification check failed:', err);
+      setIsDbVerified(false);
+      setIsCheckingDb(false);
+      return false;
+    }
+  }, [currentUser]);
+
+  // Run DB verification on startup, focus, and sync
+  React.useEffect(() => {
+    verifyCurrentSessionWithDb();
+
+    const onSync = () => {
+      verifyCurrentSessionWithDb();
+    };
+
+    const onFocus = () => {
+      verifyCurrentSessionWithDb();
+    };
+
+    window.addEventListener('pm:sync', onSync);
+    window.addEventListener('focus', onFocus);
+
+    // Heartbeat check every 30 seconds
+    const interval = setInterval(() => {
+      const savedUser = localStorage.getItem('pm_auth_user');
+      if (savedUser) {
+        try {
+          const u = JSON.parse(savedUser);
+          if (u?.id !== 'user_admin' && u?.publicMetadata?.role !== 'admin') {
+            verifyCurrentSessionWithDb(u);
+          }
+        } catch {}
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('pm:sync', onSync);
+      window.removeEventListener('focus', onFocus);
+      clearInterval(interval);
+    };
+  }, [verifyCurrentSessionWithDb]);
+
+  const signIn = async (
+    identifier: string,
+    pass: string
+  ): Promise<{ success: boolean; error?: string; user?: AuthUser }> => {
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanPass = pass.trim();
+
+    if (!cleanId || !cleanPass) {
+      return { success: false, error: 'Please enter both username/email and password.' };
+    }
+
+    // 1. Direct Admin Login
+    if (
+      (cleanId === 'admin' || cleanId === 'admin@pentecostalmatrimony.org') &&
+      (cleanPass.toLowerCase() === 'admin' || cleanPass === 'admin')
+    ) {
+      const adminUser: AuthUser = {
+        id: 'user_admin',
+        firstName: 'Administrator',
+        fullName: 'Steward Administrator',
+        primaryEmailAddress: { emailAddress: 'admin@pentecostalmatrimony.org' },
+        publicMetadata: { role: 'admin' },
+        username: 'admin',
+      };
+      setCurrentUser(adminUser);
+      setIsDbVerified(true);
+      setIsCheckingDb(false);
+      localStorage.setItem('pm_auth_user', JSON.stringify(adminUser));
+      localStorage.setItem('pm_demo_signed_in', 'true');
+      localStorage.setItem('pm_demo_role', 'admin');
+      syncProfileForUser(adminUser);
+      return { success: true, user: adminUser };
+    }
+
+    if (cleanId === 'admin') {
+      return { success: false, error: 'Incorrect password for admin. Use "admin".' };
+    }
+
+    // 2. Query Live Database Users: User MUST exist in the database!
+    setIsCheckingDb(true);
+    let liveDbUsers = await fetchLiveDatabaseUsers();
+
+    const matchedAccount = liveDbUsers.find(
+      (a) =>
+        a.email.toLowerCase() === cleanId ||
+        a.username?.toLowerCase() === cleanId ||
+        a.fullName.toLowerCase() === cleanId ||
+        a.id.toLowerCase() === cleanId ||
+        (a.phone && isPhoneMatch(a.phone, cleanId))
+    );
+
+    // If NOT found in database: STRICTLY DENY ENTRY!
+    if (!matchedAccount) {
+      setIsCheckingDb(false);
+      setIsDbVerified(false);
+      try {
+        const localAccounts = getRegisteredUsers().filter(
+          (u) =>
+            u.email.toLowerCase() !== cleanId &&
+            u.id.toLowerCase() !== cleanId &&
+            (!u.phone || !isPhoneMatch(u.phone, cleanId))
+        );
+        localStorage.setItem('pm_registered_accounts', JSON.stringify(localAccounts));
+      } catch {}
+
+      return {
+        success: false,
+        error: 'Account not found in database. This user is not registered or has been deleted from the database. Portal entry is not allowed.',
+      };
+    }
+
+    // Verify password
+    const validPass =
+      matchedAccount.password === cleanPass ||
+      matchedAccount.password?.toLowerCase() === cleanPass.toLowerCase() ||
+      (matchedAccount.role === 'admin' && (cleanPass === 'admin' || cleanPass.toLowerCase() === 'admin'));
+
+    if (!validPass) {
+      setIsCheckingDb(false);
+      return { success: false, error: 'Incorrect password. Please try again.' };
+    }
+
+    const authUser: AuthUser = {
+      id: matchedAccount.id,
+      firstName: matchedAccount.firstName,
+      fullName: matchedAccount.fullName,
+      primaryEmailAddress: { emailAddress: matchedAccount.email },
+      publicMetadata: { role: matchedAccount.role },
+      username: matchedAccount.username,
+    };
+
+    setCurrentUser(authUser);
+    setIsDbVerified(true);
+    setIsCheckingDb(false);
+    localStorage.setItem('pm_auth_user', JSON.stringify(authUser));
+    localStorage.setItem('pm_demo_signed_in', 'true');
+    localStorage.setItem('pm_demo_role', matchedAccount.role);
+    syncProfileForUser(authUser);
+
+    // Keep local accounts in sync
+    try {
+      const current = getRegisteredUsers().filter((u) => u.id !== authUser.id);
+      current.push(matchedAccount);
+      localStorage.setItem('pm_registered_accounts', JSON.stringify(current));
+    } catch {}
+
+    // Pull profile in background
+    fetch(`/api/profiles/me?userId=${encodeURIComponent(authUser.id)}`)
+      .then((r) => r.json())
+      .then((myProfile) => {
+        if (myProfile && !myProfile.notFound && (myProfile.displayName || myProfile.location || myProfile.photos?.length)) {
+          localStorage.setItem('pm_my_profile', JSON.stringify(myProfile));
+          localStorage.setItem(`pm_user_profile_${authUser.id}`, JSON.stringify(myProfile));
+          window.dispatchEvent(new CustomEvent('pm:sync'));
+        }
+      })
+      .catch(() => {});
+
+    return { success: true, user: authUser };
   };
 
+  const signInAs = async (role: 'admin' | 'member') => {
+    if (role === 'admin') {
+      await signIn('admin', 'admin');
+    } else {
+      const liveUsers = await fetchLiveDatabaseUsers();
+      const realMembers = liveUsers.filter((u) => u.role !== 'admin');
+      if (realMembers.length > 0) {
+        const latest = realMembers[realMembers.length - 1];
+        await signIn(latest.email, latest.password || 'password123');
+      } else {
+        await signIn('admin', 'admin');
+      }
+    }
+  };
 
   const isSignedIn = Boolean(currentUser);
 
   return (
-    <AuthContext.Provider value={{ isSignedIn, user: currentUser, signIn, signInAs, signOut }}>
+    <AuthContext.Provider
+      value={{
+        isSignedIn,
+        user: currentUser,
+        isDbVerified,
+        isCheckingDb,
+        signIn,
+        signInAs,
+        signOut,
+        verifyCurrentSessionWithDb,
+      }}
+    >
       {props.children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const { isSignedIn, user } = useContext(AuthContext);
+  const { isSignedIn, user, isDbVerified, isCheckingDb, signOut } = useContext(AuthContext);
   return {
-    isLoaded: true,
+    isLoaded: !isCheckingDb,
     isSignedIn,
+    isDbVerified,
+    isCheckingDb,
+    user,
     userId: user?.id || null,
     sessionId: isSignedIn ? `sess_${user?.id}` : null,
     getToken: async () => 'demo_token',
+    signOut,
   };
 }
 
@@ -464,35 +571,46 @@ export function useClerk(): any {
 }
 
 export function SignIn(props: { routing?: string; path?: string; signUpUrl?: string }) {
-  const { signIn, signInAs } = useContext(AuthContext);
+  const { signIn } = useContext(AuthContext);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('error') === 'not_in_db') {
+        return 'Access Denied: Your account does not exist in the database. Please register a new account to enter the portal.';
+      }
+      const savedError = sessionStorage.getItem('pm_auth_error');
+      if (savedError) {
+        sessionStorage.removeItem('pm_auth_error');
+        return savedError;
+      }
+    } catch {}
+    return null;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    setTimeout(() => {
-      try {
-        const result = signIn(identifier, password);
-        if (result.success) {
-          if (result.user?.publicMetadata?.role === 'admin') {
-            window.location.href = '/admin';
-          } else {
-            window.location.href = '/discover';
-          }
+    try {
+      const result = await signIn(identifier, password);
+      if (result.success) {
+        if (result.user?.publicMetadata?.role === 'admin') {
+          window.location.href = '/admin';
         } else {
-          setIsLoading(false);
-          setError(result.error || 'Invalid credentials. Please try again.');
+          window.location.href = '/discover';
         }
-      } catch {
+      } else {
         setIsLoading(false);
-        setError('Login failed. Please check your credentials.');
+        setError(result.error || 'Invalid credentials. Please try again.');
       }
-    }, 450);
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err?.message || 'Login failed. Please check your credentials.');
+    }
   };
 
   return (
@@ -605,7 +723,7 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = name.trim();
     const cleanEmail = normalizeEmail(email);
@@ -646,23 +764,26 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      try {
-        registerNewUser({
-          fullName: cleanName,
-          email: cleanEmail,
-          phone: cleanPhone || undefined,
-          password: cleanPass,
-          role: 'member',
-        });
+    try {
+      await registerNewUser({
+        fullName: cleanName,
+        email: cleanEmail,
+        phone: cleanPhone || undefined,
+        password: cleanPass,
+        role: 'member',
+      });
 
-        signIn(cleanEmail, cleanPass);
+      const signResult = await signIn(cleanEmail, cleanPass);
+      if (signResult.success) {
         window.location.href = '/discover';
-      } catch (err: any) {
+      } else {
         setIsLoading(false);
-        setError(err.message || 'Registration failed. Please try again.');
+        setError(signResult.error || 'Authentication error after registration.');
       }
-    }, 450);
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err.message || 'Registration failed. Please try again.');
+    }
   };
 
   return (
