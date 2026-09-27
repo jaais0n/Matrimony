@@ -197,6 +197,9 @@ export function MessagesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputTypingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCurrentlyBroadcastingTyping = useRef<boolean>(false);
   const [onlineUsersMap, setOnlineUsersMap] = useState<Record<string, boolean>>(() => getAllOnlineUsers());
   const [isParticipantOnline, setIsParticipantOnline] = useState<boolean>(false);
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessage[]>>({});
@@ -397,6 +400,52 @@ export function MessagesPage() {
     return conversations[0] || null;
   }, [conversations, selectedConvId, currentUserId, findParticipantPhoto]);
 
+  // Safe handler for remote typing events with auto-clear timeout
+  const handleRemoteTyping = useCallback((typing: boolean) => {
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+    if (typing) {
+      setIsTyping(true);
+      // Auto-clear typing bubble after 3.5 seconds of inactivity so it never gets stuck
+      typingTimerRef.current = setTimeout(() => {
+        setIsTyping(false);
+      }, 3500);
+    } else {
+      setIsTyping(false);
+    }
+  }, []);
+
+  // Reset typing state when active conversation changes
+  useEffect(() => {
+    setIsTyping(false);
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+  }, [activeConversation?.id]);
+
+  // Broadcast current user's typing state
+  const broadcastMyTyping = useCallback((typing: boolean) => {
+    if (!activeConversation?.id) return;
+    const convId = activeConversation.id;
+
+    if (isFirebaseConfigured()) {
+      sendFirebaseTyping(convId, currentUserId, typing);
+    }
+    try {
+      const bc = new BroadcastChannel('pm_live_matrimony_chat');
+      bc.postMessage({
+        type: 'TYPING',
+        convId,
+        userId: currentUserId,
+        isTyping: typing,
+      });
+      bc.close();
+    } catch {}
+  }, [activeConversation?.id, currentUserId]);
+
   // Cross-tab real-time sync via BroadcastChannel & custom event listener
   useEffect(() => {
     let bc: BroadcastChannel | null = null;
@@ -413,7 +462,7 @@ export function MessagesPage() {
         }
         if (event.data?.type === 'TYPING' && event.data.convId === activeConversation?.id) {
           if (cleanUserIdKey(event.data.userId) !== cleanMyKey) {
-            setIsTyping(Boolean(event.data.isTyping));
+            handleRemoteTyping(Boolean(event.data.isTyping));
           }
         }
         if (event.data?.type === 'PRESENCE' && event.data.userId) {
@@ -535,7 +584,7 @@ export function MessagesPage() {
       });
 
       const unsubTyping = subscribeToFirebaseTyping(convId, currentUserId, (typing) => {
-        setIsTyping(typing);
+        handleRemoteTyping(typing);
       });
 
       return () => {
@@ -625,22 +674,34 @@ export function MessagesPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputText(val);
-    const typing = val.trim().length > 0;
-    if (activeConversation?.id) {
-      if (isFirebaseConfigured()) {
-        sendFirebaseTyping(activeConversation.id, currentUserId, typing);
+
+    if (!activeConversation?.id) return;
+
+    if (val.trim().length === 0) {
+      if (inputTypingDebounceRef.current) {
+        clearTimeout(inputTypingDebounceRef.current);
+        inputTypingDebounceRef.current = null;
       }
-      try {
-        const bc = new BroadcastChannel('pm_live_matrimony_chat');
-        bc.postMessage({
-          type: 'TYPING',
-          convId: activeConversation.id,
-          userId: currentUserId,
-          isTyping: typing,
-        });
-        bc.close();
-      } catch {}
+      if (isCurrentlyBroadcastingTyping.current) {
+        isCurrentlyBroadcastingTyping.current = false;
+        broadcastMyTyping(false);
+      }
+      return;
     }
+
+    if (!isCurrentlyBroadcastingTyping.current) {
+      isCurrentlyBroadcastingTyping.current = true;
+      broadcastMyTyping(true);
+    }
+
+    // Debounce: if user doesn't press another key for 2.2s, mark typing as stopped
+    if (inputTypingDebounceRef.current) {
+      clearTimeout(inputTypingDebounceRef.current);
+    }
+    inputTypingDebounceRef.current = setTimeout(() => {
+      isCurrentlyBroadcastingTyping.current = false;
+      broadcastMyTyping(false);
+    }, 2200);
   };
 
   // WhatsApp-style instant messaging: real messages only, zero bots, instant delivery
@@ -651,22 +712,15 @@ export function MessagesPage() {
     const userText = inputText.trim();
     setInputText('');
 
-    // Clear typing indicator on send
-    if (activeConversation?.id) {
-      if (isFirebaseConfigured()) {
-        sendFirebaseTyping(activeConversation.id, currentUserId, false);
-      }
-      try {
-        const bc = new BroadcastChannel('pm_live_matrimony_chat');
-        bc.postMessage({
-          type: 'TYPING',
-          convId: activeConversation.id,
-          userId: currentUserId,
-          isTyping: false,
-        });
-        bc.close();
-      } catch {}
+    // Clear typing indicator on send immediately
+    if (inputTypingDebounceRef.current) {
+      clearTimeout(inputTypingDebounceRef.current);
+      inputTypingDebounceRef.current = null;
     }
+    if (isCurrentlyBroadcastingTyping.current) {
+      isCurrentlyBroadcastingTyping.current = false;
+    }
+    broadcastMyTyping(false);
 
     // 1. Instant optimistic update for user message
     const tempUserMsg: ChatMessage = {

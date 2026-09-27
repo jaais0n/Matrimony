@@ -263,7 +263,7 @@ export function subscribeToUserInbox(
 }
 
 /**
- * Real-time listener for live "typing..." indicators
+ * Real-time listener for live "typing..." indicators with ephemeral timestamping
  */
 export function subscribeToFirebaseTyping(
   convId: string,
@@ -277,29 +277,64 @@ export function subscribeToFirebaseTyping(
   const endpoint = `${FIREBASE_DATABASE_URL}/conversations/${convId}/typing.json`;
   let eventSource: EventSource | null = null;
   const myClean = cleanUserIdKey(currentUserId);
+  let autoClearTimer: ReturnType<typeof setTimeout> | null = null;
 
   try {
     eventSource = new EventSource(endpoint);
 
     const checkTyping = (data: unknown) => {
       if (!data || typeof data !== 'object') {
+        if (autoClearTimer) clearTimeout(autoClearTimer);
         onTypingUpdate(false);
         return;
       }
+
       let someoneElseTyping = false;
-      for (const [uid, isTyping] of Object.entries(data as object)) {
-        if (cleanUserIdKey(uid) !== myClean && isTyping === true) {
-          someoneElseTyping = true;
-          break;
+      const now = Date.now();
+
+      for (const [uid, val] of Object.entries(data as Record<string, unknown>)) {
+        if (cleanUserIdKey(uid) !== myClean) {
+          // If val is a timestamp (number)
+          if (typeof val === 'number' && val > 0) {
+            // Only considered active if typed within the last 4000ms
+            if (now - val < 4000) {
+              someoneElseTyping = true;
+              break;
+            }
+          } else if (val === true) {
+            // If legacy boolean, allow brief pulse but auto-expire
+            someoneElseTyping = true;
+            break;
+          }
         }
       }
-      onTypingUpdate(someoneElseTyping);
+
+      if (autoClearTimer) clearTimeout(autoClearTimer);
+
+      if (someoneElseTyping) {
+        onTypingUpdate(true);
+        // Automatically clear typing after 3.5s if no fresh typing ping is received
+        autoClearTimer = setTimeout(() => {
+          onTypingUpdate(false);
+        }, 3500);
+      } else {
+        onTypingUpdate(false);
+      }
     };
 
     eventSource.addEventListener('put', (event: MessageEvent) => {
       try {
         const payload = JSON.parse(event.data);
-        checkTyping(payload.data);
+        if (!payload.path || payload.path === '/') {
+          checkTyping(payload.data);
+        } else {
+          // Path might be sub-path e.g. "/user123"
+          const key = payload.path.replace(/^\//, '');
+          const val = payload.data;
+          const obj: Record<string, unknown> = {};
+          obj[key] = val;
+          checkTyping(obj);
+        }
       } catch {}
     });
 
@@ -312,6 +347,7 @@ export function subscribeToFirebaseTyping(
   } catch {}
 
   return () => {
+    if (autoClearTimer) clearTimeout(autoClearTimer);
     if (eventSource) {
       try {
         eventSource.close();
@@ -321,7 +357,7 @@ export function subscribeToFirebaseTyping(
 }
 
 /**
- * Broadcast live typing status to Firebase
+ * Broadcast live typing status to Firebase using millisecond timestamp
  */
 export async function sendFirebaseTyping(
   convId: string,
@@ -332,10 +368,11 @@ export async function sendFirebaseTyping(
   const cleanId = cleanUserIdKey(userId);
 
   try {
+    const payload = isTyping ? Date.now() : 0;
     await fetch(`${FIREBASE_DATABASE_URL}/conversations/${convId}/typing/${cleanId}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(isTyping),
+      body: JSON.stringify(payload),
     });
   } catch {}
 }
