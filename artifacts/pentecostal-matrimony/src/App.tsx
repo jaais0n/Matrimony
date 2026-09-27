@@ -6,6 +6,7 @@ import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from './aut
 
 import { Navbar } from './components/ui/Navbar';
 import { BottomNav } from './components/ui/BottomNav';
+import { setUserPresence } from './utils/firebaseHelper';
 
 import type { ComponentType } from 'react';
 
@@ -329,7 +330,26 @@ function ProtectedMemberArea({
   activeRole: string;
   onToggleRole: (r: string) => void;
 }) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, user } = useAuth();
+
+  useEffect(() => {
+    if (!isSignedIn || !user?.id) return;
+    setUserPresence(user.id, true);
+
+    const interval = setInterval(() => {
+      setUserPresence(user.id, true);
+    }, 25000);
+
+    const onUnload = () => {
+      setUserPresence(user.id, false);
+    };
+    window.addEventListener('beforeunload', onUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', onUnload);
+    };
+  }, [isSignedIn, user?.id]);
 
   if (!isSignedIn) {
     return <Redirect to="/sign-in" />;

@@ -2,10 +2,12 @@ import { useMemo } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Compass, Flame, Heart, MessageSquare, Shield, User } from 'lucide-react';
 import { useUser } from '../../auth';
+import { useUnreadMessagesCount } from '../../utils/useUnreadMessages';
 
 export function BottomNav() {
   const [location] = useLocation();
   const { user } = useUser();
+  const unreadMessagesCount = useUnreadMessagesCount(user?.id);
 
   const demoRole = typeof window !== 'undefined' ? localStorage.getItem('pm_demo_role') : null;
   const isAdmin = user?.publicMetadata?.role === 'admin' || demoRole === 'admin' || user?.id === 'user_admin';
@@ -62,13 +64,21 @@ export function BottomNav() {
               active ? 'text-rose-700 font-bold' : 'text-slate-400 hover:text-slate-700'
             }`}
           >
-            <div className={`p-1 rounded-full ${active ? 'bg-rose-50 text-rose-700' : ''}`}>
+            <div className={`p-1 rounded-full relative ${active ? 'bg-rose-50 text-rose-700' : ''}`}>
               {isProfileItem && userPhotoUrl ? (
                 <div className={`h-6 w-6 rounded-full overflow-hidden border ${active ? 'border-rose-600 ring-2 ring-rose-200' : 'border-slate-300'}`}>
                   <img src={userPhotoUrl} alt="Profile" className="h-full w-full object-cover" />
                 </div>
               ) : (
-                <Icon size={20} strokeWidth={active ? 2.5 : 1.75} fill={active && item.icon === Heart ? '#be123c' : 'none'} />
+                <>
+                  <Icon size={20} strokeWidth={active ? 2.5 : 1.75} fill={active && item.icon === Heart ? '#be123c' : 'none'} />
+                  {item.href === '/messages' && unreadMessagesCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-extrabold text-white shadow-xs">
+                      <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping" />
+                      {unreadMessagesCount}
+                    </span>
+                  )}
+                </>
               )}
             </div>
             <span className={`text-[10px] tracking-tight ${active ? 'font-bold text-rose-800' : 'font-medium'}`}>

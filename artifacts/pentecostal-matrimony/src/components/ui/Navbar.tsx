@@ -4,6 +4,7 @@ import { Bell, LogOut, Shield, User } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { customFetch } from '@workspace/api-client-react';
 import { useClerk, useUser } from '../../auth';
+import { useUnreadMessagesCount } from '../../utils/useUnreadMessages';
 
 export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (role: string) => void }) {
   const [location] = useLocation();
@@ -13,6 +14,9 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
   const demoRole = typeof window !== 'undefined' ? localStorage.getItem('pm_demo_role') : null;
   const currentRole = String(activeRole || (user?.publicMetadata?.role as string) || demoRole || 'user');
   const isAdmin = currentRole === 'admin' || currentRole === 'moderator' || user?.id === 'user_admin';
+
+  // Unread messages count for Messages nav item with live dot notification
+  const unreadMessagesCount = useUnreadMessagesCount(user?.id);
 
   // Fetch notifications to show red dot only when real unread notifications exist
   const { data: notifications = [] } = useQuery<any[]>({
@@ -95,17 +99,27 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
           <nav className="hidden md:flex items-center gap-6" aria-label="Main Navigation">
             {navLinks.map((item) => {
               const active = location === item.href;
+              const isMessages = item.href === '/messages';
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`text-xs font-bold tracking-wide transition py-1 ${
+                  className={`text-xs font-bold tracking-wide transition py-1 relative inline-flex items-center gap-1.5 ${
                     active
                       ? 'border-b-2 border-rose-600 text-rose-700'
                       : 'text-slate-600 hover:text-rose-700'
                   }`}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {isMessages && unreadMessagesCount > 0 && (
+                    <span className="relative flex items-center justify-center">
+                      <span className="relative flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-extrabold text-white shadow-xs">
+                        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-white mr-0.5 shrink-0" />
+                        {unreadMessagesCount}
+                      </span>
+                    </span>
+                  )}
                 </Link>
               );
             })}

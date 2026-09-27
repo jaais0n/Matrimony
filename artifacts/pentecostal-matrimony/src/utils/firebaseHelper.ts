@@ -504,3 +504,152 @@ export async function sendFirebaseMessage(
     return false;
   }
 }
+
+/**
+ * Updates user online presence in Firebase, localStorage, and BroadcastChannel
+ */
+export async function setUserPresence(userId: string, isOnline: boolean): Promise<void> {
+  const cleanId = cleanUserIdKey(userId);
+  if (!cleanId) return;
+
+  const payload = {
+    online: isOnline,
+    lastSeen: Date.now(),
+  };
+
+  try {
+    localStorage.setItem(`pm_presence_${cleanId}`, JSON.stringify(payload));
+    const raw = localStorage.getItem('pm_online_users');
+    const map = raw ? JSON.parse(raw) : {};
+    if (isOnline) {
+      map[cleanId] = Date.now();
+    } else {
+      delete map[cleanId];
+    }
+    localStorage.setItem('pm_online_users', JSON.stringify(map));
+
+    const bc = new BroadcastChannel('pm_live_matrimony_chat');
+    bc.postMessage({ type: 'PRESENCE', userId: cleanId, isOnline, lastSeen: Date.now() });
+    bc.close();
+  } catch {}
+
+  if (isFirebaseConfigured()) {
+    try {
+      fetch(`${FIREBASE_DATABASE_URL}/presence/${cleanId}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    } catch {}
+  }
+}
+
+/**
+ * Retrieves all currently online users from localStorage
+ */
+export function getAllOnlineUsers(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem('pm_online_users');
+    if (!raw) return {};
+    const map = JSON.parse(raw);
+    const now = Date.now();
+    const result: Record<string, boolean> = {};
+    for (const [k, timestamp] of Object.entries(map)) {
+      if (typeof timestamp === 'number' && now - timestamp < 120000) {
+        result[k] = true;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Subscribes to real-time online presence for a specific user
+ */
+export function subscribeToUserPresence(
+  userId: string,
+  onPresenceUpdate: (isOnline: boolean, lastSeen?: number) => void
+): () => void {
+  const cleanId = cleanUserIdKey(userId);
+  if (!cleanId) return () => {};
+
+  let destroyed = false;
+  let eventSource: EventSource | null = null;
+
+  // Check initial local presence
+  try {
+    const raw = localStorage.getItem(`pm_presence_${cleanId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const isOnline = Boolean(parsed.online && Date.now() - (parsed.lastSeen || 0) < 120000);
+      onPresenceUpdate(isOnline, parsed.lastSeen);
+    }
+  } catch {}
+
+  if (isFirebaseConfigured()) {
+    const endpoint = `${FIREBASE_DATABASE_URL}/presence/${cleanId}.json`;
+    const checkPresence = (data: any) => {
+      if (destroyed || !data) return;
+      const isOnline = Boolean(data.online && Date.now() - (data.lastSeen || 0) < 180000);
+      onPresenceUpdate(isOnline, data.lastSeen);
+    };
+
+    fetch(endpoint)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(checkPresence)
+      .catch(() => {});
+
+    try {
+      eventSource = new EventSource(endpoint);
+      eventSource.addEventListener('put', (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          checkPresence(payload.data);
+        } catch {}
+      });
+      eventSource.addEventListener('patch', (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          checkPresence(payload.data);
+        } catch {}
+      });
+    } catch {}
+  }
+
+  // Cross-tab broadcast listener
+  let bc: BroadcastChannel | null = null;
+  try {
+    bc = new BroadcastChannel('pm_live_matrimony_chat');
+    bc.onmessage = (event) => {
+      if (event.data?.type === 'PRESENCE' && event.data.userId === cleanId) {
+        onPresenceUpdate(Boolean(event.data.isOnline), event.data.lastSeen || Date.now());
+      }
+    };
+  } catch {}
+
+  const interval = setInterval(() => {
+    if (destroyed) return;
+    try {
+      const raw = localStorage.getItem(`pm_presence_${cleanId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const isOnline = Boolean(parsed.online && Date.now() - (parsed.lastSeen || 0) < 120000);
+        onPresenceUpdate(isOnline, parsed.lastSeen);
+      }
+    } catch {}
+  }, 4000);
+
+  return () => {
+    destroyed = true;
+    clearInterval(interval);
+    if (bc) bc.close();
+    if (eventSource) {
+      try {
+        eventSource.close();
+      } catch {}
+    }
+  };
+}

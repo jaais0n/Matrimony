@@ -29,7 +29,11 @@ import {
   sendFirebaseMessage,
   getDeterministicConvId,
   cleanUserIdKey,
+  setUserPresence,
+  subscribeToUserPresence,
+  getAllOnlineUsers,
 } from '../utils/firebaseHelper';
+import { markConversationAsRead } from '../utils/useUnreadMessages';
 import { useAuth, useUser } from '../auth';
 
 function getStoredConversations(currentUserId?: string): Conversation[] {
@@ -191,6 +195,8 @@ export function MessagesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [onlineUsersMap, setOnlineUsersMap] = useState<Record<string, boolean>>(() => getAllOnlineUsers());
+  const [isParticipantOnline, setIsParticipantOnline] = useState<boolean>(false);
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessage[]>>({});
   const [serverMessages, setServerMessages] = useState<Record<string, ChatMessage[]>>({});
   const [broadcastMessages, setBroadcastMessages] = useState<Record<string, ChatMessage[]>>({});
@@ -220,6 +226,20 @@ export function MessagesPage() {
           }));
           refetch();
         }
+        if (event.data?.type === 'TYPING' && event.data.convId === activeConversation?.id) {
+          if (cleanUserIdKey(event.data.userId) !== cleanMyKey) {
+            setIsTyping(Boolean(event.data.isTyping));
+          }
+        }
+        if (event.data?.type === 'PRESENCE' && event.data.userId) {
+          setOnlineUsersMap((prev) => ({
+            ...prev,
+            [event.data.userId]: Boolean(event.data.isOnline),
+          }));
+          if (cleanUserIdKey(activeConversation?.participantId) === event.data.userId) {
+            setIsParticipantOnline(Boolean(event.data.isOnline));
+          }
+        }
       };
     } catch {}
 
@@ -247,6 +267,63 @@ export function MessagesPage() {
       window.removeEventListener('storage', onStorage);
     };
   }, [refetch]);
+
+  // Broadcast current user presence while in messaging area
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'You') return;
+    setUserPresence(currentUserId, true);
+
+    const hb = setInterval(() => {
+      setUserPresence(currentUserId, true);
+    }, 25000);
+
+    const onUnload = () => {
+      setUserPresence(currentUserId, false);
+    };
+    window.addEventListener('beforeunload', onUnload);
+
+    return () => {
+      clearInterval(hb);
+      window.removeEventListener('beforeunload', onUnload);
+      setUserPresence(currentUserId, false);
+    };
+  }, [currentUserId]);
+
+  // Subscribe to active participant's online presence
+  useEffect(() => {
+    if (!activeConversation?.participantId) {
+      setIsParticipantOnline(false);
+      return;
+    }
+
+    const unsub = subscribeToUserPresence(activeConversation.participantId, (isOnline) => {
+      setIsParticipantOnline(isOnline);
+      setOnlineUsersMap((prev) => ({
+        ...prev,
+        [cleanUserIdKey(activeConversation.participantId)]: isOnline,
+      }));
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [activeConversation?.participantId]);
+
+  // Periodically refresh all online users
+  useEffect(() => {
+    const update = () => {
+      setOnlineUsersMap(getAllOnlineUsers());
+    };
+    const id = setInterval(update, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Mark active conversation as read when opened/viewed
+  useEffect(() => {
+    if (activeConversation?.id) {
+      markConversationAsRead(activeConversation.id, currentUserId);
+    }
+  }, [activeConversation?.id, currentUserId]);
 
   // Subscribe to real-time Firebase Inbox updates across devices
   useEffect(() => {
@@ -546,8 +623,21 @@ export function MessagesPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputText(val);
-    if (activeConversation?.id && isFirebaseConfigured()) {
-      sendFirebaseTyping(activeConversation.id, currentUserId, val.trim().length > 0);
+    const typing = val.trim().length > 0;
+    if (activeConversation?.id) {
+      if (isFirebaseConfigured()) {
+        sendFirebaseTyping(activeConversation.id, currentUserId, typing);
+      }
+      try {
+        const bc = new BroadcastChannel('pm_live_matrimony_chat');
+        bc.postMessage({
+          type: 'TYPING',
+          convId: activeConversation.id,
+          userId: currentUserId,
+          isTyping: typing,
+        });
+        bc.close();
+      } catch {}
     }
   };
 
@@ -559,9 +649,21 @@ export function MessagesPage() {
     const userText = inputText.trim();
     setInputText('');
 
-    // Clear typing indicator
-    if (isFirebaseConfigured()) {
-      sendFirebaseTyping(activeConversation.id, currentUserId, false);
+    // Clear typing indicator on send
+    if (activeConversation?.id) {
+      if (isFirebaseConfigured()) {
+        sendFirebaseTyping(activeConversation.id, currentUserId, false);
+      }
+      try {
+        const bc = new BroadcastChannel('pm_live_matrimony_chat');
+        bc.postMessage({
+          type: 'TYPING',
+          convId: activeConversation.id,
+          userId: currentUserId,
+          isTyping: false,
+        });
+        bc.close();
+      } catch {}
     }
 
     // 1. Instant optimistic update for user message
@@ -903,6 +1005,7 @@ export function MessagesPage() {
                 <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px]">
                   {conversations.map((c) => {
                     const isSelected = activeConversation?.id === c.id;
+                    const isOnline = Boolean(onlineUsersMap[cleanUserIdKey(c.participantId)]);
                     return (
                       <button
                         key={c.id}
@@ -911,6 +1014,7 @@ export function MessagesPage() {
                           setSelectedConvId(c.id);
                           localStorage.setItem('pm_active_conv_id', c.id);
                           setMobileChatOpen(true);
+                          markConversationAsRead(c.id, currentUserId);
                         }}
                         className={`w-full text-left p-3.5 flex items-center gap-3 transition cursor-pointer ${
                           isSelected
@@ -933,7 +1037,10 @@ export function MessagesPage() {
                               {c.participantName.slice(0, 2).toUpperCase()}
                             </div>
                           )}
-                          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                          {/* Online green dot: only when participant is logged in */}
+                          {isOnline && (
+                            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 shadow-xs" title="Online now" />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between">
@@ -945,9 +1052,20 @@ export function MessagesPage() {
                               {c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                             </span>
                           </div>
-                          <p className={`text-xs truncate mt-0.5 ${isSelected ? 'text-rose-950 font-medium' : 'text-slate-500'}`}>
-                            {c.lastMessageText || 'No messages yet.'}
-                          </p>
+                          <div className="flex items-center justify-between gap-1 mt-0.5">
+                            <p className={`text-xs truncate ${isSelected ? 'text-rose-950 font-medium' : 'text-slate-500'}`}>
+                              {c.lastMessageText || 'No messages yet.'}
+                            </p>
+                            {/* Unread message count badge with dot */}
+                            {typeof c.unreadCount === 'number' && c.unreadCount > 0 && (
+                              <span className="relative flex items-center justify-center shrink-0 ml-1.5">
+                                <span className="h-4 min-w-[18px] rounded-full bg-rose-600 px-1 text-[9px] font-extrabold text-white flex items-center justify-center shadow-xs">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-white mr-0.5 shrink-0" />
+                                  {c.unreadCount}
+                                </span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </button>
                     );
@@ -992,23 +1110,46 @@ export function MessagesPage() {
                             {activeConversation.participantName.slice(0, 2).toUpperCase()}
                           </div>
                         )}
-                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                        {/* Green dot: only when logged in or typing */}
+                        {(isParticipantOnline || isTyping) && (
+                          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 shadow-xs" title="Online now" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <h2 className="text-sm font-bold text-slate-900 truncate">
                           {activeConversation.participantName}
                           {typeof activeConversation.participantAge === 'number' && activeConversation.participantAge > 0 ? `, ${activeConversation.participantAge}` : ''}
                         </h2>
-                        <p className="text-[11px] text-slate-500 truncate">
-                          {activeConversation.participantLocation} · <span className="text-rose-700 font-medium">{activeConversation.participantDenomination}</span>
-                        </p>
+                        {isTyping ? (
+                          <p className="text-[11px] font-bold text-rose-600 truncate flex items-center gap-1 animate-pulse">
+                            typing...
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {activeConversation.participantLocation} · <span className="text-rose-700 font-medium">{activeConversation.participantDenomination}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div className="relative shrink-0 flex items-center gap-2">
-                      {firebaseActive && (
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                      {/* Real-time Status Badge: Typing Indicator (Screenshot 1) / Online (Screenshot 2) / Offline */}
+                      {isTyping ? (
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200/90 px-2.5 py-1 rounded-full shadow-2xs animate-in fade-in">
+                          <span>{activeConversation.participantName} is typing</span>
+                          <span className="flex gap-1 items-center">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-bounce [animation-delay:-0.3s]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-bounce [animation-delay:-0.15s]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-bounce" />
+                          </span>
+                        </span>
+                      ) : isParticipantOnline ? (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md shadow-2xs">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Online
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-md">
+                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> Offline
                         </span>
                       )}
 
