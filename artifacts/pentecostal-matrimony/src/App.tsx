@@ -56,18 +56,19 @@ import './index.css';
 // One-time clean startup wipe for fresh testing across all devices
 export function purgeLocalSeedProfiles() {
   try {
-    const FRESH_KEY = 'pm_fresh_startup_v3';
+    const FRESH_KEY = 'pm_fresh_startup_v5';
     if (!localStorage.getItem(FRESH_KEY)) {
       localStorage.removeItem('pm_registered_profiles');
       localStorage.removeItem('pm_my_profile');
       localStorage.removeItem('pm_registered_users');
       localStorage.removeItem('pm_registered_accounts');
-      localStorage.removeItem('pm_auth_user');
-      // Remove any leftover profile caches
+      localStorage.removeItem('pm_user_conversations');
+      localStorage.removeItem('pm_active_conv_id');
+      // Remove any leftover profile caches & conversations
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_') || k.startsWith('pm_fresh_startup_v'))) {
+        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_') || k.startsWith('pm_fresh_startup_v') || k.startsWith('pm_user_conversations_'))) {
           keysToRemove.push(k);
         }
       }
@@ -101,60 +102,21 @@ export function purgeLocalSeedProfiles() {
 // Immediate run when module loads
 purgeLocalSeedProfiles();
 
-
-
 function DataSyncEffect() {
   const queryClient = useQueryClient();
-  const lastPushedHashRef = useRef<string>('');
   const isSyncingRef = useRef(false);
 
   useEffect(() => {
     let lastFocusSync = 0;
     let syncDebounceTimer: any = null;
 
-    const syncData = async (forcePush = false) => {
+    const syncData = async () => {
       if (isSyncingRef.current) return;
       isSyncingRef.current = true;
       try {
         purgeLocalSeedProfiles();
 
-        // 1. Collect all real local profiles from this device
-        let localProfiles: any[] = [];
-        const raw = localStorage.getItem('pm_registered_profiles');
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) localProfiles = parsed.filter((p) => !isSeedProfile(p));
-          } catch {}
-        }
-        const myProfRaw = localStorage.getItem('pm_my_profile');
-        if (myProfRaw) {
-          try {
-            const myProf = JSON.parse(myProfRaw);
-            if (myProf && !isSeedProfile(myProf) && !localProfiles.some((p) => p.id === myProf.id || p.userId === myProf.userId)) {
-              localProfiles.push(myProf);
-            }
-          } catch {}
-        }
-
-        // 2. Push real local profiles to server only when there is changed data
-        const payload = localProfiles.filter((p) => !isSeedProfile(p));
-        const currentHash = JSON.stringify(payload.map(p => `${p.id}_${p.updatedAt || ''}`));
-        
-        if (payload.length > 0 && (forcePush || currentHash !== lastPushedHashRef.current)) {
-          lastPushedHashRef.current = currentHash;
-          try {
-            await fetch('/api/profiles/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-          } catch (syncErr) {
-            console.warn('Sync push warning (non-fatal):', syncErr);
-          }
-        }
-
-        // 3. Pull ALL server profiles and merge into local storage
+        // Pull authoritative server profiles from Neon cloud database
         const res = await fetch('/api/profiles').catch(() => null);
         if (res && res.ok) {
           const contentType = res.headers.get('content-type') || '';
@@ -164,31 +126,14 @@ function DataSyncEffect() {
             const serverProfiles = rawServerProfiles.filter((p) => !isSeedProfile(p));
 
             if (serverProfiles.length > 0) {
-              const existingRaw = localStorage.getItem('pm_registered_profiles');
-              const existing: any[] = existingRaw ? JSON.parse(existingRaw) : [];
-              const merged = existing.filter((p) => !isSeedProfile(p));
-              for (const sp of serverProfiles) {
-                const idx = merged.findIndex((m) => m.id === sp.id || m.userId === sp.userId);
-                if (idx >= 0) {
-                  const serverTime = sp.updatedAt ? new Date(sp.updatedAt).getTime() : 0;
-                  const localTime = merged[idx].updatedAt ? new Date(merged[idx].updatedAt).getTime() : 0;
-                  if (serverTime >= localTime) {
-                    merged[idx] = { ...merged[idx], ...sp };
-                  }
-                } else {
-                  merged.push(sp);
-                }
-              }
-              const finalMerged = merged.filter((p) => !isSeedProfile(p));
-              // IMPORTANT: pass true for skipNotify to prevent infinite recursive event loop!
-              safeSetLocalStorage('pm_registered_profiles', finalMerged, true);
+              safeSetLocalStorage('pm_registered_profiles', serverProfiles, true);
 
               // Automatically restore My Profile for the currently logged-in user on this device
               try {
                 const authUserRaw = localStorage.getItem('pm_auth_user');
                 if (authUserRaw) {
                   const au = JSON.parse(authUserRaw);
-                  const myMatch = finalMerged.find((p) => 
+                  const myMatch = serverProfiles.find((p) => 
                     p.userId === au.id || 
                     p.id === `prof_${au.id}` || 
                     (au.primaryEmailAddress?.emailAddress && p.email && p.email.toLowerCase() === au.primaryEmailAddress.emailAddress.toLowerCase()) ||
@@ -198,24 +143,16 @@ function DataSyncEffect() {
                   if (myMatch) {
                     safeSetLocalStorage('pm_my_profile', myMatch, true);
                     safeSetLocalStorage(`pm_user_profile_${au.id}`, myMatch, true);
-                  } else {
-                    const currentMyProf = localStorage.getItem('pm_my_profile');
-                    if (currentMyProf) {
-                      const cmp = JSON.parse(currentMyProf);
-                      if (cmp.userId && cmp.userId !== au.id && cmp.id !== `prof_${au.id}` && cmp.displayName !== au.fullName) {
-                        localStorage.removeItem('pm_my_profile');
-                      }
-                    }
                   }
                 }
               } catch {}
 
-              // Directly update React Query cache in-memory with ZERO extra network calls
+              // Directly update React Query cache in-memory
               queryClient.setQueryData(['/api/profiles'], {
-                items: finalMerged,
-                total: finalMerged.length,
+                items: serverProfiles,
+                total: serverProfiles.length,
                 page: 1,
-                pageSize: finalMerged.length,
+                pageSize: serverProfiles.length,
               });
             }
           }
