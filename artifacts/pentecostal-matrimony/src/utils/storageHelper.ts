@@ -3,7 +3,7 @@
  * Compresses photos to crisp quality strictly under 50KB for fast cloud DB synchronization.
  */
 
-import { getDeterministicConvId } from './firebaseHelper';
+import { getDeterministicConvId, cleanUserIdKey } from './firebaseHelper';
 
 export function getApproximateKB(dataUrl: string): number {
   if (!dataUrl) return 0;
@@ -233,7 +233,12 @@ export function initiateConversation(profile: any, currentUserId?: string): stri
     } catch {}
   }
 
-  const convId = myId ? getDeterministicConvId(myId, partId) : `conv_${partId}`;
+  // Prevent initiating conversation with oneself
+  if (myId && cleanUserIdKey(partId) === cleanUserIdKey(myId)) {
+    return '';
+  }
+
+  const convId = myId ? getDeterministicConvId(myId, partId) : `conv_${cleanUserIdKey(partId)}`;
   const partName = profile.displayName || 'Believer Candidate';
   const partAge = profile.age || 28;
   const partPhoto = profile.photos && profile.photos[0] ? profile.photos[0].url : (profile.primaryPhotoUrl || '');
@@ -241,15 +246,24 @@ export function initiateConversation(profile: any, currentUserId?: string): stri
   const partDenom = profile.denomination || profile.faith?.denomination || 'Pentecostal';
   const partLoc = [profile.location, profile.country].filter(Boolean).join(', ') || 'India';
 
+  const userKey = myId ? `pm_user_conversations_${cleanUserIdKey(myId)}` : 'pm_user_conversations';
+
   try {
     let convs: any[] = [];
-    const raw = localStorage.getItem('pm_user_conversations');
+    const raw = localStorage.getItem(userKey);
     if (raw) {
       convs = JSON.parse(raw);
     }
     if (!Array.isArray(convs)) convs = [];
 
-    const existingIndex = convs.findIndex((c) => c.id === convId || c.participantId === partId);
+    // Filter out self-conversations or corrupt entries
+    if (myId) {
+      convs = convs.filter((c) => c && cleanUserIdKey(c.participantId) !== cleanUserIdKey(myId));
+    }
+
+    const existingIndex = convs.findIndex(
+      (c) => c.id === convId || cleanUserIdKey(c.participantId) === cleanUserIdKey(partId)
+    );
     if (existingIndex >= 0) {
       localStorage.setItem('pm_active_conv_id', convs[existingIndex].id);
       return convs[existingIndex].id;
@@ -272,14 +286,14 @@ export function initiateConversation(profile: any, currentUserId?: string): stri
     };
 
     convs.unshift(newConv);
-    localStorage.setItem('pm_user_conversations', JSON.stringify(convs));
+    localStorage.setItem(userKey, JSON.stringify(convs));
     localStorage.setItem('pm_active_conv_id', convId);
 
     // Sync to serverless API in background
     fetch('/api/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newConv),
+      body: JSON.stringify({ ...newConv, creatorId: myId }),
     }).catch(() => {});
 
     return convId;

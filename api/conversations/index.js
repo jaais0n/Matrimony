@@ -1,37 +1,20 @@
 /**
  * Vercel Serverless Function: /api/conversations
  * Real-time messaging and conversation synchronization backed by Neon PostgreSQL.
- * Features 24-hour automatic message expiration (ephemeral privacy).
+ * Persistent chat history like WhatsApp.
  */
 
 import { readStore, writeStore } from '../_lib/db-store.js';
 
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
-function purgeExpiredMessages(conversations) {
-  const now = Date.now();
-  if (!Array.isArray(conversations)) return [];
-  return conversations.map((conv) => {
-    const validMessages = (conv.messages || []).filter((m) => {
-      if (m.senderId === 'system') return true;
-      const msgTime = new Date(m.timestamp).getTime();
-      return now - msgTime < TWENTY_FOUR_HOURS_MS;
-    });
-    const lastMsg = validMessages[validMessages.length - 1];
-    return {
-      ...conv,
-      messages: validMessages,
-      lastMessageText: lastMsg ? lastMsg.content : 'No active messages (expired after 24h).',
-      lastMessageAt: lastMsg ? lastMsg.timestamp : conv.lastMessageAt,
-    };
-  });
+function cleanIdKey(id) {
+  return String(id || '').trim().toLowerCase().replace(/^prof_user_|^prof_|^user_/, '');
 }
 
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -43,14 +26,12 @@ export default async function handler(req, res) {
     store.conversations = [];
   }
 
-  // Purge any messages older than 24 hours
-  store.conversations = purgeExpiredMessages(store.conversations);
-
-  const { id: queryId, action } = req.query || {};
+  const { id: queryId, action, userId } = req.query || {};
+  const currentUserId = userId || req.headers['x-user-id'] || '';
 
   // GET /api/conversations
   if (req.method === 'GET') {
-    res.setHeader('Cache-Control', 's-maxage=5, stale-while-revalidate=15');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (queryId) {
       const conv = store.conversations.find((c) => c.id === queryId);
       if (conv) {
@@ -60,6 +41,19 @@ export default async function handler(req, res) {
       }
       return;
     }
+
+    if (currentUserId) {
+      const cleanUser = cleanIdKey(currentUserId);
+      const userConvs = store.conversations.filter((c) => {
+        const pClean = cleanIdKey(c.participantId);
+        const creatorClean = cleanIdKey(c.creatorId);
+        const cId = (c.id || '').toLowerCase();
+        return pClean === cleanUser || creatorClean === cleanUser || cId.includes(cleanUser);
+      });
+      res.status(200).json(userConvs);
+      return;
+    }
+
     res.status(200).json(store.conversations);
     return;
   }
@@ -107,6 +101,7 @@ export default async function handler(req, res) {
 
     const newConv = {
       id: convId,
+      creatorId: body.creatorId || currentUserId || '',
       participantId,
       participantName: body.participantName || 'Believer Candidate',
       participantAge: body.participantAge || 28,
@@ -118,16 +113,7 @@ export default async function handler(req, res) {
       lastMessageText: body.initialMessage || 'Started a conversation in faith.',
       lastMessageAt: new Date().toISOString(),
       unreadCount: 0,
-      messages: [
-        {
-          id: `msg_${Date.now()}`,
-          senderId: 'system',
-          senderName: 'Platform Stewards',
-          content: 'Mutual connection confirmed. Messages automatically delete after 24 hours for member privacy.',
-          timestamp: new Date().toISOString(),
-          read: true,
-        },
-      ],
+      messages: [],
     };
 
     store.conversations.unshift(newConv);

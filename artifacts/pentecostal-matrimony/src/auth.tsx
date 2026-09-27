@@ -44,6 +44,33 @@ const SEED_USERS: StoredAccount[] = [
     firstName: 'Administrator',
     role: 'admin',
   },
+  {
+    id: 'user_john',
+    username: 'john',
+    email: 'john@gmail.com',
+    password: '123',
+    fullName: 'John',
+    firstName: 'John',
+    role: 'member',
+  },
+  {
+    id: 'user_sura',
+    username: 'sura',
+    email: 'sura@gmail.com',
+    password: '123',
+    fullName: 'Suru',
+    firstName: 'Suru',
+    role: 'member',
+  },
+  {
+    id: 'user_sura',
+    username: 'suru',
+    email: 'suru@gmail.com',
+    password: '123',
+    fullName: 'Suru',
+    firstName: 'Suru',
+    role: 'member',
+  },
   ...(Array.isArray(INITIAL_REGISTERED_USERS) ? INITIAL_REGISTERED_USERS : []).map((u: any) => ({
     id: u.id,
     username: u.username || (u.email && u.email.includes('@') ? u.email.split('@')[0] : u.email || u.id),
@@ -298,7 +325,19 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
         localStorage.setItem('pm_demo_role', matchedAccount.role);
         syncProfileForUser(authUser);
 
-        // Immediate background pull of server profiles to restore profile data across devices
+        // Immediate background pull of current user's profile from database
+        fetch(`/api/profiles/me?userId=${encodeURIComponent(authUser.id)}`)
+          .then((r) => r.json())
+          .then((myProfile) => {
+            if (myProfile && !myProfile.notFound && (myProfile.displayName || myProfile.location || myProfile.photos?.length)) {
+              localStorage.setItem('pm_my_profile', JSON.stringify(myProfile));
+              localStorage.setItem(`pm_user_profile_${authUser.id}`, JSON.stringify(myProfile));
+              window.dispatchEvent(new CustomEvent('pm:sync'));
+            }
+          })
+          .catch(() => {});
+
+        // Background pull of server profiles to restore profile data across devices
         fetch('/api/profiles')
           .then((r) => r.json())
           .then((data) => {

@@ -32,29 +32,21 @@ import {
 } from '../utils/firebaseHelper';
 import { useAuth, useUser } from '../auth';
 
-function getStoredConversations(): Conversation[] {
+function getStoredConversations(currentUserId?: string): Conversation[] {
   try {
-    const raw = localStorage.getItem('pm_user_conversations');
+    const cleanId = cleanUserIdKey(currentUserId || '');
+    const key = cleanId ? `pm_user_conversations_${cleanId}` : 'pm_user_conversations';
+    const raw = localStorage.getItem(key) || (cleanId ? localStorage.getItem('pm_user_conversations') : null);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch {}
-
-  // If no conversations yet, check if registered candidate profiles exist and initiate
-  try {
-    const profRaw = localStorage.getItem('pm_registered_profiles');
-    if (profRaw) {
-      const profiles = JSON.parse(profRaw);
-      if (Array.isArray(profiles)) {
-        const validProfiles = profiles.filter((p: any) => !isSeedProfile(p));
-        if (validProfiles.length > 0) {
-          initiateConversation(validProfiles[0]);
-          const updated = localStorage.getItem('pm_user_conversations');
-          if (updated) return JSON.parse(updated);
-        }
+        return parsed.filter(
+          (c: any) =>
+            c &&
+            cleanUserIdKey(c.participantId) !== cleanId &&
+            !c.lastMessageText?.includes('Praise the Lord! Thank you for reaching out') &&
+            !c.lastMessageText?.includes('God bless you. It is inspiring')
+        );
       }
     }
   } catch {}
@@ -132,9 +124,9 @@ export function MessagesPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: rawConversations = [], refetch } = useQuery<Conversation[]>({
-    queryKey: ['conversations'],
-    queryFn: () => customFetch('/api/conversations'),
-    initialData: getStoredConversations,
+    queryKey: ['conversations', currentUserId],
+    queryFn: () => customFetch(`/api/conversations?userId=${encodeURIComponent(currentUserId)}`),
+    initialData: () => getStoredConversations(currentUserId),
   });
 
   // Subscribe to real-time Firebase Inbox updates across devices
@@ -151,31 +143,78 @@ export function MessagesPage() {
   // Merge server/local conversations with live Firebase inbox
   const conversations = useMemo(() => {
     const map = new Map<string, Conversation>();
+    const myCleanId = cleanUserIdKey(currentUserId);
+    const myCleanName = (currentUserName || '').trim().toLowerCase();
 
+    const sanitizeText = (txt?: string) => {
+      if (!txt) return 'No messages yet.';
+      if (
+        txt.includes('Praise the Lord! Thank you for reaching out') ||
+        txt.includes('God bless you. It is inspiring') ||
+        txt.includes('Mutual connection confirmed.') ||
+        txt.includes('Started a conversation in faith.')
+      ) {
+        return 'No messages yet.';
+      }
+      return txt;
+    };
+
+    // 1. From server/local storage
     for (const c of rawConversations) {
       if (!c || !c.id) continue;
-      const valid = c.messages || [];
-      const lastMsg = valid[valid.length - 1];
-      map.set(c.id, {
-        ...c,
-        messages: valid,
-        lastMessageText: lastMsg ? lastMsg.content : (c.lastMessageText || 'No messages yet.'),
-        lastMessageAt: lastMsg ? lastMsg.timestamp : c.lastMessageAt,
+      const partClean = cleanUserIdKey(c.participantId);
+      // NEVER show self in conversation list
+      if (partClean === myCleanId) continue;
+      if (c.participantName && myCleanName && c.participantName.trim().toLowerCase() === myCleanName) continue;
+
+      const valid = (c.messages || []).filter((m: any) => {
+        if (!m || !m.content) return false;
+        const text = m.content;
+        return (
+          !text.includes('Praise the Lord! Thank you for reaching out') &&
+          !text.includes('God bless you. It is inspiring') &&
+          !text.includes('Mutual connection confirmed.')
+        );
       });
+      const lastMsg = valid[valid.length - 1];
+      const participantKey = partClean || c.id;
+
+      const existing = map.get(participantKey);
+      const convTime = new Date(lastMsg ? lastMsg.timestamp : (c.lastMessageAt || 0)).getTime();
+      const existingTime = existing ? new Date(existing.lastMessageAt || 0).getTime() : 0;
+
+      if (!existing || convTime >= existingTime) {
+        map.set(participantKey, {
+          ...c,
+          id: c.id,
+          messages: valid,
+          lastMessageText: lastMsg ? lastMsg.content : sanitizeText(c.lastMessageText),
+          lastMessageAt: lastMsg ? lastMsg.timestamp : c.lastMessageAt,
+        });
+      }
     }
 
+    // 2. From real-time Firebase Inbox
     for (const fi of firebaseInbox) {
       if (!fi || !fi.id) continue;
-      const existing = map.get(fi.id);
+      const partClean = cleanUserIdKey(fi.participantId);
+      // NEVER show self in conversation list
+      if (partClean === myCleanId) continue;
+      if (fi.participantName && myCleanName && fi.participantName.trim().toLowerCase() === myCleanName) continue;
+
+      const participantKey = partClean || fi.id;
+      const existing = map.get(participantKey);
+
       if (existing) {
-        map.set(fi.id, {
+        map.set(participantKey, {
           ...existing,
-          lastMessageText: fi.lastMessageText || existing.lastMessageText,
+          id: fi.id || existing.id,
+          lastMessageText: sanitizeText(fi.lastMessageText) || existing.lastMessageText,
           lastMessageAt: fi.lastMessageAt || existing.lastMessageAt,
           unreadCount: fi.unreadCount ?? existing.unreadCount,
         });
       } else {
-        map.set(fi.id, {
+        map.set(participantKey, {
           id: fi.id,
           participantId: fi.participantId,
           participantName: fi.participantName || 'Believer Candidate',
@@ -185,7 +224,7 @@ export function MessagesPage() {
           participantOccupation: fi.participantOccupation || 'Professional',
           participantDenomination: fi.participantDenomination || 'Pentecostal',
           status: 'active',
-          lastMessageText: fi.lastMessageText || 'No messages yet.',
+          lastMessageText: sanitizeText(fi.lastMessageText),
           lastMessageAt: fi.lastMessageAt || new Date().toISOString(),
           unreadCount: fi.unreadCount || 0,
           messages: [],
@@ -196,7 +235,7 @@ export function MessagesPage() {
     const list = Array.from(map.values());
     list.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
     return list;
-  }, [rawConversations, firebaseInbox]);
+  }, [rawConversations, firebaseInbox, currentUserId, currentUserName]);
 
   const activeConversation = useMemo(() => {
     if (!selectedConvId && conversations.length > 0) return conversations[0];
@@ -343,6 +382,28 @@ export function MessagesPage() {
       [activeConversation.id]: [...(prev[activeConversation.id] || []), tempUserMsg],
     }));
 
+    // Update user-scoped local conversation storage
+    try {
+      const cleanMy = cleanUserIdKey(currentUserId);
+      const userKey = cleanMy ? `pm_user_conversations_${cleanMy}` : 'pm_user_conversations';
+      const raw = localStorage.getItem(userKey);
+      let localConvs: Conversation[] = raw ? JSON.parse(raw) : [];
+      const idx = localConvs.findIndex((c) => c.id === activeConversation.id || cleanUserIdKey(c.participantId) === cleanUserIdKey(activeConversation.participantId));
+      if (idx >= 0) {
+        localConvs[idx].messages = [...(localConvs[idx].messages || []), tempUserMsg];
+        localConvs[idx].lastMessageText = userText;
+        localConvs[idx].lastMessageAt = tempUserMsg.timestamp;
+      } else {
+        localConvs.unshift({
+          ...activeConversation,
+          lastMessageText: userText,
+          lastMessageAt: tempUserMsg.timestamp,
+          messages: [tempUserMsg],
+        });
+      }
+      localStorage.setItem(userKey, JSON.stringify(localConvs));
+    } catch {}
+
     // 2. Stream to Firebase Realtime Database for instant cross-device delivery (<50ms)
     if (isFirebaseConfigured()) {
       sendFirebaseMessage(activeConversation.id, tempUserMsg, {
@@ -362,9 +423,11 @@ export function MessagesPage() {
     }
 
     // 3. Persist to API server in background
-    customFetch(`/api/conversations/${activeConversation.id}/messages`, {
+    fetch('/api/conversations?action=message', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        conversationId: activeConversation.id,
         content: userText,
         senderId: currentUserId,
         senderName: currentUserName,
@@ -409,12 +472,29 @@ export function MessagesPage() {
 
     // 1. Initial stored messages
     for (const m of activeConversation.messages || []) {
-      if (m && m.content) map.set(m.id || `stored_${m.timestamp}`, m);
+      if (!m || !m.content) continue;
+      if (
+        m.content.includes('Praise the Lord! Thank you for reaching out') ||
+        m.content.includes('God bless you. It is inspiring') ||
+        m.content.includes('Mutual connection confirmed.') ||
+        m.content.includes('Started a conversation in faith.')
+      ) {
+        continue;
+      }
+      map.set(m.id || `stored_${m.timestamp}`, m);
     }
 
     // 2. Real-time Firebase messages
     for (const fm of firebaseMessages) {
       if (!fm || !fm.content) continue;
+      if (
+        fm.content.includes('Praise the Lord! Thank you for reaching out') ||
+        fm.content.includes('God bless you. It is inspiring') ||
+        fm.content.includes('Mutual connection confirmed.') ||
+        fm.content.includes('Started a conversation in faith.')
+      ) {
+        continue;
+      }
       // Find matching message by ID or identical content within 3 seconds
       const existingKey = Array.from(map.keys()).find((k) => {
         const existing = map.get(k)!;
