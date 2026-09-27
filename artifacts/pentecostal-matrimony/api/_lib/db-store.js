@@ -148,7 +148,7 @@ async function queryNeon(sql, params = []) {
 }
 
 let lastNeonFetchTime = 0;
-const NEON_CACHE_TTL_MS = 60 * 1000; // 60-second in-memory cache to save database transfer allowance
+const NEON_CACHE_TTL_MS = 2 * 1000; // 2-second in-memory burst cache for near-instant multi-device sync
 
 export async function readStore() {
   const now = Date.now();

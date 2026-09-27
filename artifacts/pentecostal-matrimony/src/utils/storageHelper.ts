@@ -3,6 +3,8 @@
  * Compresses photos to crisp quality strictly under 50KB for fast cloud DB synchronization.
  */
 
+import { getDeterministicConvId } from './firebaseHelper';
+
 export function getApproximateKB(dataUrl: string): number {
   if (!dataUrl) return 0;
   // Base64 encoding overhead is ~4/3, minus header
@@ -212,8 +214,6 @@ export function deduplicateProfiles<T extends { id?: string; userId?: string; di
 
   return result;
 }
-
-import { getDeterministicConvId } from './firebaseHelper';
 
 export function initiateConversation(profile: any, currentUserId?: string): string {
   if (!profile) return '';

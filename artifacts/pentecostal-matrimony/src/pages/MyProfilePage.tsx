@@ -106,74 +106,26 @@ export function MyProfilePage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const isOwned = (p: any): boolean => {
-      if (!p || !user) return false;
-      if (p.userId && (p.userId === user.id || p.userId === `user_${user.id}`)) return true;
-      if (p.id && (p.id === `prof_${user.id}` || p.id === user.id)) return true;
-      if (user.primaryEmailAddress?.emailAddress && p.email && p.email.toLowerCase() === user.primaryEmailAddress.emailAddress.toLowerCase()) return true;
-      if (user.fullName && p.displayName && p.displayName.trim().toLowerCase() === user.fullName.trim().toLowerCase()) return true;
-      return false;
-    };
-
-    // 1. If backend / API returned real profile data belonging to current user
-    if (me.data && isOwned(me.data) && (me.data.displayName || me.data.location || me.data.introduction)) {
-      const p = me.data;
-      setForm({
-        displayName: p.displayName || user?.fullName || '',
-        dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
-        gender: (p.gender as ProfileInput['gender']) || 'woman',
-        heightCm: p.heightCm || ('' as any),
-        weightKg: p.weightKg || null,
-        motherTongue: p.motherTongue || '',
-        maritalStatus: p.maritalStatus || 'Never Married',
-        location: p.location || '',
-        country: p.country || 'India',
-        introduction: p.introduction || '',
-        published: p.published !== undefined ? p.published : true,
-        faith: p.faith || blankProfile.faith,
-        education: p.education || blankProfile.education,
-        career: p.career || blankProfile.career,
-        family: p.family || blankProfile.family,
-        preferences: p.preferences || blankProfile.preferences,
-      });
-
-      if (p.photos && p.photos.length > 0) {
-        const loaded: ProfilePhotoItem[] = p.photos.map((ph: any, idx: number) => ({
-          id: ph.id || `photo_${idx}`,
-          url: ph.url,
-          isPrimary: ph.isPrimary ?? (idx === 0),
-          sizeKB: getApproximateKB(ph.url),
-        }));
-        setPhotos(loaded);
-      }
+    if (!user?.id) {
+      setForm(blankProfile);
+      setPhotos([]);
       return;
     }
 
-    // 2. Otherwise check user-specific localStorage profile
-    if (user?.id) {
-      try {
-        let p: any = null;
-        const userSpecificRaw = localStorage.getItem(`pm_user_profile_${user.id}`);
-        if (userSpecificRaw) {
-          p = JSON.parse(userSpecificRaw);
-        } else {
-          // Check pm_my_profile ONLY if it is confirmed to belong to this user
-          const myProfRaw = localStorage.getItem('pm_my_profile');
-          if (myProfRaw) {
-            const cand = JSON.parse(myProfRaw);
-            if (isOwned(cand)) p = cand;
-          }
-          // Also check registered profiles
-          if (!p) {
-            const allRaw = localStorage.getItem('pm_registered_profiles');
-            if (allRaw) {
-              const all = JSON.parse(allRaw);
-              p = all.find((cand: any) => isOwned(cand));
-            }
-          }
-        }
+    const currentUserId = user.id;
 
-        if (p && isOwned(p)) {
+    // Reset form immediately on account switch so previous account's details never bleed through
+    setForm({
+      ...blankProfile,
+      displayName: user.fullName || '',
+    });
+    setPhotos([]);
+
+    // 1. Database-first fetch for this specific logged-in user
+    fetch(`/api/profiles/me?userId=${encodeURIComponent(currentUserId)}`)
+      .then((r) => r.json())
+      .then((p) => {
+        if (p && !p.notFound && (p.displayName || p.location || p.introduction)) {
           setForm({
             displayName: p.displayName || user.fullName || '',
             dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
@@ -201,17 +153,54 @@ export function MyProfilePage() {
               sizeKB: getApproximateKB(ph.url),
             }));
             setPhotos(loaded);
+          } else {
+            setPhotos([]);
           }
-          return;
-        }
-      } catch {}
 
-      // 3. Initialize fresh profile for current user with registered name
-      if (user.fullName) {
-        setForm((prev) => ({ ...prev, displayName: user.fullName || '' }));
-      }
-    }
-  }, [me.data, user?.id, user?.fullName]);
+          safeSetLocalStorage(`pm_user_profile_${currentUserId}`, p, true);
+          safeSetLocalStorage('pm_my_profile', p, true);
+        } else {
+          // If no profile exists in DB yet, check user-specific localStorage cache
+          const userSpecificRaw = localStorage.getItem(`pm_user_profile_${currentUserId}`);
+          if (userSpecificRaw) {
+            try {
+              const localP = JSON.parse(userSpecificRaw);
+              if (localP.userId === currentUserId || localP.id === `prof_${currentUserId}`) {
+                setForm({
+                  displayName: localP.displayName || user.fullName || '',
+                  dateOfBirth: localP.dateOfBirth ? localP.dateOfBirth.slice(0, 10) : '',
+                  gender: (localP.gender as ProfileInput['gender']) || 'woman',
+                  heightCm: localP.heightCm || ('' as any),
+                  weightKg: localP.weightKg || null,
+                  motherTongue: localP.motherTongue || '',
+                  maritalStatus: localP.maritalStatus || 'Never Married',
+                  location: localP.location || '',
+                  country: localP.country || 'India',
+                  introduction: localP.introduction || '',
+                  published: localP.published !== undefined ? localP.published : true,
+                  faith: localP.faith || blankProfile.faith,
+                  education: localP.education || blankProfile.education,
+                  career: localP.career || blankProfile.career,
+                  family: localP.family || blankProfile.family,
+                  preferences: localP.preferences || blankProfile.preferences,
+                });
+                if (localP.photos && localP.photos.length > 0) {
+                  setPhotos(
+                    localP.photos.map((ph: any, idx: number) => ({
+                      id: ph.id || `photo_${idx}`,
+                      url: ph.url,
+                      isPrimary: ph.isPrimary ?? (idx === 0),
+                      sizeKB: getApproximateKB(ph.url),
+                    }))
+                  );
+                }
+              }
+            } catch {}
+          }
+        }
+      })
+      .catch(() => {});
+  }, [user?.id, user?.fullName]);
 
 
   const setTop = (key: string, value: string | number | boolean) => {

@@ -2,7 +2,7 @@ import type { ChatMessage, Conversation } from '../types';
 
 export const FIREBASE_DATABASE_URL =
   import.meta.env.VITE_FIREBASE_DATABASE_URL ||
-  'https://pentacostal-matrimony-default-rtdb.asia-southeast1.firebasedatabase.app';
+  'https://pentecostal-matrimony-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 export function isFirebaseConfigured(): boolean {
   return Boolean(FIREBASE_DATABASE_URL && FIREBASE_DATABASE_URL.includes('firebasedatabase.app'));
@@ -13,15 +13,19 @@ export function isFirebaseConfigured(): boolean {
  * Example: User A and User B will ALWAYS join the exact same Firebase path:
  * conv_1790417298221_1790427388748
  */
-export function getDeterministicConvId(id1: string, id2: string): string {
-  const clean1 = String(id1 || '').replace(/^(prof_|user_)/, '').trim().toLowerCase();
-  const clean2 = String(id2 || '').replace(/^(prof_|user_)/, '').trim().toLowerCase();
-  const sorted = [clean1, clean2].sort();
-  return `conv_${sorted[0] || 'a'}_${sorted[1] || 'b'}`;
+export function cleanUserIdKey(id: string): string {
+  let s = String(id || '').trim().toLowerCase();
+  s = s.replace(/^prof_user_/, '');
+  s = s.replace(/^prof_/, '');
+  s = s.replace(/^user_/, '');
+  return s;
 }
 
-export function cleanUserIdKey(id: string): string {
-  return String(id || '').replace(/^(prof_|user_)/, '').trim().toLowerCase();
+export function getDeterministicConvId(id1: string, id2: string): string {
+  const clean1 = cleanUserIdKey(id1);
+  const clean2 = cleanUserIdKey(id2);
+  const sorted = [clean1, clean2].sort();
+  return `conv_${sorted[0] || 'a'}_${sorted[1] || 'b'}`;
 }
 
 /**

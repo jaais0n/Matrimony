@@ -1,6 +1,18 @@
 import React, { createContext, useContext, useState } from 'react';
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, User } from 'lucide-react';
-import { INITIAL_REGISTERED_USERS } from '@workspace/api-client-react';
+import { INITIAL_REGISTERED_USERS, setAuthTokenGetter } from '@workspace/api-client-react';
+
+// Configure bearer token provider for automatic authentication on all API calls
+setAuthTokenGetter(() => {
+  try {
+    const raw = localStorage.getItem('pm_auth_user');
+    if (raw) {
+      const u = JSON.parse(raw);
+      return u.id || u.email || null;
+    }
+  } catch {}
+  return null;
+});
 
 export interface AuthUser {
   id: string;
@@ -358,7 +370,19 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     setCurrentUser(null);
     localStorage.removeItem('pm_auth_user');
     localStorage.removeItem('pm_my_profile');
+    localStorage.removeItem('pm_active_conv_id');
     localStorage.setItem('pm_demo_signed_in', 'false');
+    try {
+      const toRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_active_conv_'))) {
+          toRemove.push(k);
+        }
+      }
+      toRemove.forEach((k) => localStorage.removeItem(k));
+    } catch {}
+    window.dispatchEvent(new CustomEvent('pm:sync'));
   };
 
 

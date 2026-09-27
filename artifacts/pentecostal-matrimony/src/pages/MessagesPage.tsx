@@ -199,10 +199,46 @@ export function MessagesPage() {
   }, [rawConversations, firebaseInbox]);
 
   const activeConversation = useMemo(() => {
-    return (
-      conversations.find((c) => c.id === selectedConvId || c.participantId === selectedConvId) ||
-      conversations[0]
+    if (!selectedConvId && conversations.length > 0) return conversations[0];
+    const found = conversations.find(
+      (c) =>
+        c.id === selectedConvId ||
+        c.participantId === selectedConvId ||
+        cleanUserIdKey(c.participantId) === cleanUserIdKey(selectedConvId)
     );
+    if (found) return found;
+
+    // If not found in conversation list yet, check if registered candidate profile exists
+    try {
+      const raw = localStorage.getItem('pm_registered_profiles');
+      if (raw) {
+        const profs = JSON.parse(raw);
+        const cand = profs.find(
+          (p: any) =>
+            selectedConvId.includes(cleanUserIdKey(p.id)) ||
+            selectedConvId.includes(cleanUserIdKey(p.userId))
+        );
+        if (cand) {
+          return {
+            id: selectedConvId,
+            participantId: cand.userId || cand.id,
+            participantName: cand.displayName || 'Believer Candidate',
+            participantAge: cand.age || 28,
+            participantLocation: [cand.location, cand.country].filter(Boolean).join(', ') || 'India',
+            participantPhoto: cand.photos?.[0]?.url || cand.primaryPhotoUrl || '',
+            participantOccupation: cand.occupation || 'Professional',
+            participantDenomination: cand.denomination || 'Pentecostal',
+            status: 'active',
+            lastMessageText: 'No messages yet.',
+            lastMessageAt: new Date().toISOString(),
+            unreadCount: 0,
+            messages: [],
+          };
+        }
+      }
+    } catch {}
+
+    return conversations[0] || null;
   }, [conversations, selectedConvId]);
 
   // Real-time Firebase WebSocket/SSE listener for live chat streaming
