@@ -77,6 +77,8 @@ export function MessagesPage() {
     return 'You';
   }, [user?.id, userId]);
 
+  const cleanMyKey = useMemo(() => cleanUserIdKey(currentUserId), [currentUserId]);
+
   const currentUserName = useMemo(() => {
     if (user?.fullName) return user.fullName;
     try {
@@ -211,130 +213,6 @@ export function MessagesPage() {
     initialData: () => getStoredConversations(currentUserId),
     refetchInterval: 2500, // Fast polling guarantees new messages arrive automatically
   });
-
-  // Cross-tab real-time sync via BroadcastChannel & custom event listener
-  useEffect(() => {
-    let bc: BroadcastChannel | null = null;
-    try {
-      bc = new BroadcastChannel('pm_live_matrimony_chat');
-      bc.onmessage = (event) => {
-        if (event.data?.type === 'NEW_MESSAGE' && event.data.convId && event.data.message) {
-          const { convId, message } = event.data;
-          setBroadcastMessages((prev) => ({
-            ...prev,
-            [convId]: [...(prev[convId] || []), message],
-          }));
-          refetch();
-        }
-        if (event.data?.type === 'TYPING' && event.data.convId === activeConversation?.id) {
-          if (cleanUserIdKey(event.data.userId) !== cleanMyKey) {
-            setIsTyping(Boolean(event.data.isTyping));
-          }
-        }
-        if (event.data?.type === 'PRESENCE' && event.data.userId) {
-          setOnlineUsersMap((prev) => ({
-            ...prev,
-            [event.data.userId]: Boolean(event.data.isOnline),
-          }));
-          if (cleanUserIdKey(activeConversation?.participantId) === event.data.userId) {
-            setIsParticipantOnline(Boolean(event.data.isOnline));
-          }
-        }
-      };
-    } catch {}
-
-    const onCustomNewMessage = (e: any) => {
-      if (e.detail?.convId && e.detail?.message) {
-        const { convId, message } = e.detail;
-        setBroadcastMessages((prev) => ({
-          ...prev,
-          [convId]: [...(prev[convId] || []), message],
-        }));
-      }
-    };
-    window.addEventListener('pm:new_message', onCustomNewMessage);
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key?.startsWith('pm_user_conversations')) {
-        refetch();
-      }
-    };
-    window.addEventListener('storage', onStorage);
-
-    return () => {
-      if (bc) bc.close();
-      window.removeEventListener('pm:new_message', onCustomNewMessage);
-      window.removeEventListener('storage', onStorage);
-    };
-  }, [refetch]);
-
-  // Broadcast current user presence while in messaging area
-  useEffect(() => {
-    if (!currentUserId || currentUserId === 'You') return;
-    setUserPresence(currentUserId, true);
-
-    const hb = setInterval(() => {
-      setUserPresence(currentUserId, true);
-    }, 25000);
-
-    const onUnload = () => {
-      setUserPresence(currentUserId, false);
-    };
-    window.addEventListener('beforeunload', onUnload);
-
-    return () => {
-      clearInterval(hb);
-      window.removeEventListener('beforeunload', onUnload);
-      setUserPresence(currentUserId, false);
-    };
-  }, [currentUserId]);
-
-  // Subscribe to active participant's online presence
-  useEffect(() => {
-    if (!activeConversation?.participantId) {
-      setIsParticipantOnline(false);
-      return;
-    }
-
-    const unsub = subscribeToUserPresence(activeConversation.participantId, (isOnline) => {
-      setIsParticipantOnline(isOnline);
-      setOnlineUsersMap((prev) => ({
-        ...prev,
-        [cleanUserIdKey(activeConversation.participantId)]: isOnline,
-      }));
-    });
-
-    return () => {
-      unsub();
-    };
-  }, [activeConversation?.participantId]);
-
-  // Periodically refresh all online users
-  useEffect(() => {
-    const update = () => {
-      setOnlineUsersMap(getAllOnlineUsers());
-    };
-    const id = setInterval(update, 4000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Mark active conversation as read when opened/viewed
-  useEffect(() => {
-    if (activeConversation?.id) {
-      markConversationAsRead(activeConversation.id, currentUserId);
-    }
-  }, [activeConversation?.id, currentUserId]);
-
-  // Subscribe to real-time Firebase Inbox updates across devices
-  useEffect(() => {
-    if (!currentUserId || currentUserId === 'You' || !isFirebaseConfigured()) return;
-    const unsub = subscribeToUserInbox(currentUserId, (inboxItems) => {
-      if (Array.isArray(inboxItems)) {
-        setFirebaseInbox(inboxItems);
-      }
-    });
-    return () => unsub();
-  }, [currentUserId]);
 
   // Merge server/local conversations with live Firebase inbox
   const conversations = useMemo(() => {
@@ -518,6 +396,130 @@ export function MessagesPage() {
 
     return conversations[0] || null;
   }, [conversations, selectedConvId, currentUserId, findParticipantPhoto]);
+
+  // Cross-tab real-time sync via BroadcastChannel & custom event listener
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('pm_live_matrimony_chat');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'NEW_MESSAGE' && event.data.convId && event.data.message) {
+          const { convId, message } = event.data;
+          setBroadcastMessages((prev) => ({
+            ...prev,
+            [convId]: [...(prev[convId] || []), message],
+          }));
+          refetch();
+        }
+        if (event.data?.type === 'TYPING' && event.data.convId === activeConversation?.id) {
+          if (cleanUserIdKey(event.data.userId) !== cleanMyKey) {
+            setIsTyping(Boolean(event.data.isTyping));
+          }
+        }
+        if (event.data?.type === 'PRESENCE' && event.data.userId) {
+          setOnlineUsersMap((prev) => ({
+            ...prev,
+            [event.data.userId]: Boolean(event.data.isOnline),
+          }));
+          if (cleanUserIdKey(activeConversation?.participantId) === event.data.userId) {
+            setIsParticipantOnline(Boolean(event.data.isOnline));
+          }
+        }
+      };
+    } catch {}
+
+    const onCustomNewMessage = (e: any) => {
+      if (e.detail?.convId && e.detail?.message) {
+        const { convId, message } = e.detail;
+        setBroadcastMessages((prev) => ({
+          ...prev,
+          [convId]: [...(prev[convId] || []), message],
+        }));
+      }
+    };
+    window.addEventListener('pm:new_message', onCustomNewMessage);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key?.startsWith('pm_user_conversations')) {
+        refetch();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('pm:new_message', onCustomNewMessage);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [refetch]);
+
+  // Broadcast current user presence while in messaging area
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'You') return;
+    setUserPresence(currentUserId, true);
+
+    const hb = setInterval(() => {
+      setUserPresence(currentUserId, true);
+    }, 25000);
+
+    const onUnload = () => {
+      setUserPresence(currentUserId, false);
+    };
+    window.addEventListener('beforeunload', onUnload);
+
+    return () => {
+      clearInterval(hb);
+      window.removeEventListener('beforeunload', onUnload);
+      setUserPresence(currentUserId, false);
+    };
+  }, [currentUserId]);
+
+  // Subscribe to active participant's online presence
+  useEffect(() => {
+    if (!activeConversation?.participantId) {
+      setIsParticipantOnline(false);
+      return;
+    }
+
+    const unsub = subscribeToUserPresence(activeConversation.participantId, (isOnline) => {
+      setIsParticipantOnline(isOnline);
+      setOnlineUsersMap((prev) => ({
+        ...prev,
+        [cleanUserIdKey(activeConversation.participantId)]: isOnline,
+      }));
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [activeConversation?.participantId]);
+
+  // Periodically refresh all online users
+  useEffect(() => {
+    const update = () => {
+      setOnlineUsersMap(getAllOnlineUsers());
+    };
+    const id = setInterval(update, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Mark active conversation as read when opened/viewed
+  useEffect(() => {
+    if (activeConversation?.id) {
+      markConversationAsRead(activeConversation.id, currentUserId);
+    }
+  }, [activeConversation?.id, currentUserId]);
+
+  // Subscribe to real-time Firebase Inbox updates across devices
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'You' || !isFirebaseConfigured()) return;
+    const unsub = subscribeToUserInbox(currentUserId, (inboxItems) => {
+      if (Array.isArray(inboxItems)) {
+        setFirebaseInbox(inboxItems);
+      }
+    });
+    return () => unsub();
+  }, [currentUserId]);
 
   // Real-time Firebase WebSocket/SSE listener for live chat streaming
   useEffect(() => {
@@ -918,8 +920,6 @@ export function MessagesPage() {
     } catch {}
     return [];
   })();
-
-  const cleanMyKey = cleanUserIdKey(currentUserId);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-12 text-slate-900">
