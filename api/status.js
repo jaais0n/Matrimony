@@ -21,6 +21,33 @@ export default async function handler(req, res) {
     statusOk = false;
   }
 
+  let dbError = null;
+  let dbRows = null;
+  let dbHost = null;
+
+  try {
+    const connStr = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_lksoYRUjhS54@ep-morning-breeze-azc2ysa2-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+    const url = new URL(connStr);
+    dbHost = url.hostname;
+    const neonEndpoint = `https://${url.hostname}/sql`;
+    const response = await fetch(neonEndpoint, {
+      method: 'POST',
+      headers: {
+        'Neon-Connection-String': connStr,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: 'SELECT data FROM pm_store WHERE key = $1', params: ['store_main'] }),
+    });
+    if (!response.ok) {
+      dbError = `HTTP ${response.status}: ${await response.text()}`;
+    } else {
+      const data = await response.json();
+      dbRows = data?.rows?.length || 0;
+    }
+  } catch (err) {
+    dbError = err.message;
+  }
+
   res.status(200).json({
     status: statusOk ? 'ok' : 'degraded',
     serverless: true,
@@ -28,6 +55,9 @@ export default async function handler(req, res) {
     storageEngine: 'neon-postgresql',
     profilesCount: storeProfilesCount,
     usersCount: storeUsersCount,
+    dbHost,
+    dbRows,
+    dbError,
     timestamp: new Date().toISOString(),
   });
 }
