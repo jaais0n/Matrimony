@@ -56,7 +56,7 @@ import './index.css';
 // One-time clean startup wipe for fresh testing across all devices
 export function purgeLocalSeedProfiles() {
   try {
-    const FRESH_KEY = 'pm_fresh_startup_v6';
+    const FRESH_KEY = 'pm_fresh_startup_v7';
     if (!localStorage.getItem(FRESH_KEY)) {
       localStorage.removeItem('pm_auth_user');
       localStorage.removeItem('pm_demo_signed_in');
