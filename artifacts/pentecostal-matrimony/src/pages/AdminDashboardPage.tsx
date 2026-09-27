@@ -39,6 +39,7 @@ import {
 import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import { useClerk, useUser } from '../auth';
 import { deduplicateProfiles, notifySync } from '../utils/storageHelper';
+import { FIREBASE_DATABASE_URL } from '../utils/firebaseHelper';
 
 interface AdminSettingsState {
   requirePastoralVerification: boolean;
@@ -273,26 +274,71 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   // HANDLERS
   // ==========================================
 
-  // Wipe All Profiles
+  // Wipe Entire Database (Profiles, Registered Users, Conversations)
   const handleWipeAll = async () => {
     try {
       setIsWiping(true);
-      await fetch('/api/profiles?all=true', { method: 'DELETE' }).catch(() => {});
+      // 1. Wipe backend Neon PostgreSQL store (profiles + non-admin users + conversations)
+      await Promise.allSettled([
+        fetch('/api/profiles?all=true', { method: 'DELETE' }),
+        fetch('/api/auth/users?all=true', { method: 'DELETE' }),
+      ]);
+
+      // 2. Wipe Firebase Realtime Database
+      if (FIREBASE_DATABASE_URL) {
+        await Promise.allSettled([
+          fetch(`${FIREBASE_DATABASE_URL}/conversations.json`, { method: 'DELETE' }),
+          fetch(`${FIREBASE_DATABASE_URL}/user_inbox.json`, { method: 'DELETE' }),
+        ]);
+      }
+
+      // 3. Clear local storage candidate profiles and registered member accounts
       localStorage.setItem('pm_registered_profiles', '[]');
+      localStorage.setItem('pm_registered_accounts', '[]');
+      localStorage.setItem('pm_registered_users', '[]');
       localStorage.removeItem('pm_my_profile');
+      localStorage.removeItem('pm_active_conv_id');
+
+      // Remove all user-specific and profile-specific local keys
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_'))) {
+        if (
+          k &&
+          (k.startsWith('pm_user_profile_') ||
+            k.startsWith('pm_profile_') ||
+            k.startsWith('pm_user_') ||
+            k.startsWith('pm_conv_') ||
+            k.startsWith('pm_chat_') ||
+            k.startsWith('pm_messages_') ||
+            k.startsWith('pm_temp_') ||
+            k.startsWith('pm_interest_') ||
+            k.startsWith('pm_match_'))
+        ) {
           localStorage.removeItem(k);
         }
       }
+
+      // If the currently stored session is NOT admin, clear it
+      try {
+        const authUserRaw = localStorage.getItem('pm_auth_user');
+        if (authUserRaw) {
+          const authUser = JSON.parse(authUserRaw);
+          if (authUser?.id !== 'user_admin' && authUser?.publicMetadata?.role !== 'admin') {
+            localStorage.removeItem('pm_auth_user');
+            localStorage.removeItem('pm_demo_signed_in');
+            localStorage.removeItem('pm_demo_role');
+          }
+        }
+      } catch {}
+
       notifySync();
-      showToast('All database profiles permanently wiped! Database is 100% clean.');
+      showToast('Database wiped clean! All profiles, member accounts, and chats deleted.');
       refetchProfiles();
+      refetchUsers();
       refetchQueue();
       refetchOverview();
     } catch (err) {
-      showToast('Failed to wipe profiles.');
+      showToast('Failed to wipe database completely.');
     } finally {
       setIsWiping(false);
       setShowWipeModal(false);
@@ -305,14 +351,17 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
     try {
       setIsDeleting(true);
       if (deleteTarget.type === 'user') {
-        await customFetch(`/api/admin/users/${deleteTarget.id}/delete`, { method: 'POST' }).catch(() => {});
-        await fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }).catch(() => {});
+        await Promise.allSettled([
+          fetch(`/api/auth/users?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }),
+          fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }),
+          customFetch(`/api/admin/users/${deleteTarget.id}/delete`, { method: 'POST' }),
+        ]);
 
         try {
           const rawUsers = localStorage.getItem('pm_registered_accounts') || localStorage.getItem('pm_registered_users');
           if (rawUsers) {
             const list = JSON.parse(rawUsers);
-            const filtered = list.filter((u: any) => u.id !== deleteTarget.id);
+            const filtered = list.filter((u: any) => u.id !== deleteTarget.id && u.email !== deleteTarget.id);
             localStorage.setItem('pm_registered_accounts', JSON.stringify(filtered));
             localStorage.setItem('pm_registered_users', JSON.stringify(filtered));
           }
@@ -323,16 +372,29 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
             localStorage.setItem('pm_registered_profiles', JSON.stringify(filtered));
           }
           localStorage.removeItem(`pm_user_profile_${deleteTarget.id}`);
+
+          // If the logged in user was this deleted user, remove their session
+          const authUserRaw = localStorage.getItem('pm_auth_user');
+          if (authUserRaw) {
+            const authUser = JSON.parse(authUserRaw);
+            if (authUser?.id === deleteTarget.id || authUser?.primaryEmailAddress?.emailAddress === deleteTarget.id) {
+              localStorage.removeItem('pm_auth_user');
+              localStorage.removeItem('pm_demo_signed_in');
+              localStorage.removeItem('pm_demo_role');
+            }
+          }
         } catch {}
 
-        showToast(`User account "${deleteTarget.name}" deleted.`);
+        showToast(`User account "${deleteTarget.name}" permanently deleted.`);
         refetchUsers();
         refetchProfiles();
         refetchQueue();
         refetchOverview();
       } else {
-        await fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }).catch(() => {});
-        await customFetch(`/api/admin/profiles/${deleteTarget.id}/delete`, { method: 'POST' }).catch(() => {});
+        await Promise.allSettled([
+          fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }),
+          customFetch(`/api/admin/profiles/${deleteTarget.id}/delete`, { method: 'POST' }),
+        ]);
 
         try {
           const rawProfiles = localStorage.getItem('pm_registered_profiles');
@@ -348,6 +410,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
               localStorage.removeItem('pm_my_profile');
             }
           }
+          localStorage.removeItem(`pm_user_profile_${deleteTarget.id}`);
         } catch {}
 
         notifySync();
@@ -1834,20 +1897,20 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
               </div>
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">
-                  Wipe All Profiles from Database?
+                  Wipe Entire Database (Users & Profiles)?
                 </h3>
                 <p className="text-xs text-red-600 font-semibold">
-                  Fresh Start · Permanent Action
+                  Complete Reset · Permanent Action
                 </p>
               </div>
             </div>
 
             <div className="mt-4 rounded-xl bg-red-50 border border-red-200 p-3.5 text-xs text-red-900">
               <p className="font-bold">
-                Are you sure you want to completely erase all matrimonial profiles from the database?
+                Are you sure you want to completely erase all matrimonial profiles, registered accounts, and conversations from the database?
               </p>
               <p className="mt-2 text-[11px] text-red-700">
-                ⚠️ This will delete all candidate profiles from Neon PostgreSQL and local storage, giving you a 100% clean, empty slate for fresh startup testing.
+                ⚠️ This will delete all candidate profiles and user accounts from Neon PostgreSQL, Firebase, and local storage (only Administrator stays active). Deleted users will NOT be able to log in.
               </p>
             </div>
 

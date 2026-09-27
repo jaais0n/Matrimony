@@ -153,19 +153,8 @@ const AuthContext = createContext<AuthContextType>({
 
 export function ClerkProvider(props: { children: React.ReactNode; publishableKey?: string; [key: string]: any }) {
 
-  // Sync users bidirectionally with backend API server on startup
+  // Sync users with backend API server on startup
   React.useEffect(() => {
-    // 1. Push any existing local accounts to server so other devices can log in with them
-    const local = getRegisteredUsers().filter(m => m.id !== 'user_admin');
-    for (const u of local) {
-      fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(u),
-      }).catch(() => {});
-    }
-
-    // 2. Fetch server accounts and merge into local storage
     fetch('/api/auth/users')
       .then((res) => {
         const ct = res.headers.get('content-type') || '';
@@ -173,26 +162,47 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
         return [];
       })
       .then((serverUsers: any[]) => {
-        if (Array.isArray(serverUsers) && serverUsers.length > 0) {
-          const currentLocal = getRegisteredUsers();
-          const merged = [...currentLocal];
-          for (const su of serverUsers) {
-            const idx = merged.findIndex((m) => m.id === su.id || m.email?.toLowerCase() === su.email?.toLowerCase());
-            if (idx >= 0) {
-              merged[idx] = { ...merged[idx], ...su };
-            } else {
-              merged.push({
-                id: su.id,
-                email: su.email,
-                username: su.username || (su.email?.includes('@') ? su.email.split('@')[0] : su.email),
-                password: su.password || 'password123',
-                fullName: su.fullName || 'Member',
-                firstName: su.firstName || 'Member',
-                role: su.role || 'member',
-              });
+        if (Array.isArray(serverUsers)) {
+          const nonAdmin = serverUsers.filter((u) => u.id !== 'user_admin' && u.role !== 'admin');
+          if (nonAdmin.length === 0) {
+            // Server database is wiped clean! Clear local accounts so deleted users cannot log in
+            localStorage.setItem('pm_registered_accounts', '[]');
+            localStorage.setItem('pm_registered_users', '[]');
+            const authUserRaw = localStorage.getItem('pm_auth_user');
+            if (authUserRaw) {
+              try {
+                const u = JSON.parse(authUserRaw);
+                if (u?.id !== 'user_admin' && u?.publicMetadata?.role !== 'admin') {
+                  localStorage.removeItem('pm_auth_user');
+                  localStorage.removeItem('pm_demo_signed_in');
+                  localStorage.removeItem('pm_demo_role');
+                  setCurrentUser(null);
+                }
+              } catch {}
+            }
+          } else {
+            // Keep local accounts in sync with database
+            localStorage.setItem('pm_registered_accounts', JSON.stringify(nonAdmin));
+            const authUserRaw = localStorage.getItem('pm_auth_user');
+            if (authUserRaw) {
+              try {
+                const u = JSON.parse(authUserRaw);
+                if (u?.id !== 'user_admin' && u?.publicMetadata?.role !== 'admin') {
+                  const exists = nonAdmin.some(
+                    (su: any) =>
+                      su.id === u.id ||
+                      (su.email && u.primaryEmailAddress?.emailAddress && su.email.toLowerCase() === u.primaryEmailAddress.emailAddress.toLowerCase())
+                  );
+                  if (!exists) {
+                    localStorage.removeItem('pm_auth_user');
+                    localStorage.removeItem('pm_demo_signed_in');
+                    localStorage.removeItem('pm_demo_role');
+                    setCurrentUser(null);
+                  }
+                }
+              } catch {}
             }
           }
-          localStorage.setItem('pm_registered_accounts', JSON.stringify(merged.filter(m => m.id !== 'user_admin')));
         }
       })
       .catch(() => {});
@@ -202,7 +212,26 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     try {
       const savedUser = localStorage.getItem('pm_auth_user');
       if (savedUser) {
-        return JSON.parse(savedUser);
+        const parsed = JSON.parse(savedUser);
+        if (parsed?.id === 'user_admin' || parsed?.publicMetadata?.role === 'admin') {
+          return parsed;
+        }
+        // Non-admin: strictly verify account exists in registered accounts list
+        const registered = getRegisteredUsers();
+        const exists = registered.some(
+          (a) =>
+            a.id === parsed.id ||
+            (parsed.primaryEmailAddress?.emailAddress &&
+              a.email.toLowerCase() === parsed.primaryEmailAddress.emailAddress.toLowerCase())
+        );
+        if (exists) {
+          return parsed;
+        }
+        // Account does not exist (deleted or DB wiped): invalidate cached session immediately
+        localStorage.removeItem('pm_auth_user');
+        localStorage.removeItem('pm_demo_signed_in');
+        localStorage.removeItem('pm_demo_role');
+        return null;
       }
     } catch {
       // Fallback
@@ -266,7 +295,7 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
 
     // 2. Member and Registered Users check
     const accounts = getRegisteredUsers();
-    let matchedAccount = accounts.find(
+    const matchedAccount = accounts.find(
       (a) =>
         a.email.toLowerCase() === cleanId ||
         a.username?.toLowerCase() === cleanId ||
@@ -275,43 +304,12 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
         (a.phone && isPhoneMatch(a.phone, cleanId))
     );
 
-    // If not found in local accounts list, check if a profile matching email, phone, username, or name exists
-    if (!matchedAccount) {
-      try {
-        const rawProfs = localStorage.getItem('pm_registered_profiles');
-        if (rawProfs) {
-          const profs = JSON.parse(rawProfs);
-          const profMatch = profs.find((p: any) =>
-            (p.email && p.email.toLowerCase() === cleanId) ||
-            (p.phone && isPhoneMatch(p.phone, cleanId)) ||
-            (p.displayName && p.displayName.trim().toLowerCase() === cleanId) ||
-            (p.userId && String(p.userId).toLowerCase() === cleanId)
-          );
-          if (profMatch) {
-            matchedAccount = {
-              id: profMatch.userId || profMatch.id,
-              email: profMatch.email || (cleanId.includes('@') ? cleanId : `${cleanId}@pentecostalmatrimony.org`),
-              phone: profMatch.phone,
-              fullName: profMatch.displayName || cleanId,
-              firstName: (profMatch.displayName || cleanId).split(' ')[0],
-              role: 'member',
-              password: cleanPass,
-            };
-            const currentAccs = getRegisteredUsers();
-            currentAccs.push(matchedAccount);
-            localStorage.setItem('pm_registered_accounts', JSON.stringify(currentAccs));
-          }
-        }
-      } catch {}
-    }
-
     if (matchedAccount) {
-      // Verify password (case-insensitive fallback for mobile keyboards)
+      // Verify password
       const validPass =
         matchedAccount.password === cleanPass ||
         matchedAccount.password?.toLowerCase() === cleanPass.toLowerCase() ||
-        cleanPass.toLowerCase() === 'password123' ||
-        cleanPass === 'admin';
+        (matchedAccount.role === 'admin' && (cleanPass === 'admin' || cleanPass.toLowerCase() === 'admin'));
 
       if (validPass) {
         const authUser: AuthUser = {
@@ -371,27 +369,11 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       return { success: false, error: 'Incorrect password for admin. Use "admin".' };
     }
 
-    // 3. Instant auto-account creation for new mobile users
-    const newAccount = registerNewUser({
-      fullName: cleanId.includes('@') ? cleanId.split('@')[0] : cleanId,
-      email: cleanId.includes('@') ? cleanId : `${cleanId}@pentecostalmatrimony.org`,
-      password: cleanPass,
-      role: 'member',
-    });
-    const authUser: AuthUser = {
-      id: newAccount.id,
-      firstName: newAccount.firstName,
-      fullName: newAccount.fullName,
-      primaryEmailAddress: { emailAddress: newAccount.email },
-      publicMetadata: { role: newAccount.role },
-      username: newAccount.username,
+    // Account does not exist or has been deleted from database
+    return {
+      success: false,
+      error: 'Account not found. This user is not registered or has been deleted.',
     };
-    setCurrentUser(authUser);
-    localStorage.setItem('pm_auth_user', JSON.stringify(authUser));
-    localStorage.setItem('pm_demo_signed_in', 'true');
-    localStorage.setItem('pm_demo_role', newAccount.role);
-    syncProfileForUser(authUser);
-    return { success: true, user: authUser };
   };
 
   const signInAs = (role: 'admin' | 'member') => {

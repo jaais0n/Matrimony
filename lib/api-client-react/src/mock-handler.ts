@@ -711,6 +711,7 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     }
     if (typeof window !== 'undefined') {
       localStorage.removeItem(`pm_user_profile_${profileId}`);
+      fetch(`/api/profiles?id=${encodeURIComponent(profileId)}`, { method: 'DELETE' }).catch(() => {});
     }
     return { success: true, deletedId: profileId };
   }
@@ -725,6 +726,22 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     const profiles = getRegisteredProfiles();
     const updatedProfiles = profiles.filter((p) => p.userId !== userId && p.id !== userId);
     setBrowserStorage('pm_registered_profiles', updatedProfiles);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`pm_user_profile_${userId}`);
+      const authUserRaw = localStorage.getItem('pm_auth_user');
+      if (authUserRaw) {
+        try {
+          const authUser = JSON.parse(authUserRaw);
+          if (authUser?.id === userId || authUser?.primaryEmailAddress?.emailAddress === userId) {
+            localStorage.removeItem('pm_auth_user');
+            localStorage.removeItem('pm_demo_signed_in');
+            localStorage.removeItem('pm_demo_role');
+          }
+        } catch {}
+      }
+      fetch(`/api/auth/users?id=${encodeURIComponent(userId)}`, { method: 'DELETE' }).catch(() => {});
+      fetch(`/api/profiles?id=${encodeURIComponent(userId)}`, { method: 'DELETE' }).catch(() => {});
+    }
     return { success: true, deletedUserId: userId };
   }
 

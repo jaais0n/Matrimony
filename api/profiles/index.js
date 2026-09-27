@@ -55,18 +55,33 @@ export default async function handler(req, res) {
     const body = req.body || {};
     if (all === 'true' || all === true || body.all === true) {
       store.profiles = [];
+      store.conversations = [];
+      // Wipe all non-admin users from database so deleted users cannot log in
+      store.users = (store.users || []).filter(u => u.id === 'user_admin' || u.role === 'admin' || u.email === 'admin@pentecostalmatrimony.org');
       await writeStore(store);
-      res.status(200).json({ success: true, count: 0, items: [] });
+      res.status(200).json({ success: true, count: 0, items: [], remainingUsers: store.users.length });
       return;
     }
 
     const targetId = id || body.id;
     if (targetId) {
       const cleanTarget = String(targetId).trim().toLowerCase();
-      store.profiles = store.profiles.filter(p => 
+      store.profiles = (store.profiles || []).filter(p => 
         String(p.id).toLowerCase() !== cleanTarget &&
         String(p.userId).toLowerCase() !== cleanTarget
       );
+      store.users = (store.users || []).filter(u =>
+        u.id !== 'user_admin' ? (
+          String(u.id).toLowerCase() !== cleanTarget &&
+          String(u.email || '').toLowerCase() !== cleanTarget
+        ) : true
+      );
+      if (Array.isArray(store.conversations)) {
+        store.conversations = store.conversations.filter(c =>
+          String(c.creatorId || '').toLowerCase() !== cleanTarget &&
+          String(c.participantId || '').toLowerCase() !== cleanTarget
+        );
+      }
       await writeStore(store);
       res.status(200).json({ success: true, deletedId: targetId, remaining: store.profiles.length });
       return;

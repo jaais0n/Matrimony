@@ -56,8 +56,11 @@ import './index.css';
 // One-time clean startup wipe for fresh testing across all devices
 export function purgeLocalSeedProfiles() {
   try {
-    const FRESH_KEY = 'pm_fresh_startup_v5';
+    const FRESH_KEY = 'pm_fresh_startup_v6';
     if (!localStorage.getItem(FRESH_KEY)) {
+      localStorage.removeItem('pm_auth_user');
+      localStorage.removeItem('pm_demo_signed_in');
+      localStorage.removeItem('pm_demo_role');
       localStorage.removeItem('pm_registered_profiles');
       localStorage.removeItem('pm_my_profile');
       localStorage.removeItem('pm_registered_users');
@@ -68,7 +71,7 @@ export function purgeLocalSeedProfiles() {
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_') || k.startsWith('pm_fresh_startup_v') || k.startsWith('pm_user_conversations_'))) {
+        if (k && (k.startsWith('pm_user_profile_') || k.startsWith('pm_profile_') || k.startsWith('pm_fresh_startup_v') || k.startsWith('pm_user_conversations_') || k.startsWith('pm_user_'))) {
           keysToRemove.push(k);
         }
       }
@@ -390,9 +393,9 @@ function Router() {
 
           {/* Member Space - Only Registered Customers Can See Profiles */}
           <Route path="/discover">
-            <AppShell activeRole={activeRole} onToggleRole={toggleRole}>
+            <ProtectedMemberArea activeRole={activeRole} onToggleRole={toggleRole}>
               <DiscoverPage />
-            </AppShell>
+            </ProtectedMemberArea>
           </Route>
 
           <Route path="/matches">
