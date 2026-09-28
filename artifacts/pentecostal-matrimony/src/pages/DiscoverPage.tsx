@@ -269,19 +269,19 @@ export function DiscoverPage() {
       )}
 
       {/* Main Discover Container */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-2.5 sm:py-6">
         {justPublished && (
-          <div className="mb-6 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50/50 p-4 sm:p-5 flex items-start justify-between shadow-xs animate-in fade-in duration-300">
-            <div className="flex items-center gap-3.5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
-                <Check size={20} />
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50/50 p-3.5 sm:p-4 flex items-start justify-between shadow-xs animate-in fade-in duration-300">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                <Check size={18} />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-emerald-950">
-                  Hallelujah! Your Matrimonial Profile is Live & Published
+                <h4 className="text-xs sm:text-sm font-bold text-emerald-950">
+                  Hallelujah! Your Profile is Live & Published
                 </h4>
-                <p className="mt-0.5 text-xs text-emerald-700">
-                  Welcome to the fellowship! You can now browse verified Pentecostal matches below or search by specific denominations.
+                <p className="mt-0.5 text-[11px] sm:text-xs text-emerald-700">
+                  Welcome! You can now browse verified Pentecostal matches below.
                 </p>
               </div>
             </div>
@@ -290,66 +290,156 @@ export function DiscoverPage() {
               className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
               title="Dismiss"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           </div>
         )}
 
-        {/* Top Greeting & Title with warm rose & gold gradient */}
-        <div className="rounded-3xl border border-[#ebdcd0] bg-gradient-to-r from-[#fff9f4] via-white to-[#fbf4ed] p-6 sm:p-8 luxury-card-shadow">
-          <h1 className="mt-3 text-2xl font-extrabold sm:text-3xl text-slate-900">
-            Find someone who shares your <span className="text-rose-700">faith and values</span>.
-          </h1>
-          <p className="mt-2 text-xs text-slate-600 max-w-2xl leading-relaxed">
-            Browse verified Pentecostal Christian profiles with transparent spiritual backgrounds, church affiliations, and family values.
-          </p>
+        {/* Minimal Mobile-First Search & Filter Navigation Bar */}
+        <div className="space-y-2.5">
+          {/* Desktop Title Header (Hidden on Mobile for Maximum Vertical Screen Space) */}
+          <div className="hidden md:flex items-center justify-between pb-1">
+            <div>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                Discover Believers
+              </h1>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Verified Pentecostal Christian profiles with transparent spiritual backgrounds and values.
+              </p>
+            </div>
+          </div>
 
-          {/* Search Bar & Filter Toggle */}
-          <div className="mt-6 flex flex-col sm:flex-row gap-3">
+          {/* Search Bar + Filter Trigger Row */}
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, church assembly, occupation or calling..."
-                className="w-full rounded-xl border border-[#ebdcd0] bg-white/95 py-3 pl-10 pr-4 text-xs focus:border-rose-500 focus:ring-2 focus:ring-rose-100 focus:outline-none shadow-xs"
+                placeholder="Search name, church, occupation, city..."
+                className="w-full h-11 rounded-2xl border border-slate-200/90 bg-white/95 pl-10 pr-9 text-xs focus:border-rose-500 focus:ring-2 focus:ring-rose-100 focus:outline-none shadow-xs transition"
               />
               {search && (
                 <button
                   onClick={() => setSearch('')}
-                  className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                  title="Clear search"
                 >
-                  <X size={16} />
+                  <X size={14} />
                 </button>
               )}
             </div>
 
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`flex items-center justify-center gap-2 rounded-xl border px-5 py-3 text-xs font-bold transition shadow-xs ${
+              className={`h-11 px-3.5 sm:px-4 rounded-2xl border flex items-center justify-center gap-1.5 transition text-xs font-bold shrink-0 shadow-xs cursor-pointer ${
                 filtersOpen || activeFilterCount > 0
-                  ? 'border-rose-600 bg-rose-700 text-white'
-                  : 'border-[#ebdcd0] bg-white text-slate-700 hover:border-rose-300 hover:text-rose-700'
+                  ? 'border-rose-600 bg-rose-700 text-white shadow-sm'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-rose-300 hover:text-rose-700'
               }`}
             >
-              <SlidersHorizontal size={14} />
-              <span>Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}</span>
+              <SlidersHorizontal size={15} />
+              <span className="hidden xs:inline">Filters</span>
+              {activeFilterCount > 0 && (
+                <span className={`flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-extrabold ${
+                  filtersOpen || activeFilterCount > 0 ? 'bg-white text-rose-700' : 'bg-rose-600 text-white'
+                }`}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Quick Mobile Tap Filter Pills (Horizontal Scrollable) */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <button
+              onClick={() => {
+                setFilters({ ageMin: '', ageMax: '', location: '', denomination: '', occupation: '', church: '', maritalStatus: '', workingAbroad: '' });
+                setSearch('');
+              }}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                activeFilterCount === 0 && !search
+                  ? 'bg-rose-700 text-white shadow-2xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              All Believers
+            </button>
+            <button
+              onClick={() => setFilters((f) => ({ ...f, ageMax: f.ageMax === '30' ? '' : '30' }))}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer border ${
+                filters.ageMax === '30'
+                  ? 'bg-rose-700 border-rose-700 text-white shadow-2xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Under 30
+            </button>
+            <button
+              onClick={() => setFilters((f) => ({ ...f, workingAbroad: f.workingAbroad === 'true' ? '' : 'true' }))}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer border ${
+                filters.workingAbroad === 'true'
+                  ? 'bg-rose-700 border-rose-700 text-white shadow-2xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Abroad (NRI)
+            </button>
+            <button
+              onClick={() => setFilters((f) => ({ ...f, workingAbroad: f.workingAbroad === 'false' ? '' : 'false' }))}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer border ${
+                filters.workingAbroad === 'false'
+                  ? 'bg-rose-700 border-rose-700 text-white shadow-2xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              India Based
+            </button>
+            <button
+              onClick={() => setFilters((f) => ({ ...f, denomination: f.denomination === 'Assemblies of God' ? '' : 'Assemblies of God' }))}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer border ${
+                filters.denomination === 'Assemblies of God'
+                  ? 'bg-rose-700 border-rose-700 text-white shadow-2xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Assemblies of God
+            </button>
+            <button
+              onClick={() => setFilters((f) => ({ ...f, denomination: f.denomination === 'Indian Pentecostal Church of God (IPC)' ? '' : 'Indian Pentecostal Church of God (IPC)' }))}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer border ${
+                filters.denomination === 'Indian Pentecostal Church of God (IPC)'
+                  ? 'bg-rose-700 border-rose-700 text-white shadow-2xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              IPC
+            </button>
+            <button
+              onClick={() => setFilters((f) => ({ ...f, denomination: f.denomination === 'Church of God' ? '' : 'Church of God' }))}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition cursor-pointer border ${
+                filters.denomination === 'Church of God'
+                  ? 'bg-rose-700 border-rose-700 text-white shadow-2xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              Church of God
             </button>
           </div>
 
           {/* Expanded Filter Panel */}
           {filtersOpen && (
-            <div className="mt-4 rounded-2xl border border-[#ebdcd0] bg-white/95 p-5 shadow-sm">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm animate-in fade-in duration-200">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">Min Age</label>
                   <input
                     type="number"
                     value={filters.ageMin}
                     onChange={(e) => setFilters({ ...filters, ageMin: e.target.value })}
-                    placeholder="e.g. 25"
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
+                    placeholder="e.g. 21"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
                   />
                 </div>
 
@@ -360,7 +450,7 @@ export function DiscoverPage() {
                     value={filters.ageMax}
                     onChange={(e) => setFilters({ ...filters, ageMax: e.target.value })}
                     placeholder="e.g. 35"
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
                   />
                 </div>
 
@@ -369,7 +459,7 @@ export function DiscoverPage() {
                   <select
                     value={filters.denomination}
                     onChange={(e) => setFilters({ ...filters, denomination: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
                   >
                     <option value="">All Denominations</option>
                     <option value="Assemblies of God">Assemblies of God</option>
@@ -380,11 +470,11 @@ export function DiscoverPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">Working Abroad</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600">Work Location</label>
                   <select
                     value={filters.workingAbroad}
                     onChange={(e) => setFilters({ ...filters, workingAbroad: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs focus:border-rose-500 focus:bg-white focus:outline-none"
                   >
                     <option value="">Any Work Location</option>
                     <option value="true">Working Abroad (NRI / Gulf)</option>
@@ -393,16 +483,16 @@ export function DiscoverPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+              <div className="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-3">
                 <button
                   onClick={() => setFilters({ ageMin: '', ageMax: '', location: '', denomination: '', occupation: '', church: '', maritalStatus: '', workingAbroad: '' })}
-                  className="text-xs text-slate-500 hover:text-rose-700 underline"
+                  className="text-xs text-slate-500 hover:text-rose-700 underline cursor-pointer"
                 >
                   Reset all filters
                 </button>
                 <button
                   onClick={() => setFiltersOpen(false)}
-                  className="rounded-lg bg-rose-700 px-4 py-1.5 text-xs font-bold text-white uppercase tracking-wider hover:bg-rose-800 shadow-xs"
+                  className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white uppercase tracking-wider hover:bg-rose-800 shadow-xs cursor-pointer"
                 >
                   Apply Filters
                 </button>
@@ -412,20 +502,20 @@ export function DiscoverPage() {
         </div>
 
         {/* Profiles Count Banner */}
-        <div className="mt-8 flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              {`${displayedProfiles.length} Verified Profiles Active`}
+        <div className="mt-3.5 sm:mt-5 flex items-center justify-between px-1">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-bold text-slate-700">
+              {`${displayedProfiles.length} Verified Believers Active`}
             </span>
           </div>
-          <span className="text-[11px] font-medium text-slate-500">
-            Sorted by faith & values alignment
+          <span className="text-[11px] font-medium text-slate-400">
+            Faith & values alignment
           </span>
         </div>
 
         {/* Profiles Grid */}
-        <div className="mt-4">
+        <div className="mt-3 sm:mt-4">
           {profilesQuery.isLoading && displayedProfiles.length === 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
