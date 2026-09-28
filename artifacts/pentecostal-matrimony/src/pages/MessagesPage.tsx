@@ -13,7 +13,6 @@ import {
   Trash2,
   User,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import type { Conversation, ChatMessage } from '../types';
@@ -1002,25 +1001,7 @@ export function MessagesPage() {
 
       <div className="mx-auto max-w-6xl px-3 sm:px-6 py-4 sm:py-6">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="border-b border-slate-100 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-rose-50/70 via-amber-50/40 to-white">
-            <div>
-              <span className="inline-block rounded-full bg-rose-100/70 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1">
-                Direct Discernment
-              </span>
-              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900">Live Matrimony Chat</h1>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-[11px] font-semibold text-emerald-800">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span>Instant Real-Time Stream</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-700">
-                <ShieldCheck size={12} className="text-emerald-600 shrink-0" />
-                <span>Encrypted Connection</span>
-              </span>
-            </div>
-          </div>
+
 
           <div className="grid grid-cols-1 md:grid-cols-12 min-h-[560px]">
             {/* Conversations List (Left) - Hidden on mobile when chat is open */}
