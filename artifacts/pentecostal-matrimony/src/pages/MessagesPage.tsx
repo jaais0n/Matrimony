@@ -244,10 +244,10 @@ export function MessagesPage() {
       let participantPhoto = c.participantPhoto || findParticipantPhoto(c.participantId, c.participantName);
 
       const partClean = cleanUserIdKey(c.participantId);
-      const creatorClean = cleanUserIdKey(c.creatorId);
+      const creatorClean = cleanUserIdKey(c.creatorId || '');
 
       // If participantId is current user, flip to creatorId or other participant
-      if (partClean === myCleanId && creatorClean && creatorClean !== myCleanId) {
+      if (partClean === myCleanId && creatorClean && creatorClean !== myCleanId && c.creatorId) {
         participantId = c.creatorId;
         participantName = c.creatorName || 'Believer Candidate';
         participantPhoto = c.creatorPhoto || findParticipantPhoto(c.creatorId, c.creatorName);

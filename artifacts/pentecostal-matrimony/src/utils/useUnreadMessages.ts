@@ -12,7 +12,7 @@ export function getStoredUnreadMessagesCount(userId?: string): number {
       const rawUser = localStorage.getItem('pm_auth_user');
       if (rawUser) myId = JSON.parse(rawUser).id;
     }
-    const cleanMy = cleanUserIdKey(myId);
+    const cleanMy = cleanUserIdKey(myId || '');
     const userKey = cleanMy ? `pm_user_conversations_${cleanMy}` : 'pm_user_conversations';
     const raw = localStorage.getItem(userKey);
     if (!raw) return 0;
@@ -49,7 +49,7 @@ export function markConversationAsRead(convId: string, currentUserId?: string): 
       const rawUser = localStorage.getItem('pm_auth_user');
       if (rawUser) myId = JSON.parse(rawUser).id;
     }
-    const cleanMy = cleanUserIdKey(myId);
+    const cleanMy = cleanUserIdKey(myId || '');
     const userKey = cleanMy ? `pm_user_conversations_${cleanMy}` : 'pm_user_conversations';
     const raw = localStorage.getItem(userKey);
 

@@ -115,6 +115,9 @@ export interface Conversation {
   participantPhoto: string;
   participantOccupation: string;
   participantDenomination: string;
+  creatorId?: string;
+  creatorName?: string;
+  creatorPhoto?: string;
   status: 'active' | 'ended' | 'blocked';
   lastMessageText: string;
   lastMessageAt: string;
