@@ -6,6 +6,7 @@ import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
 import { ProfileCard, ProfileCardSkeleton } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
+import { usePreloadProfileImages } from '../utils/imagePreloader';
 
 interface MatchedProfileItem {
   id: string;
@@ -161,6 +162,22 @@ export function MatchesPage() {
     return list;
   }, [data, activeTab, user?.id, user?.fullName, userId]);
 
+  // Preload top candidate images in the background before dismissing the skeleton
+  const candidatePhotoUrls = useMemo(() => {
+    return displayedMatches
+      .slice(0, 8)
+      .map((p) => p.primaryPhotoUrl || (p as any).photos?.[0]?.url)
+      .filter((url): url is string => Boolean(url));
+  }, [displayedMatches]);
+
+  const imagesLoaded = usePreloadProfileImages(
+    candidatePhotoUrls,
+    !isLoading && displayedMatches.length > 0,
+    2200
+  );
+
+  const isContentLoading = isLoading || (displayedMatches.length > 0 && !imagesLoaded);
+
   const tabs = [
     { id: 'recommended', label: 'Recommended', icon: Sparkles, color: 'text-rose-600' },
     { id: 'new', label: 'New Profiles', icon: UserPlus, color: 'text-purple-600' },
@@ -210,7 +227,7 @@ export function MatchesPage() {
 
         {/* Content Grid */}
         <div className="mt-4 sm:mt-6">
-          {isLoading && displayedMatches.length === 0 ? (
+          {isContentLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <ProfileCardSkeleton key={i} />

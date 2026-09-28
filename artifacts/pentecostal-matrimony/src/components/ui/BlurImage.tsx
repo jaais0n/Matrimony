@@ -20,17 +20,23 @@ export function BlurImage({
   showSpinner = false,
   ...props
 }: BlurImageProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(() => {
+    if (typeof window === 'undefined' || !src) return false;
+    const testImg = new Image();
+    testImg.src = src;
+    return Boolean(testImg.complete && testImg.naturalWidth > 0);
+  });
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Check if image is already cached in memory or completed by the browser
   useEffect(() => {
-    setIsLoaded(false);
     setHasError(false);
 
     if (imgRef.current?.complete && imgRef.current?.naturalWidth > 0) {
       setIsLoaded(true);
+    } else {
+      setIsLoaded(false);
     }
   }, [src]);
 

@@ -23,6 +23,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useGetProfile, useSaveProfile, useSendInterest, useUnsaveProfile, isSeedProfile } from '@workspace/api-client-react';
+import { usePreloadProfileImages } from '../utils/imagePreloader';
 import { VerificationBadge } from '../components/ui/VerificationBadge';
 import { BlurImage } from '../components/ui/BlurImage';
 import { ReportModal } from '../components/ui/ReportModal';
@@ -62,7 +63,15 @@ export function ProfileDetailPage() {
     }
   }, [p?.id]);
 
-  if (profileQuery.isLoading) {
+  // Preload profile photos in background so main portrait is immediately crisp upon load
+  const detailPhotoUrls = (p?.photos || []).map((ph: any) => ph.url).filter((url): url is string => Boolean(url));
+  const detailImagesLoaded = usePreloadProfileImages(
+    detailPhotoUrls,
+    Boolean(p && !profileQuery.isLoading),
+    2000
+  );
+
+  if (profileQuery.isLoading || (p && !detailImagesLoaded)) {
     return (
       <div className="min-h-screen bg-[#faf8f5] pb-24 md:pb-16 text-slate-900">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 animate-pulse">

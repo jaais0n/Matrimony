@@ -5,6 +5,7 @@ import { useListProfiles, useSaveProfile, useSendInterest, useUnsaveProfile, isS
 import { useAuth, useUser } from '../auth';
 import { ProfileCard, ProfileCardSkeleton } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
+import { usePreloadProfileImages } from '../utils/imagePreloader';
 
 export function DiscoverPage() {
   const { isSignedIn, userId } = useAuth();
@@ -206,6 +207,22 @@ export function DiscoverPage() {
       });
     }
   };
+
+  // Preload top candidate images in the background before dismissing the skeleton
+  const candidatePhotoUrls = useMemo(() => {
+    return displayedProfiles
+      .slice(0, 8)
+      .map((p) => p.primaryPhotoUrl || (p as any).photos?.[0]?.url)
+      .filter((url): url is string => Boolean(url));
+  }, [displayedProfiles]);
+
+  const imagesLoaded = usePreloadProfileImages(
+    candidatePhotoUrls,
+    !profilesQuery.isLoading && displayedProfiles.length > 0,
+    2200
+  );
+
+  const isContentLoading = profilesQuery.isLoading || (displayedProfiles.length > 0 && !imagesLoaded);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -441,7 +458,7 @@ export function DiscoverPage() {
 
         {/* Profiles Grid */}
         <div className="mt-3 sm:mt-4">
-          {profilesQuery.isLoading && displayedProfiles.length === 0 ? (
+          {isContentLoading ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <ProfileCardSkeleton key={i} />

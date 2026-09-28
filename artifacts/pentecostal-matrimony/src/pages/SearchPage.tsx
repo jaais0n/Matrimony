@@ -4,6 +4,7 @@ import { useListProfiles, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
 import { ProfileCard, ProfileCardSkeleton } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
+import { usePreloadProfileImages } from '../utils/imagePreloader';
 
 export function SearchPage() {
   const { userId } = useAuth();
@@ -191,6 +192,22 @@ export function SearchPage() {
     return list;
   }, [profilesQuery.data, keyword, gender, ageMin, ageMax, denomination, location, education, occupation, motherTongue, maritalStatus, workingAbroad]);
 
+  // Preload top candidate images in the background before dismissing the skeleton
+  const candidatePhotoUrls = useMemo(() => {
+    return displayedProfiles
+      .slice(0, 8)
+      .map((p) => p.primaryPhotoUrl || (p as any).photos?.[0]?.url)
+      .filter((url): url is string => Boolean(url));
+  }, [displayedProfiles]);
+
+  const imagesLoaded = usePreloadProfileImages(
+    candidatePhotoUrls,
+    !profilesQuery.isLoading && displayedProfiles.length > 0,
+    2200
+  );
+
+  const isContentLoading = profilesQuery.isLoading || (displayedProfiles.length > 0 && !imagesLoaded);
+
   const clearAllFilters = () => {
     setKeyword('');
     setGender('');
@@ -326,7 +343,7 @@ export function SearchPage() {
             </span>
           </div>
 
-          {profilesQuery.isLoading && displayedProfiles.length === 0 ? (
+          {isContentLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <ProfileCardSkeleton key={i} />
