@@ -207,20 +207,20 @@ export function SearchPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-12 text-slate-900">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-3 sm:py-6">
         {/* Header and Filter Form */}
-        <div className="rounded-2xl border border-rose-100 bg-white p-6 sm:p-8 shadow-sm overflow-hidden relative">
+        <div className="rounded-2xl border border-rose-100 bg-white p-4 sm:p-6 lg:p-8 shadow-sm overflow-hidden relative">
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-500 to-rose-700" />
           <span className="inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 uppercase tracking-wider mb-1 border border-rose-200">
             Advanced Directory Search
           </span>
-          <h1 className="text-2xl font-extrabold sm:text-3xl text-slate-900">Search Profiles</h1>
-          <p className="mt-2 text-xs text-slate-600">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900">Search Profiles</h1>
+          <p className="mt-1 text-xs text-slate-600">
             Filter through verified Pentecostal profiles with precision across faith, profession, and family background.
           </p>
 
           {/* Form Fields */}
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Keyword</label>
               <input
@@ -331,7 +331,7 @@ export function SearchPage() {
               Searching profiles matching your criteria...
             </div>
           ) : displayedProfiles.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {displayedProfiles.map((profile) => (
                 <ProfileCard
                   key={profile.id}

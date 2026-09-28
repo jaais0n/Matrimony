@@ -171,22 +171,22 @@ export function MatchesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-12 text-slate-900">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-3 sm:py-6">
         {/* Header with colorful gradient border */}
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-rose-50/70 via-white to-purple-50/50 p-6 sm:p-8 shadow-xs">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-rose-800">
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-rose-50/70 via-white to-purple-50/50 p-4 sm:p-6 lg:p-8 shadow-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-rose-800">
             <Flame size={12} className="text-rose-600" /> Transparent Compatibility
           </span>
-          <h1 className="mt-3 text-2xl font-extrabold sm:text-3xl text-slate-900">
+          <h1 className="mt-2 text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900">
             Rule-Based Matches
           </h1>
-          <p className="mt-2 text-xs text-slate-600 max-w-2xl leading-relaxed">
+          <p className="mt-1 text-xs text-slate-600 max-w-2xl leading-relaxed">
             Every match recommendation shows clear, understandable reasons derived directly from your declared preferences:
             age range, shared denomination, church involvement, and location. No opaque algorithms.
           </p>
 
           {/* Section Tabs */}
-          <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-200/80 pt-4">
+          <div className="mt-4 sm:mt-6 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-t border-slate-200/80 pt-3 pb-1">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -194,7 +194,7 @@ export function MatchesPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                  className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition shadow-xs ${
+                  className={`shrink-0 flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
                     isActive
                       ? 'bg-rose-700 text-white shadow-sm'
                       : 'bg-white border border-slate-200 text-slate-700 hover:border-rose-300 hover:text-rose-700'
@@ -209,9 +209,9 @@ export function MatchesPage() {
         </div>
 
         {/* Content Grid */}
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           {isLoading && displayedMatches.length === 0 ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="h-96 rounded-xl border border-slate-200 bg-white p-4 animate-pulse">
                   <div className="h-48 w-full rounded-lg bg-slate-100" />
@@ -220,7 +220,7 @@ export function MatchesPage() {
               ))}
             </div>
           ) : displayedMatches.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {displayedMatches.map((profile) => (
                 <ProfileCard
                   key={profile.id}

@@ -561,11 +561,40 @@ export function MyProfilePage() {
       </div>
 
       {/* Main Content Hub with Sidebar Navigation */}
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 -mt-6">
+      <div className="mx-auto max-w-5xl px-3 sm:px-6 -mt-6">
+        {/* Mobile Horizontal Navigation Tabs (Visible on Mobile/Tablet < lg) */}
+        <div className="lg:hidden mb-4 overflow-x-auto no-scrollbar flex items-center gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+          {[
+            { id: 'profile', label: 'Edit Profile', icon: User, color: 'text-rose-600' },
+            { id: 'account', label: 'Account & Password', icon: KeyRound, color: 'text-slate-500' },
+            { id: 'privacy', label: 'Privacy & Safety', icon: Shield, color: 'text-slate-500' },
+            { id: 'membership', label: 'Plans & Quotas', icon: Award, color: 'text-amber-500' },
+            { id: 'help', label: 'Help & Support', icon: HelpCircle, color: 'text-purple-600' },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id as typeof activeTab)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  isActive
+                    ? 'bg-rose-700 text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Icon size={14} className={isActive ? 'text-white' : item.color} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-          {/* Left Navigation Sidebar */}
-          <div className="lg:col-span-1">
+          {/* Left Navigation Sidebar - Desktop only */}
+          <div className="hidden lg:block lg:col-span-1">
             <div className="sticky top-6 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-sm space-y-1">
               <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Account Hub

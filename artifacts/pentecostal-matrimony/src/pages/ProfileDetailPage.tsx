@@ -203,15 +203,15 @@ export function ProfileDetailPage() {
         profileName={p.displayName}
       />
 
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-5xl px-3 sm:px-6 py-3 sm:py-6">
         {/* Back Link */}
-        <Link href="/discover" className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-rose-700 mb-4 transition">
+        <Link href="/discover" className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-rose-700 mb-3 sm:mb-4 transition">
           <ArrowLeft size={14} /> Back to Directory
         </Link>
 
         {/* Top Profile Card Header with natural photo and vibrant tags */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 lg:p-8 shadow-sm">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-12">
             {/* Photo Gallery (Left) in Full Natural Color */}
             <div className="md:col-span-5">
               <div className="relative aspect-[1.08] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm">
@@ -230,12 +230,12 @@ export function ProfileDetailPage() {
 
               {/* Thumbnails */}
               {photos.length > 1 && (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
                   {photos.map((ph, idx) => (
                     <button
                       key={ph.id || idx}
                       onClick={() => setActivePhotoIndex(idx)}
-                      className={`h-16 w-16 rounded-lg border overflow-hidden transition ${
+                      className={`h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-lg border overflow-hidden transition cursor-pointer ${
                         activePhotoIndex === idx ? 'border-2 border-rose-600 shadow-sm' : 'border-slate-200 opacity-70 hover:opacity-100'
                       }`}
                     >

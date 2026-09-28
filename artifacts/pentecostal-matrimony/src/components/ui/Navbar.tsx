@@ -86,7 +86,7 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
               PM
             </div>
             <div className="min-w-0">
-              <span className="block font-black text-xs sm:text-sm uppercase tracking-[0.12em] sm:tracking-[0.16em] text-slate-900 group-hover:text-rose-700 transition truncate">
+              <span className="block font-black text-xs sm:text-sm uppercase tracking-[0.12em] sm:tracking-[0.16em] text-slate-900 group-hover:text-rose-700 transition truncate max-w-[145px] sm:max-w-none">
                 Pentecostal Matrimony
               </span>
               <span className="hidden sm:block text-[10px] uppercase font-semibold tracking-wider text-rose-600">
