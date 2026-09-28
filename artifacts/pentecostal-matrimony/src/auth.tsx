@@ -646,7 +646,7 @@ export function SignIn(props: { routing?: string; path?: string; signUpUrl?: str
         >
           {isLoading ? (
             <>
-              <Loader2 className="animate-spin text-rose-200" size={16} />
+              <div className="h-2 w-8 rounded-full bg-white/70 animate-pulse" />
               <span>Signing In...</span>
             </>
           ) : (
@@ -822,7 +822,7 @@ export function SignUp(props: { routing?: string; path?: string; signInUrl?: str
         >
           {isLoading ? (
             <>
-              <Loader2 className="animate-spin text-rose-200" size={16} />
+              <div className="h-2 w-8 rounded-full bg-white/70 animate-pulse" />
               <span>Registering...</span>
             </>
           ) : (

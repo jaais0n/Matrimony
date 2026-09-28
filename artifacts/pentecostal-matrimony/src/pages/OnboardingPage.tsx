@@ -1001,7 +1001,7 @@ export function OnboardingPage() {
 
               {isCompressingPhoto && (
                 <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+                  <div className="h-2 w-10 rounded-full bg-amber-500 animate-pulse" />
                   <span>Uploading photo...</span>
                 </div>
               )}
@@ -1239,7 +1239,7 @@ export function OnboardingPage() {
               >
                 {isPublishing ? (
                   <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <div className="h-2 w-8 rounded-full bg-white/70 animate-pulse" />
                     <span>Publishing Profile...</span>
                   </>
                 ) : (
@@ -1260,7 +1260,7 @@ export function OnboardingPage() {
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-400 to-rose-700 animate-pulse" />
             
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-700 mb-5 shadow-inner">
-              <Sparkles size={28} className="animate-spin text-amber-500" style={{ animationDuration: '3s' }} />
+              <Sparkles size={28} className="animate-pulse text-amber-500" />
             </div>
 
             <h3 className="font-serif-fancy text-xl font-bold text-slate-900">

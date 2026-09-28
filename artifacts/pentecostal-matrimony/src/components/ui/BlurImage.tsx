@@ -55,13 +55,7 @@ export function BlurImage({
     <div className={`relative overflow-hidden w-full h-full bg-slate-100 ${containerClassName}`}>
       {/* Animated shimmer skeleton while loading */}
       {!isLoaded && (
-        <div className="absolute inset-0 z-0 img-shimmer-bg">
-          {showSpinner && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-6 w-6 rounded-full border-2 border-rose-600/30 border-t-rose-600 animate-spin" />
-            </div>
-          )}
-        </div>
+        <div className="absolute inset-0 z-0 img-shimmer-bg animate-pulse" />
       )}
 
       {/* The actual image with full blur transitioning to clear focus */}

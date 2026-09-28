@@ -8,7 +8,7 @@ import type { NotificationItemData } from '../types';
 export function NotificationsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
-  const { data: notifications = [], refetch } = useQuery<NotificationItemData[]>({
+  const { data: notifications = [], isLoading, refetch } = useQuery<NotificationItemData[]>({
     queryKey: ['notifications'],
     queryFn: () => customFetch('/api/notifications'),
   });
@@ -104,7 +104,20 @@ export function NotificationsPage() {
           </div>
 
           <div className="mt-4 divide-y divide-slate-100">
-            {filtered.length === 0 ? (
+            {isLoading && notifications.length === 0 ? (
+              <div className="space-y-3 animate-pulse py-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex items-center gap-3.5 p-4 rounded-xl border border-slate-100 bg-white">
+                    <div className="h-9 w-9 rounded-xl bg-slate-200 shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3.5 w-44 rounded bg-slate-200" />
+                      <div className="h-3 w-60 rounded bg-slate-100" />
+                    </div>
+                    <div className="h-3 w-12 rounded bg-slate-100 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="py-12 text-center text-xs text-slate-400">
                 No notifications right now.
               </div>

@@ -1872,7 +1872,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
               >
                 {isDeleting ? (
                   <>
-                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <div className="h-2 w-6 rounded-full bg-white/70 animate-pulse" />
                     <span>Deleting from DB...</span>
                   </>
                 ) : (
@@ -1931,7 +1931,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
               >
                 {isWiping ? (
                   <>
-                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <div className="h-2 w-6 rounded-full bg-white/70 animate-pulse" />
                     <span>Wiping Database...</span>
                   </>
                 ) : (

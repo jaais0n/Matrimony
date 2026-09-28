@@ -3,7 +3,7 @@ import { Link } from 'wouter';
 import { Check, Lock, Search, ShieldCheck, SlidersHorizontal, Sparkles, UserPlus, X } from 'lucide-react';
 import { useListProfiles, useSaveProfile, useSendInterest, useUnsaveProfile, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
-import { ProfileCard } from '../components/ui/ProfileCard';
+import { ProfileCard, ProfileCardSkeleton } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
 
 export function DiscoverPage() {
@@ -443,12 +443,8 @@ export function DiscoverPage() {
         <div className="mt-3 sm:mt-4">
           {profilesQuery.isLoading && displayedProfiles.length === 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-96 rounded-xl border border-slate-200 bg-white p-4 animate-pulse">
-                  <div className="h-48 w-full rounded-lg bg-slate-100" />
-                  <div className="mt-4 h-4 w-3/4 rounded bg-slate-100" />
-                  <div className="mt-2 h-3 w-1/2 rounded bg-slate-100" />
-                </div>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <ProfileCardSkeleton key={i} />
               ))}
             </div>
           ) : displayedProfiles.length > 0 ? (

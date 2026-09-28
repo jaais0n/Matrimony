@@ -169,3 +169,28 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
     </article>
   );
 }
+
+export function ProfileCardSkeleton() {
+  return (
+    <div className="flex flex-col rounded-2xl border border-[#ebdcd0] bg-white luxury-card-shadow overflow-hidden animate-pulse">
+      {/* Photo Shimmer */}
+      <div className="relative aspect-[1.12] w-full bg-slate-200 img-shimmer-bg" />
+      {/* Info Shimmer */}
+      <div className="flex flex-1 flex-col p-4 sm:p-5">
+        <div className="space-y-2">
+          <div className="h-5 w-40 rounded-md bg-slate-200" />
+          <div className="h-3.5 w-28 rounded-md bg-slate-100" />
+        </div>
+        <div className="mt-3.5 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+          <div className="h-6 w-24 rounded-md bg-slate-100" />
+          <div className="h-6 w-28 rounded-md bg-slate-100" />
+          <div className="h-6 w-20 rounded-md bg-slate-100" />
+        </div>
+        <div className="mt-auto pt-4 flex gap-2">
+          <div className="h-10 flex-1 rounded-xl bg-slate-100" />
+          <div className="h-10 flex-1 rounded-xl bg-rose-100/60" />
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -4,7 +4,7 @@ import { Link } from 'wouter';
 import { Bookmark, Clock, Flame, Heart, MapPin, Sparkles, UserPlus } from 'lucide-react';
 import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
-import { ProfileCard } from '../components/ui/ProfileCard';
+import { ProfileCard, ProfileCardSkeleton } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
 
 interface MatchedProfileItem {
@@ -212,11 +212,8 @@ export function MatchesPage() {
         <div className="mt-4 sm:mt-6">
           {isLoading && displayedMatches.length === 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-96 rounded-xl border border-slate-200 bg-white p-4 animate-pulse">
-                  <div className="h-48 w-full rounded-lg bg-slate-100" />
-                  <div className="mt-4 h-4 w-3/4 rounded bg-slate-100" />
-                </div>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <ProfileCardSkeleton key={i} />
               ))}
             </div>
           ) : displayedMatches.length > 0 ? (

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { useListProfiles, isSeedProfile } from '@workspace/api-client-react';
 import { useAuth, useUser } from '../auth';
-import { ProfileCard } from '../components/ui/ProfileCard';
+import { ProfileCard, ProfileCardSkeleton } from '../components/ui/ProfileCard';
 import { deduplicateProfiles } from '../utils/storageHelper';
 
 export function SearchPage() {
@@ -327,8 +327,10 @@ export function SearchPage() {
           </div>
 
           {profilesQuery.isLoading && displayedProfiles.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-500">
-              Searching profiles matching your criteria...
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <ProfileCardSkeleton key={i} />
+              ))}
             </div>
           ) : displayedProfiles.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

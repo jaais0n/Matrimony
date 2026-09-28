@@ -376,9 +376,31 @@ function ProtectedAdminArea({ children }: { children: React.ReactNode }) {
 
 function PageLoadingFallback() {
   return (
-    <div className="min-h-[50vh] flex flex-col items-center justify-center gap-3">
-      <div className="w-8 h-8 rounded-full border-2 border-rose-900/20 border-t-rose-800 animate-spin" />
-      <span className="text-[11px] font-medium tracking-widest text-slate-500 uppercase">Loading</span>
+    <div className="mx-auto max-w-6xl px-3 sm:px-6 py-6 animate-pulse space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="h-7 w-40 rounded-xl bg-slate-200" />
+        <div className="h-7 w-20 rounded-xl bg-slate-100" />
+      </div>
+      <div className="h-11 w-full rounded-2xl bg-slate-100" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex flex-col rounded-2xl border border-[#ebdcd0] bg-white overflow-hidden shadow-2xs">
+            <div className="aspect-[1.12] w-full bg-slate-200 img-shimmer-bg" />
+            <div className="p-4 sm:p-5 space-y-3">
+              <div className="h-5 w-36 rounded-md bg-slate-200" />
+              <div className="h-3.5 w-24 rounded-md bg-slate-100" />
+              <div className="flex gap-1.5 pt-2 border-t border-slate-100">
+                <div className="h-6 w-20 rounded-md bg-slate-100" />
+                <div className="h-6 w-24 rounded-md bg-slate-100" />
+              </div>
+              <div className="pt-3 flex gap-2">
+                <div className="h-10 flex-1 rounded-xl bg-slate-100" />
+                <div className="h-10 flex-1 rounded-xl bg-rose-100/60" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

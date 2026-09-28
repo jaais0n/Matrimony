@@ -86,8 +86,26 @@ export function InterestsPage() {
 
         <div className="mt-6">
           {interestsQuery.isLoading ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-xs text-slate-500">
-              Loading interests...
+            <div className="space-y-3 animate-pulse">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-200/80 bg-white p-5 shadow-xs"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-16 rounded-xl bg-slate-200 img-shimmer-bg shrink-0" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-36 rounded bg-slate-200" />
+                      <div className="h-3 w-24 rounded bg-slate-100" />
+                      <div className="h-3 w-48 rounded bg-slate-100" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-9 w-24 rounded-lg bg-slate-100" />
+                    <div className="h-9 w-24 rounded-lg bg-slate-200" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : Array.isArray(interestsQuery.data) && interestsQuery.data.length > 0 ? (
             <div className="space-y-3">
