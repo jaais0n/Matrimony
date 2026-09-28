@@ -207,7 +207,24 @@ export function MessagesPage() {
   const [firebaseActive, setFirebaseActive] = useState(false);
   const [firebaseMessages, setFirebaseMessages] = useState<ChatMessage[]>([]);
   const [firebaseInbox, setFirebaseInbox] = useState<any[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isUserScrolledUpRef = useRef<boolean>(false);
+  const prevMsgCountRef = useRef<number>(0);
+  const lastConvIdRef = useRef<string | null>(null);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, []);
+
+  const handleChatScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    // When distance from the bottom > 80px, user is viewing earlier message history
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isUserScrolledUpRef.current = distanceFromBottom > 80;
+  }, []);
 
   const { data: rawConversations = [], refetch } = useQuery<Conversation[]>({
     queryKey: ['conversations', currentUserId],
@@ -663,12 +680,7 @@ export function MessagesPage() {
     }
   }, [location, conversations.length, currentUserId]);
 
-  // Auto-scroll chat stream to latest message
-  useEffect(() => {
-    if (activeConversation) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [activeConversation, optimisticMessages, serverMessages, firebaseMessages, broadcastMessages, isTyping]);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -736,6 +748,11 @@ export function MessagesPage() {
       ...prev,
       [activeConversation.id]: [...(prev[activeConversation.id] || []), tempUserMsg],
     }));
+
+    isUserScrolledUpRef.current = false;
+    requestAnimationFrame(() => {
+      scrollToBottom('smooth');
+    });
 
     const cleanMy = cleanUserIdKey(currentUserId);
     const cleanPart = cleanUserIdKey(activeConversation.participantId);
@@ -962,6 +979,34 @@ export function MessagesPage() {
     return result;
   }, [activeConversation, serverMessages, firebaseMessages, broadcastMessages, optimisticMessages]);
 
+  // When switching active conversation: scroll container to bottom once
+  useEffect(() => {
+    if (!activeConversation?.id) return;
+    if (lastConvIdRef.current !== activeConversation.id) {
+      lastConvIdRef.current = activeConversation.id;
+      isUserScrolledUpRef.current = false;
+      prevMsgCountRef.current = currentMessages.length;
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
+    }
+  }, [activeConversation?.id, currentMessages.length, scrollToBottom]);
+
+  // When new messages arrive: only auto-scroll if the user hasn't scrolled up to read earlier history
+  useEffect(() => {
+    const newCount = currentMessages.length;
+    if (newCount > prevMsgCountRef.current) {
+      prevMsgCountRef.current = newCount;
+      if (!isUserScrolledUpRef.current) {
+        requestAnimationFrame(() => {
+          scrollToBottom('smooth');
+        });
+      }
+    } else {
+      prevMsgCountRef.current = newCount;
+    }
+  }, [currentMessages.length, scrollToBottom]);
+
   // Registered candidate profiles for quick start if conversation list is empty
   const registeredProfiles = (() => {
     try {
@@ -975,7 +1020,7 @@ export function MessagesPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 md:pb-12 text-slate-900">
+    <div className="h-[calc(100dvh-7.5rem)] md:h-[calc(100vh-4.5rem)] flex flex-col bg-slate-50 text-slate-900 overflow-hidden">
       {notice && (
         <div className="fixed top-20 right-4 z-50 rounded-lg border border-emerald-300 bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg animate-in fade-in">
           {notice}
@@ -999,18 +1044,16 @@ export function MessagesPage() {
         </>
       )}
 
-      <div className="mx-auto max-w-6xl px-3 sm:px-6 py-4 sm:py-6">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-
-
-          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[560px]">
+      <div className="w-full h-full flex flex-col max-w-6xl mx-auto md:p-4 min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden">
+          <div className="grid grid-cols-1 md:grid-cols-12 flex-1 min-h-0 h-full">
             {/* Conversations List (Left) - Hidden on mobile when chat is open */}
             <div
-              className={`border-b md:border-b-0 md:border-r border-slate-200 md:col-span-4 bg-slate-50/50 ${
-                mobileChatOpen ? 'hidden md:block' : 'block'
+              className={`border-b md:border-b-0 md:border-r border-slate-200 md:col-span-4 bg-slate-50/50 flex flex-col min-h-0 h-full ${
+                mobileChatOpen ? 'hidden md:flex' : 'flex'
               }`}
             >
-              <div className="border-b border-slate-200 p-3.5 bg-white flex items-center justify-between">
+              <div className="border-b border-slate-200 p-3.5 bg-white flex items-center justify-between shrink-0">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
                   Conversations ({conversations.length})
                 </span>
@@ -1037,7 +1080,7 @@ export function MessagesPage() {
                   </Link>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px]">
+                <div className="divide-y divide-slate-100 overflow-y-auto flex-1 min-h-0">
                   {conversations.map((c) => {
                     const isSelected = activeConversation?.id === c.id;
                     const isOnline = Boolean(onlineUsersMap[cleanUserIdKey(c.participantId)]);
@@ -1111,14 +1154,14 @@ export function MessagesPage() {
 
             {/* Chat Stream (Right) - Shown on mobile when chat is open */}
             <div
-              className={`md:col-span-8 flex flex-col justify-between bg-white ${
+              className={`md:col-span-8 flex flex-col justify-between bg-white min-h-0 h-full ${
                 !mobileChatOpen ? 'hidden md:flex' : 'flex'
               }`}
             >
               {activeConversation ? (
                 <>
                   {/* Chat Active Header */}
-                  <div className="flex items-center justify-between border-b border-slate-200 p-3 sm:p-4 bg-white/95 backdrop-blur-sm sticky top-0 z-10">
+                  <div className="shrink-0 flex items-center justify-between border-b border-slate-200 p-3 sm:p-4 bg-white/95 backdrop-blur-sm sticky top-0 z-10">
                     <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                       {/* Mobile Back Button */}
                       <button
@@ -1220,7 +1263,11 @@ export function MessagesPage() {
                   </div>
 
                   {/* Messages Flow */}
-                  <div className="flex-1 p-3.5 sm:p-6 overflow-y-auto space-y-3 max-h-[480px] min-h-[360px] bg-slate-50/40">
+                  <div
+                    ref={messagesContainerRef}
+                    onScroll={handleChatScroll}
+                    className="flex-1 min-h-0 p-3.5 sm:p-6 overflow-y-auto space-y-3 bg-slate-50/40"
+                  >
                     <div className="text-center py-1">
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-0.5 text-[10px] font-semibold text-slate-500 shadow-2xs">
                         <ShieldCheck size={11} className="text-emerald-600" />
@@ -1331,11 +1378,10 @@ export function MessagesPage() {
                       </div>
                     )}
 
-                    <div ref={messagesEndRef} />
                   </div>
 
                   {/* WhatsApp-Style Input Bar */}
-                  <form onSubmit={handleSendMessage} className="border-t border-slate-200 p-3 sm:p-3.5 flex gap-2 sm:gap-2.5 bg-white">
+                  <form onSubmit={handleSendMessage} className="shrink-0 border-t border-slate-200 p-2.5 sm:p-3.5 flex gap-2 sm:gap-2.5 bg-white">
                     <input
                       type="text"
                       value={inputText}
