@@ -131,50 +131,25 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         apiItems = Array.isArray(fallback?.items) ? fallback.items : (Array.isArray(fallback) ? fallback : []);
       }
 
-      // Also reconcile with registered user accounts from database and localStorage
-      // Every registered non-admin candidate MUST have a visible entry in Admin directory
+      // Purge any local dummy test accounts
       try {
-        let allAccounts: any[] = [];
-        try {
-          const dbUsers = await fetch(`/api/auth/users?_t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
-          if (Array.isArray(dbUsers)) allAccounts.push(...dbUsers);
-        } catch {}
-        try {
-          const localAccs = JSON.parse(localStorage.getItem('pm_registered_accounts') || '[]');
-          if (Array.isArray(localAccs)) allAccounts.push(...localAccs);
-        } catch {}
-
-        for (const acc of allAccounts) {
-          if (!acc || acc.id === 'user_admin' || acc.role === 'admin') continue;
-          const alreadyExists =
-            localItems.some((p) => p.userId === acc.id || p.id === `prof_${acc.id}` || (acc.email && p.email && p.email.toLowerCase() === acc.email.toLowerCase())) ||
-            apiItems.some((p) => p.userId === acc.id || p.id === `prof_${acc.id}` || (acc.email && p.email && p.email.toLowerCase() === acc.email.toLowerCase()));
-          if (!alreadyExists) {
-            localItems.push({
-              id: `prof_${acc.id}`,
-              userId: acc.id,
-              displayName: acc.fullName || acc.username || 'Candidate',
-              age: acc.age || 24,
-              gender: acc.gender || 'woman',
-              maritalStatus: 'Never Married',
-              verificationStatus: 'under_review',
-              published: true,
-              profileVisible: true,
-              faith: {
-                denomination: 'Independent Pentecostal',
-                church: 'Faith Community',
-                bornAgain: true,
-                baptised: true,
-              },
-              photos: [],
-              createdAt: acc.createdAt || new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
+        const localAccsRaw = localStorage.getItem('pm_registered_accounts');
+        if (localAccsRaw) {
+          const accs = JSON.parse(localAccsRaw);
+          if (Array.isArray(accs)) {
+            const cleanedAccs = accs.filter((a: any) => {
+              const name = String(a.fullName || a.name || '').toLowerCase();
+              const email = String(a.email || '').toLowerCase();
+              return !name.includes('john jacob') && name !== 'suresh' && !email.includes('john@') && !email.includes('sur@');
             });
+            if (cleanedAccs.length !== accs.length) {
+              localStorage.setItem('pm_registered_accounts', JSON.stringify(cleanedAccs));
+            }
           }
         }
       } catch {}
 
-      // Only show real registered database profiles (never seed profiles)
+      // Only show real registered database profiles created by users (never seed/dummy profiles)
       const allItems = deduplicateProfiles([...localItems, ...apiItems]).filter((p: any) => !isSeedProfile(p));
       try {
         if (allItems.length > 0) {

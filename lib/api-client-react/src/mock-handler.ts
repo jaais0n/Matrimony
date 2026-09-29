@@ -84,6 +84,10 @@ export const SEED_PROFILE_IDS = new Set([
   'prof_user_1790356597878',
   'user_1790356597878',
   'fssdf',
+  'user_john_mujxwhzj_v6mr',
+  'prof_user_john_mujxwhzj_v6mr',
+  'user_1790445129703',
+  'prof_user_1790445129703',
 ]);
 
 export const SEED_PROFILE_NAMES = [
@@ -99,6 +103,8 @@ export const SEED_PROFILE_NAMES = [
   'sneha elizabeth mathew',
   'daniel m. varghese',
   'fssdf',
+  'john jacob',
+  'suresh',
 ];
 
 
