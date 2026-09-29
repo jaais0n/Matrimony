@@ -22,9 +22,8 @@ function userIsParticipant(conv, cleanUser) {
   const pClean = cleanIdKey(conv.participantId || '');
   const creatorClean = cleanIdKey(conv.creatorId || '');
   if (pClean === cleanUser || creatorClean === cleanUser) return true;
-  // For deterministic IDs like conv_john_sura, check parts
+  // For deterministic IDs like conv_john_sura, check exact token match in split parts
   const cId = (conv.id || '').toLowerCase();
-  if (cId.includes(cleanUser)) return true;
   const convParts = cId.replace(/^conv_/, '').split('_');
   if (convParts.includes(cleanUser)) return true;
   // If user sent any message in this conversation
@@ -56,7 +55,16 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     if (queryId) {
       const conv = store.conversations.find((c) => c.id === queryId);
-      if (conv) { res.status(200).json(conv); } else { res.status(404).json({ error: 'Not found' }); }
+      if (conv) {
+        // Enforce participant check on single conversation fetch if currentUserId is provided
+        if (currentUserId && !userIsParticipant(conv, cleanIdKey(currentUserId))) {
+          res.status(403).json({ error: 'Access denied: You are not a participant in this conversation.' });
+          return;
+        }
+        res.status(200).json(conv);
+      } else {
+        res.status(404).json({ error: 'Not found' });
+      }
       return;
     }
     if (currentUserId) {
@@ -85,7 +93,8 @@ export default async function handler(req, res) {
       res.status(200).json(userConvs);
       return;
     }
-    res.status(200).json(store.conversations);
+    // Never expose all conversations when user context is absent
+    res.status(200).json([]);
     return;
   }
 

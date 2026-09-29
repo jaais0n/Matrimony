@@ -29,10 +29,24 @@ import { BlurImage } from '../components/ui/BlurImage';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
 import { initiateConversation } from '../utils/storageHelper';
+import { useAuth, useUser } from '../auth';
 
 export function ProfileDetailPage() {
   const [, setLocation] = useLocation();
   const { id = '' } = useParams<{ id: string }>();
+  const { userId } = useAuth();
+  const { user } = useUser();
+  const currentUserId = user?.id || userId || (() => {
+    try {
+      const raw = localStorage.getItem('pm_auth_user');
+      return raw ? JSON.parse(raw).id : '';
+    } catch { return ''; }
+  })();
+  const cleanMyId = String(currentUserId || '').trim().toLowerCase()
+    .replace(/^prof_user_/, '')
+    .replace(/^prof_/, '')
+    .replace(/^user_/, '');
+
   const profileQuery = useGetProfile(id);
   const sendInterestMutation = useSendInterest();
   const saveProfileMutation = useSaveProfile();
@@ -54,14 +68,17 @@ export function ProfileDetailPage() {
   useEffect(() => {
     if (p?.id) {
       try {
-        const raw = localStorage.getItem('pm_user_interests');
+        const key = cleanMyId ? `pm_user_interests_${cleanMyId}` : 'pm_user_interests';
+        const raw = localStorage.getItem(key);
         const list = raw ? JSON.parse(raw) : [];
         if (list.some((item: any) => item.profileId === p.id)) {
           setInterestSent(true);
+        } else {
+          setInterestSent(false);
         }
       } catch {}
     }
-  }, [p?.id]);
+  }, [p?.id, cleanMyId]);
 
   // Preload profile photos in background so main portrait is immediately crisp upon load
   const detailPhotoUrls = (p?.photos || []).map((ph: any) => ph.url).filter((url): url is string => Boolean(url));
@@ -166,10 +183,28 @@ export function ProfileDetailPage() {
       {
         onSuccess: () => {
           setInterestSent(true);
+          try {
+            const key = cleanMyId ? `pm_user_interests_${cleanMyId}` : 'pm_user_interests';
+            const raw = localStorage.getItem(key);
+            const list = raw ? JSON.parse(raw) : [];
+            if (!list.some((item: any) => item.profileId === p.id)) {
+              list.push({ profileId: p.id, sentAt: new Date().toISOString() });
+              localStorage.setItem(key, JSON.stringify(list));
+            }
+          } catch {}
           showToast('Interest expressed respectfully. You will be notified when they respond.');
         },
         onError: () => {
           setInterestSent(true);
+          try {
+            const key = cleanMyId ? `pm_user_interests_${cleanMyId}` : 'pm_user_interests';
+            const raw = localStorage.getItem(key);
+            const list = raw ? JSON.parse(raw) : [];
+            if (!list.some((item: any) => item.profileId === p.id)) {
+              list.push({ profileId: p.id, sentAt: new Date().toISOString() });
+              localStorage.setItem(key, JSON.stringify(list));
+            }
+          } catch {}
           showToast('Interest expressed respectfully. You will be notified when they respond.');
         },
       }

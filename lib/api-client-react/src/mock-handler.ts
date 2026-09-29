@@ -418,7 +418,9 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
 
   // 5. BOOKMARKS / SAVED PROFILES
   if (cleanUrl === '/api/profiles/saved' || cleanUrl === '/api/me/saved') {
-    const savedIds = new Set(getBrowserStorage<string[]>('pm_saved_profile_ids', []));
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const savedKey = cleanU && cleanU !== 'guest' ? `pm_saved_profile_ids_${cleanU}` : 'pm_saved_profile_ids';
+    const savedIds = new Set(getBrowserStorage<string[]>(savedKey, []));
     return getRegisteredProfiles()
       .filter((p) => !isSeedProfile(p) && savedIds.has(p.id))
       .map((p) => toSummary(p, true));
@@ -427,15 +429,17 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   const saveMatch = cleanUrl.match(/^\/api\/profiles\/([^/]+)\/save$/);
   if (saveMatch) {
     const id = saveMatch[1];
-    const savedIds = new Set(getBrowserStorage<string[]>('pm_saved_profile_ids', []));
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const savedKey = cleanU && cleanU !== 'guest' ? `pm_saved_profile_ids_${cleanU}` : 'pm_saved_profile_ids';
+    const savedIds = new Set(getBrowserStorage<string[]>(savedKey, []));
     if (method === 'POST') {
       savedIds.add(id);
-      setBrowserStorage('pm_saved_profile_ids', Array.from(savedIds));
+      setBrowserStorage(savedKey, Array.from(savedIds));
       return { saved: true };
     }
     if (method === 'DELETE') {
       savedIds.delete(id);
-      setBrowserStorage('pm_saved_profile_ids', Array.from(savedIds));
+      setBrowserStorage(savedKey, Array.from(savedIds));
       return { saved: false };
     }
   }
@@ -443,7 +447,9 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   // 6. INTERESTS
   if (cleanUrl === '/api/interests/me' || cleanUrl === '/api/me/interests') {
     const dir = searchParams.get('direction') || 'incoming';
-    const allInterests = getBrowserStorage<Interest[]>('pm_user_interests', []);
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const interestKey = cleanU && cleanU !== 'guest' ? `pm_user_interests_${cleanU}` : 'pm_user_interests';
+    const allInterests = getBrowserStorage<Interest[]>(interestKey, []);
     return allInterests.filter((i) => i.direction === dir);
   }
 
@@ -451,7 +457,9 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   if (interestMatch && method === 'POST') {
     const id = interestMatch[1];
     const target = getRegisteredProfiles().find((p) => p.id === id);
-    const allInterests = getBrowserStorage<Interest[]>('pm_user_interests', []);
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const interestKey = cleanU && cleanU !== 'guest' ? `pm_user_interests_${cleanU}` : 'pm_user_interests';
+    const allInterests = getBrowserStorage<Interest[]>(interestKey, []);
     if (target) {
       const exists = allInterests.some((i) => i.profileId === target.id);
       if (!exists) {
@@ -467,7 +475,7 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
           createdAt: new Date().toISOString(),
           mutual: false,
         });
-        setBrowserStorage('pm_user_interests', allInterests);
+        setBrowserStorage(interestKey, allInterests);
       }
     }
     return { success: true };
@@ -477,7 +485,9 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   if (respondInterestMatch && (method === 'POST' || method === 'PATCH' || method === 'PUT')) {
     const interestId = respondInterestMatch[1];
     const decision = (body as any)?.data?.decision || (body as any)?.decision || 'accepted';
-    const allInterests = getBrowserStorage<any[]>('pm_user_interests', []);
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const interestKey = cleanU && cleanU !== 'guest' ? `pm_user_interests_${cleanU}` : 'pm_user_interests';
+    const allInterests = getBrowserStorage<any[]>(interestKey, []);
     const idx = allInterests.findIndex((i) => i.id === interestId);
     let targetInterest: any = null;
     if (idx >= 0) {
@@ -487,12 +497,13 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
         mutual: decision === 'accepted',
       };
       targetInterest = allInterests[idx];
-      setBrowserStorage('pm_user_interests', allInterests);
+      setBrowserStorage(interestKey, allInterests);
     }
 
     if (decision === 'accepted' && targetInterest) {
-      // Auto-create or ensure active conversation exists
-      const convs = getBrowserStorage<any[]>('pm_user_conversations', []);
+      // Auto-create or ensure active conversation exists in current user's isolated storage
+      const convKey = cleanU && cleanU !== 'guest' ? `pm_user_conversations_${cleanU}` : 'pm_user_conversations';
+      const convs = getBrowserStorage<any[]>(convKey, []);
       const convId = `conv_${targetInterest.profileId}`;
       if (!convs.some((c) => c.id === convId || c.participantId === targetInterest.profileId)) {
         const newConv = {
@@ -519,95 +530,10 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
             },
           ],
         };
-        setBrowserStorage('pm_user_conversations', [newConv, ...convs]);
+        setBrowserStorage(convKey, [newConv, ...convs]);
       }
     }
     return { success: true, decision };
-  }
-
-  // 7. CONVERSATIONS & MESSAGING
-  if (cleanUrl === '/api/conversations' && method === 'GET') {
-    return getBrowserStorage<any[]>('pm_user_conversations', []);
-  }
-
-  if (cleanUrl === '/api/conversations' && method === 'POST') {
-    const pId = (body as any)?.participantId || `p_${Date.now()}`;
-    const pName = (body as any)?.participantName || 'Candidate';
-    const convs = getBrowserStorage<any[]>('pm_user_conversations', []);
-    const existing = convs.find((c) => c.id === `conv_${pId}` || c.participantId === pId);
-    if (existing) {
-      return existing;
-    }
-    const newConv = {
-      id: `conv_${pId}`,
-      participantId: pId,
-      participantName: pName,
-      participantAge: (body as any)?.participantAge || 0,
-      participantLocation: (body as any)?.participantLocation || 'India',
-      participantPhoto: (body as any)?.participantPhoto || '',
-      participantOccupation: (body as any)?.participantOccupation || 'Professional',
-      participantDenomination: (body as any)?.participantDenomination || 'Pentecostal',
-      status: 'active',
-      lastMessageText: 'Conversation started.',
-      lastMessageAt: new Date().toISOString(),
-      unreadCount: 0,
-      messages: [
-        {
-          id: `msg_sys_${Date.now()}`,
-          senderId: 'system',
-          senderName: 'System',
-          content: 'Private discernment conversation initiated.',
-          timestamp: new Date().toISOString(),
-          read: true,
-        },
-      ],
-    };
-    setBrowserStorage('pm_user_conversations', [newConv, ...convs]);
-    return newConv;
-  }
-
-  const postMessageMatch = cleanUrl.match(/^\/api\/conversations\/([^/]+)\/messages$/);
-  if (postMessageMatch && method === 'POST') {
-    const convId = postMessageMatch[1];
-    const content = (body as any)?.content?.trim() || '';
-    if (content) {
-      const convs = getBrowserStorage<any[]>('pm_user_conversations', []);
-      let targetConv = convs.find((c) => c.id === convId);
-      if (!targetConv) {
-        targetConv = {
-          id: convId,
-          participantId: convId.replace('conv_', ''),
-          participantName: 'Member Candidate',
-          participantAge: 0,
-          participantLocation: 'India',
-          participantPhoto: '',
-          participantOccupation: 'Professional',
-          participantDenomination: 'Pentecostal',
-          status: 'active',
-          lastMessageText: content,
-          lastMessageAt: new Date().toISOString(),
-          unreadCount: 0,
-          messages: [],
-        };
-        convs.unshift(targetConv);
-      }
-      const newMsg = {
-        id: `msg_${Date.now()}`,
-        senderId: 'prof_me',
-        senderName: 'You',
-        content,
-        timestamp: new Date().toISOString(),
-        read: true,
-        delivered: true,
-      };
-      targetConv.messages = targetConv.messages || [];
-      targetConv.messages.push(newMsg);
-      targetConv.lastMessageText = content;
-      targetConv.lastMessageAt = newMsg.timestamp;
-      setBrowserStorage('pm_user_conversations', convs);
-      return { success: true, message: newMsg };
-    }
-    return { success: true };
   }
 
   // 8. NOTIFICATIONS
@@ -883,9 +809,10 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     };
   }
 
-  // 16. CONVERSATIONS & INSTANT MESSAGING (24-Hour Ephemeral Expiration)
+  // 16. CONVERSATIONS & INSTANT MESSAGING (Strictly User-Isolated)
   if (cleanUrl === '/api/conversations') {
-    const convKey = `pm_user_conversations_${userId}`;
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const convKey = cleanU && cleanU !== 'guest' ? `pm_user_conversations_${cleanU}` : 'pm_user_conversations';
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
     const filterExpired = (convs: any[]) => {
       const now = Date.now();
@@ -905,9 +832,6 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     };
 
     let userConvs = filterExpired(getBrowserStorage<any[]>(convKey, []));
-    if (!userConvs || userConvs.length === 0) {
-      userConvs = filterExpired(getBrowserStorage<any[]>('pm_user_conversations', []));
-    }
 
     if (method === 'POST') {
       const b = (body as any) || {};
@@ -949,7 +873,6 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
 
       userConvs = [newConv, ...userConvs];
       setBrowserStorage(convKey, userConvs);
-      setBrowserStorage('pm_user_conversations', userConvs);
       return newConv;
     }
 
@@ -958,7 +881,8 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
 
   if (cleanUrl.startsWith('/api/conversations/') && cleanUrl.endsWith('/messages')) {
     const convId = cleanUrl.replace('/api/conversations/', '').replace('/messages', '');
-    const convKey = `pm_user_conversations_${userId}`;
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const convKey = cleanU && cleanU !== 'guest' ? `pm_user_conversations_${cleanU}` : 'pm_user_conversations';
     const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
     const filterExpired = (convs: any[]) => {
       const now = Date.now();
@@ -972,9 +896,6 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     };
 
     let userConvs = filterExpired(getBrowserStorage<any[]>(convKey, []));
-    if (!userConvs || userConvs.length === 0) {
-      userConvs = filterExpired(getBrowserStorage<any[]>('pm_user_conversations', []));
-    }
 
     if (method === 'POST') {
       const b = (body as any) || {};
@@ -995,7 +916,6 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
         conv.lastMessageAt = newMsg.timestamp;
         userConvs[targetIdx] = conv;
         setBrowserStorage(convKey, userConvs);
-        setBrowserStorage('pm_user_conversations', userConvs);
       }
 
       return newMsg;
@@ -1007,11 +927,9 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
 
   if (cleanUrl.startsWith('/api/conversations/')) {
     const convId = cleanUrl.replace('/api/conversations/', '');
-    const convKey = `pm_user_conversations_${userId}`;
-    let userConvs = getBrowserStorage<any[]>(convKey, []);
-    if (!userConvs || userConvs.length === 0) {
-      userConvs = getBrowserStorage<any[]>('pm_user_conversations', []);
-    }
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const convKey = cleanU && cleanU !== 'guest' ? `pm_user_conversations_${cleanU}` : 'pm_user_conversations';
+    const userConvs = getBrowserStorage<any[]>(convKey, []);
     const matchedConv = userConvs.find((c: any) => c.id === convId);
     return matchedConv || null;
   }

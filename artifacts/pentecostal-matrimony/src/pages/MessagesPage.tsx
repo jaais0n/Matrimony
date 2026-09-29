@@ -499,6 +499,12 @@ export function MessagesPage() {
       bc = new BroadcastChannel('pm_live_matrimony_chat');
       bc.onmessage = (event) => {
         if (event.data?.type === 'NEW_MESSAGE' && event.data.convId && event.data.message) {
+          const sId = cleanUserIdKey(event.data.senderId || '');
+          const rId = cleanUserIdKey(event.data.recipientId || '');
+          // Strictly reject messages that do not involve current user
+          if (cleanMyKey && sId !== cleanMyKey && rId !== cleanMyKey) {
+            return;
+          }
           const { convId, message } = event.data;
           setBroadcastMessages((prev) => ({
             ...prev,
@@ -525,6 +531,11 @@ export function MessagesPage() {
 
     const onCustomNewMessage = (e: any) => {
       if (e.detail?.convId && e.detail?.message) {
+        const sId = cleanUserIdKey(e.detail.senderId || '');
+        const rId = cleanUserIdKey(e.detail.recipientId || '');
+        if (cleanMyKey && sId !== cleanMyKey && rId !== cleanMyKey) {
+          return;
+        }
         const { convId, message } = e.detail;
         setBroadcastMessages((prev) => ({
           ...prev,
@@ -535,7 +546,7 @@ export function MessagesPage() {
     window.addEventListener('pm:new_message', onCustomNewMessage);
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key?.startsWith('pm_user_conversations')) {
+      if (cleanMyKey && e.key === `pm_user_conversations_${cleanMyKey}`) {
         refetch();
       }
     };
@@ -546,7 +557,7 @@ export function MessagesPage() {
       window.removeEventListener('pm:new_message', onCustomNewMessage);
       window.removeEventListener('storage', onStorage);
     };
-  }, [refetch]);
+  }, [refetch, cleanMyKey, activeConversation?.id, activeConversation?.participantId, handleRemoteTyping]);
 
   // Broadcast current user presence while in messaging area
   useEffect(() => {
@@ -651,7 +662,7 @@ export function MessagesPage() {
 
     const fetchRoom = async () => {
       try {
-        const res = await fetch(`/api/conversations?id=${encodeURIComponent(convId)}`, { cache: 'no-store' });
+        const res = await fetch(`/api/conversations?id=${encodeURIComponent(convId)}&userId=${encodeURIComponent(currentUserId)}`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (mounted && data?.messages && Array.isArray(data.messages)) {
@@ -670,7 +681,7 @@ export function MessagesPage() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [activeConversation?.id]);
+  }, [activeConversation?.id, currentUserId]);
 
   // Handle ?user= and ?name= and ?photo= query parameters
   useEffect(() => {
