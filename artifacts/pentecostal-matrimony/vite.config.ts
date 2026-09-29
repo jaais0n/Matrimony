@@ -119,6 +119,40 @@ export default defineConfig({
               });
               return;
             }
+
+            if (pathname === '/api/reports') {
+              const { default: handler } = await import('../../api/reports/index.js');
+              if (req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE') {
+                let body = '';
+                req.on('data', (chunk) => { body += chunk; });
+                req.on('end', async () => {
+                  try { (req as any).body = body ? JSON.parse(body) : {}; } catch { (req as any).body = {}; }
+                  (req as any).query = Object.fromEntries(parsedUrl.searchParams.entries());
+                  await handler(req as any, res as any);
+                });
+                return;
+              }
+              (req as any).query = Object.fromEntries(parsedUrl.searchParams.entries());
+              await handler(req as any, res as any);
+              return;
+            }
+
+            if (pathname === '/api/conversations') {
+              const { default: handler } = await import('../../api/conversations/index.js');
+              if (req.method === 'POST' || req.method === 'DELETE' || req.method === 'PUT') {
+                let body = '';
+                req.on('data', (chunk) => { body += chunk; });
+                req.on('end', async () => {
+                  try { (req as any).body = body ? JSON.parse(body) : {}; } catch { (req as any).body = {}; }
+                  (req as any).query = Object.fromEntries(parsedUrl.searchParams.entries());
+                  await handler(req as any, res as any);
+                });
+                return;
+              }
+              (req as any).query = Object.fromEntries(parsedUrl.searchParams.entries());
+              await handler(req as any, res as any);
+              return;
+            }
           } catch (err: any) {
             console.error('[vite-api-error]', err);
             originalRes.status(500).json({ error: err.message });

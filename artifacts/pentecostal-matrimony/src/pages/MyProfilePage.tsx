@@ -353,7 +353,7 @@ export function MyProfilePage() {
     if (user?.id) {
       const updatedProfile = {
         ...form,
-        id: form.id || `prof_${user.id}`,
+        id: (form as any).id || `prof_${user.id}`,
         userId: user.id,
         photos: updated,
         primaryPhotoUrl: updated[0]?.url || '',

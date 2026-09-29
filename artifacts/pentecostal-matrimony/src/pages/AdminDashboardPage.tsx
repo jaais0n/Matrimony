@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import { useClerk, useUser } from '../auth';
-import { deduplicateProfiles, notifySync } from '../utils/storageHelper';
+import { deduplicateProfiles, notifySync, safeSetLocalStorage } from '../utils/storageHelper';
 import { FIREBASE_DATABASE_URL, cleanUserIdKey } from '../utils/firebaseHelper';
 
 // Admin secret loaded from Vite env at build time (set VITE_ADMIN_SECRET on Vercel).

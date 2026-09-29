@@ -221,11 +221,11 @@ export function ProfileDetailPage() {
     try {
       const reporterName =
         user?.fullName ||
-        (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : '') ||
-        user?.emailAddresses?.[0]?.emailAddress?.split('@')[0] ||
+        user?.firstName ||
+        user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
         'Verified Believer';
 
-      const reporterEmail = user?.emailAddresses?.[0]?.emailAddress || '';
+      const reporterEmail = user?.primaryEmailAddress?.emailAddress || '';
 
       const reportPayload = {
         reportedProfileId: p.id,
