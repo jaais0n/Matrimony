@@ -356,7 +356,7 @@ export function ProfileDetailPage() {
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
-                      initiateConversation(p);
+                      initiateConversation(p, currentUserId);
                       const targetId = (p as any).userId || p.id;
                       const photo = p.photos?.[0]?.url || (p as any).primaryPhotoUrl || '';
                       setLocation(`/messages?user=${encodeURIComponent(targetId)}&name=${encodeURIComponent(p.displayName)}&photo=${encodeURIComponent(photo)}`);

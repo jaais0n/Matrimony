@@ -690,3 +690,84 @@ export function subscribeToUserPresence(
     }
   };
 }
+
+/**
+ * Permanently and completely deletes a conversation and all its messages,
+ * metadata, typing indicators, and user inbox records from Firebase Realtime Database.
+ */
+export async function deleteConversationFromFirebase(
+  convId: string,
+  userId1?: string,
+  userId2?: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured() || !convId) return false;
+
+  const paths = new Set<string>();
+
+  // 1. Primary room
+  paths.add(`conversations/${convId}`);
+
+  // 2. Canonical deterministic IDs
+  if (userId1 && userId2) {
+    const canonicalId = getDeterministicConvId(userId1, userId2);
+    paths.add(`conversations/${canonicalId}`);
+
+    const u1 = cleanUserIdKey(userId1);
+    const u2 = cleanUserIdKey(userId2);
+    if (u1) {
+      paths.add(`user_inbox/${u1}/${convId}`);
+      paths.add(`user_inbox/${u1}/${canonicalId}`);
+    }
+    if (u2) {
+      paths.add(`user_inbox/${u2}/${convId}`);
+      paths.add(`user_inbox/${u2}/${canonicalId}`);
+    }
+
+    const rawU1 = String(userId1).replace(/^user_/, '').replace(/^prof_/, '');
+    const rawU2 = String(userId2).replace(/^user_/, '').replace(/^prof_/, '');
+    if (rawU1) {
+      paths.add(`user_inbox/${rawU1}/${convId}`);
+      paths.add(`user_inbox/${rawU1}/${canonicalId}`);
+    }
+    if (rawU2) {
+      paths.add(`user_inbox/${rawU2}/${convId}`);
+      paths.add(`user_inbox/${rawU2}/${canonicalId}`);
+    }
+  } else if (userId1) {
+    const u1 = cleanUserIdKey(userId1);
+    if (u1) paths.add(`user_inbox/${u1}/${convId}`);
+  }
+
+  // 3. Fallback extraction from convId format (e.g. conv_user1_user2)
+  if (convId.startsWith('conv_')) {
+    const parts = convId.replace(/^conv_/, '').split('_').filter(Boolean);
+    if (parts.length >= 2) {
+      paths.add(`user_inbox/${parts[0]}/${convId}`);
+      paths.add(`user_inbox/${parts[1]}/${convId}`);
+    }
+  }
+
+  // Execute all deletions in parallel
+  try {
+    await Promise.allSettled(
+      Array.from(paths).map((p) =>
+        fetch(`${FIREBASE_DATABASE_URL}/${p}.json`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
+  } catch (err) {
+    console.warn('[Firebase] deleteConversation error:', err);
+  }
+
+  // Notify other tabs to purge local state
+  try {
+    const bc = new BroadcastChannel('pm_live_matrimony_chat');
+    bc.postMessage({ type: 'CONVERSATION_DELETED', convId, userId1, userId2 });
+    bc.close();
+  } catch {}
+
+  return true;
+}
+

@@ -3,6 +3,9 @@ import { AlertCircle, Lock, Shield, Trash2 } from 'lucide-react';
 import { useGetMyPrivacy, useUpdateMyPrivacy } from '@workspace/api-client-react';
 import type { PrivacySettings } from '@workspace/api-client-react';
 
+import { useAuth, useUser } from '../auth';
+import { isFirebaseConfigured, cleanUserIdKey, FIREBASE_DATABASE_URL } from '../utils/firebaseHelper';
+
 const defaultPrivacy: PrivacySettings = {
   profileVisible: true,
   photoVisibility: 'all_members',
@@ -12,6 +15,8 @@ const defaultPrivacy: PrivacySettings = {
 };
 
 export function PrivacyPage() {
+  const { userId } = useAuth();
+  const { user } = useUser();
   const privacy = useGetMyPrivacy();
   const update = useUpdateMyPrivacy();
   const [settings, setSettings] = useState<PrivacySettings>(defaultPrivacy);
@@ -40,9 +45,46 @@ export function PrivacyPage() {
     );
   };
 
-  const handleDeleteAccount = () => {
-    if (window.confirm('Are you sure you wish to delete your profile and account permanently? All data will be erased.')) {
-      showToast('Account scheduled for permanent erasure.');
+  const handleDeleteAccount = async () => {
+    if (
+      window.confirm(
+        'Are you sure you wish to delete your profile and account permanently? All data will be completely and irreversibly erased from the database.'
+      )
+    ) {
+      showToast('Deleting all data permanently from database...');
+      const targetId =
+        user?.id ||
+        userId ||
+        (() => {
+          try {
+            const raw = localStorage.getItem('pm_auth_user');
+            return raw ? JSON.parse(raw).id : '';
+          } catch {
+            return '';
+          }
+        })();
+
+      if (targetId) {
+        await Promise.allSettled([
+          fetch(`/api/auth/users?id=${encodeURIComponent(targetId)}`, { method: 'DELETE' }),
+          fetch(`/api/profiles?id=${encodeURIComponent(targetId)}`, { method: 'DELETE' }),
+          fetch(`/api/conversations?all=true&userId=${encodeURIComponent(targetId)}`, { method: 'DELETE' }),
+        ]);
+
+        if (isFirebaseConfigured()) {
+          const cleanId = cleanUserIdKey(targetId);
+          fetch(`${FIREBASE_DATABASE_URL}/presence/${cleanId}.json`, { method: 'DELETE' }).catch(() => {});
+          fetch(`${FIREBASE_DATABASE_URL}/user_inbox/${cleanId}.json`, { method: 'DELETE' }).catch(() => {});
+        }
+      }
+
+      // Clear local session & data
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch {}
+
+      window.location.href = '/?deleted=account';
     }
   };
 

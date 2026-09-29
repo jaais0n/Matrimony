@@ -351,8 +351,22 @@ export function MyProfilePage() {
     }
     setPhotos(updated);
     if (user?.id) {
-      safeSetLocalStorage(`pm_user_profile_${user.id}`, { ...form, photos: updated });
-      safeSetLocalStorage('pm_my_profile', { ...form, photos: updated });
+      const updatedProfile = {
+        ...form,
+        id: form.id || `prof_${user.id}`,
+        userId: user.id,
+        photos: updated,
+        primaryPhotoUrl: updated[0]?.url || '',
+      };
+      safeSetLocalStorage(`pm_user_profile_${user.id}`, updatedProfile);
+      safeSetLocalStorage('pm_my_profile', updatedProfile);
+
+      // Directly persist photo deletion to Neon PostgreSQL database
+      fetch('/api/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProfile),
+      }).catch(() => {});
     }
   };
 

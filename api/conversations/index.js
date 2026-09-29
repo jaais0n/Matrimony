@@ -101,6 +101,18 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const body = req.body || {};
 
+    if (action === 'clear' || action === 'clear_messages') {
+      const convId = queryId || body.conversationId || body.id;
+      const targetIndex = store.conversations.findIndex((c) => c.id === convId);
+      if (targetIndex >= 0) {
+        store.conversations[targetIndex].messages = [];
+        store.conversations[targetIndex].lastMessageText = 'Chat history cleared.';
+        await writeStore(store);
+      }
+      res.status(200).json({ success: true, clearedId: convId });
+      return;
+    }
+
     if (action === 'message' || queryId || body.conversationId) {
       const convId = queryId || body.conversationId;
       let targetIndex = store.conversations.findIndex((c) => c.id === convId);
@@ -200,43 +212,68 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const { id: deleteId, all } = req.query || {};
+    const { id: deleteId, all, participantId: queryPartId } = req.query || {};
     const convId = deleteId || queryId || (req.body && (req.body.id || req.body.conversationId));
+    const targetPartId = queryPartId || (req.body && (req.body.participantId || req.body.targetUserId));
+    const cleanUser = cleanIdKey(currentUserId);
+    const cleanTarget = cleanIdKey(targetPartId);
 
     if (all === 'true' || all === true) {
       if (!currentUserId) {
         res.status(401).json({ error: 'User ID required to clear conversations' });
         return;
       }
-      const cleanUser = cleanIdKey(currentUserId);
       store.conversations = (store.conversations || []).filter((c) => !userIsParticipant(c, cleanUser));
       await writeStore(store);
       res.status(200).json({ success: true, count: 0, items: [] });
       return;
     }
 
-    if (!convId) {
-      res.status(400).json({ error: 'Conversation id is required for deletion' });
+    if (!convId && !cleanTarget) {
+      res.status(400).json({ error: 'Conversation id or participantId is required for deletion' });
       return;
     }
 
-    const cleanUser = cleanIdKey(currentUserId);
-    const existingIndex = store.conversations.findIndex((c) => c.id === convId);
+    // Helper to check if a conversation involves this exact pair of users
+    const involvesPair = (c, u1, u2) => {
+      if (!u1 || !u2) return false;
+      const cC = cleanIdKey(c.creatorId || '');
+      const cP = cleanIdKey(c.participantId || '');
+      if ((cC === u1 && cP === u2) || (cC === u2 && cP === u1)) return true;
+      const cId = (c.id || '').toLowerCase();
+      if (cId.includes(u1) && cId.includes(u2)) return true;
+      return false;
+    };
 
-    if (existingIndex >= 0) {
-      const conv = store.conversations[existingIndex];
-      // Only authorized if user is a participant or creator
-      if (cleanUser && !userIsParticipant(conv, cleanUser)) {
-        res.status(403).json({ error: 'Access denied: You are not authorized to delete this conversation.' });
-        return;
+    // Extract deterministic tokens from convId if present (e.g. conv_userA_userB)
+    let convTokens = [];
+    if (convId && convId.startsWith('conv_')) {
+      convTokens = convId.replace(/^conv_/, '').split('_').filter(Boolean);
+    }
+
+    const beforeCount = (store.conversations || []).length;
+    store.conversations = (store.conversations || []).filter((c) => {
+      // 1. Direct ID match
+      if (convId && c.id === convId) return false;
+      // 2. Both participants match requested deletion pair
+      if (cleanUser && cleanTarget && involvesPair(c, cleanUser, cleanTarget)) return false;
+      // 3. Tokens in deterministic ID match both participants
+      if (convTokens.length >= 2) {
+        const cId = (c.id || '').toLowerCase();
+        if (convTokens.every((t) => cId.includes(t))) return false;
+        const c1 = cleanIdKey(c.creatorId || '');
+        const c2 = cleanIdKey(c.participantId || '');
+        if (convTokens.includes(c1) && convTokens.includes(c2)) return false;
       }
-      store.conversations.splice(existingIndex, 1);
-      await writeStore(store);
-      res.status(200).json({ success: true, deletedId: convId });
-      return;
-    }
+      return true;
+    });
 
-    res.status(200).json({ success: true, deletedId: convId, note: 'Already removed or not found' });
+    await writeStore(store);
+    res.status(200).json({
+      success: true,
+      deletedId: convId,
+      purgedCount: beforeCount - store.conversations.length,
+    });
     return;
   }
 

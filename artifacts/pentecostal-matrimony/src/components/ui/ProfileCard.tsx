@@ -4,6 +4,7 @@ import { Briefcase, Church, Globe, GraduationCap, Heart, MapPin, MessageCircle }
 import { VerificationBadge } from './VerificationBadge';
 import { BlurImage } from './BlurImage';
 import { initiateConversation } from '../../utils/storageHelper';
+import { useAuth, useUser } from '../../auth';
 
 export interface ProfileCardData {
   id: string;
@@ -32,6 +33,9 @@ interface ProfileCardProps {
 
 export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
   const [, setLocation] = useLocation();
+  const { userId } = useAuth();
+  const { user } = useUser();
+  const currentUserId = user?.id || userId || '';
   const [interestSent, setInterestSent] = useState(false);
 
   const handleInterest = (e: React.MouseEvent) => {
@@ -154,7 +158,7 @@ export function ProfileCard({ profile, onSendInterest }: ProfileCardProps) {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              initiateConversation(profile);
+              initiateConversation(profile, currentUserId);
               const targetId = profile.userId || profile.id;
               const photo = profile.photos?.[0]?.url || profile.primaryPhotoUrl || '';
               setLocation(`/messages?user=${encodeURIComponent(targetId)}&name=${encodeURIComponent(profile.displayName)}&photo=${encodeURIComponent(photo)}`);

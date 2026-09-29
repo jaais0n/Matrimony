@@ -39,7 +39,7 @@ import {
 import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import { useClerk, useUser } from '../auth';
 import { deduplicateProfiles, notifySync } from '../utils/storageHelper';
-import { FIREBASE_DATABASE_URL } from '../utils/firebaseHelper';
+import { FIREBASE_DATABASE_URL, cleanUserIdKey } from '../utils/firebaseHelper';
 
 // Admin secret loaded from Vite env at build time (set VITE_ADMIN_SECRET on Vercel).
 // This is used as the X-Admin-Key header required by all destructive server-side operations.
@@ -362,8 +362,15 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         await Promise.allSettled([
           fetch(`/api/auth/users?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
           fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
+          fetch(`/api/conversations?all=true&userId=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
           customFetch(`/api/admin/users/${deleteTarget.id}/delete`, { method: 'POST' }),
         ]);
+
+        if (FIREBASE_DATABASE_URL) {
+          const cleanId = cleanUserIdKey(deleteTarget.id);
+          fetch(`${FIREBASE_DATABASE_URL}/presence/${cleanId}.json`, { method: 'DELETE' }).catch(() => {});
+          fetch(`${FIREBASE_DATABASE_URL}/user_inbox/${cleanId}.json`, { method: 'DELETE' }).catch(() => {});
+        }
 
         try {
           const rawUsers = localStorage.getItem('pm_registered_accounts') || localStorage.getItem('pm_registered_users');
@@ -401,8 +408,15 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
       } else {
         await Promise.allSettled([
           fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
+          fetch(`/api/conversations?all=true&userId=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
           customFetch(`/api/admin/profiles/${deleteTarget.id}/delete`, { method: 'POST' }),
         ]);
+
+        if (FIREBASE_DATABASE_URL) {
+          const cleanId = cleanUserIdKey(deleteTarget.id);
+          fetch(`${FIREBASE_DATABASE_URL}/presence/${cleanId}.json`, { method: 'DELETE' }).catch(() => {});
+          fetch(`${FIREBASE_DATABASE_URL}/user_inbox/${cleanId}.json`, { method: 'DELETE' }).catch(() => {});
+        }
 
         try {
           const rawProfiles = localStorage.getItem('pm_registered_profiles');

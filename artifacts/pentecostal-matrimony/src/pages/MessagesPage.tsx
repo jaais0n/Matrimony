@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import {
   ArrowLeft,
@@ -27,6 +27,7 @@ import {
   subscribeToUserInbox,
   sendFirebaseTyping,
   sendFirebaseMessage,
+  deleteConversationFromFirebase,
   getDeterministicConvId,
   cleanUserIdKey,
   setUserPresence,
@@ -74,6 +75,7 @@ function getStoredConversations(currentUserId?: string): Conversation[] {
 
 export function MessagesPage() {
   const [location] = useLocation();
+  const queryClient = useQueryClient();
   const { userId } = useAuth();
   const { user } = useUser();
 
@@ -899,45 +901,88 @@ export function MessagesPage() {
     refetch();
   };
 
-  const handleClearChatHistory = () => {
+  const handleClearChatHistory = async () => {
     if (!activeConversation) return;
+    const convId = activeConversation.id;
+    const partId = activeConversation.participantId;
+    const canonicalId = currentUserId && partId ? getDeterministicConvId(currentUserId, partId) : convId;
+
     try {
       const cleanMy = cleanUserIdKey(currentUserId);
       const userKey = cleanMy ? `pm_user_conversations_${cleanMy}` : 'pm_user_conversations';
       const raw = localStorage.getItem(userKey);
       if (raw) {
         const convs = JSON.parse(raw);
-        const idx = convs.findIndex((c: any) => c.id === activeConversation.id);
+        const idx = convs.findIndex((c: any) => c.id === convId || c.id === canonicalId);
         if (idx >= 0) {
           convs[idx].messages = [];
           convs[idx].lastMessageText = 'Chat history cleared.';
           localStorage.setItem(userKey, JSON.stringify(convs));
         }
       }
-      setOptimisticMessages((prev) => ({
-        ...prev,
-        [activeConversation.id]: [],
-      }));
-      setServerMessages((prev) => ({
-        ...prev,
-        [activeConversation.id]: [],
-      }));
-      setBroadcastMessages((prev) => ({
-        ...prev,
-        [activeConversation.id]: [],
-      }));
+
+      // Clean local storage room cache
+      try {
+        localStorage.removeItem(`pm_room_${convId}`);
+        if (canonicalId !== convId) localStorage.removeItem(`pm_room_${canonicalId}`);
+      } catch {}
+
+      // Clear memory buffers immediately
+      setOptimisticMessages((prev) => {
+        const copy = { ...prev };
+        delete copy[convId];
+        delete copy[canonicalId];
+        return copy;
+      });
+      setServerMessages((prev) => {
+        const copy = { ...prev };
+        delete copy[convId];
+        delete copy[canonicalId];
+        return copy;
+      });
+      setBroadcastMessages((prev) => {
+        const copy = { ...prev };
+        delete copy[convId];
+        delete copy[canonicalId];
+        return copy;
+      });
       setFirebaseMessages([]);
-      setNotice('Chat history cleared.');
+
+      // 1. Purge messages from Firebase Realtime DB
+      if (isFirebaseConfigured()) {
+        fetch(`${FIREBASE_DATABASE_URL}/conversations/${convId}/messages.json`, { method: 'DELETE' }).catch(() => {});
+        if (canonicalId !== convId) {
+          fetch(`${FIREBASE_DATABASE_URL}/conversations/${canonicalId}/messages.json`, { method: 'DELETE' }).catch(() => {});
+        }
+      }
+
+      // 2. Purge messages from Serverless Neon PostgreSQL
+      const clearPromises = [
+        fetch(`/api/conversations?action=clear_messages&id=${encodeURIComponent(convId)}`, { method: 'POST' }),
+      ];
+      if (canonicalId !== convId) {
+        clearPromises.push(
+          fetch(`/api/conversations?action=clear_messages&id=${encodeURIComponent(canonicalId)}`, { method: 'POST' })
+        );
+      }
+      await Promise.allSettled(clearPromises);
+
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+      setNotice('Chat history cleared completely from database.');
       setMenuOpen(false);
       refetch();
-    } catch {}
+    } catch {
+      setNotice('Could not clear chat history.');
+    }
   };
 
-  const handleDeleteConversation = () => {
+  const handleDeleteConversation = async () => {
     if (!convToDelete) return;
     const targetId = convToDelete.id;
     const targetPartId = convToDelete.participantId;
     const targetParticipantName = convToDelete.participantName;
+    const canonicalId = currentUserId && targetPartId ? getDeterministicConvId(currentUserId, targetPartId) : targetId;
 
     try {
       const cleanMy = cleanUserIdKey(currentUserId);
@@ -946,16 +991,46 @@ export function MessagesPage() {
       if (raw) {
         const convs: Conversation[] = JSON.parse(raw);
         const filtered = convs.filter(
-          (c) => c.id !== targetId && cleanUserIdKey(c.participantId) !== cleanUserIdKey(targetPartId)
+          (c) =>
+            c.id !== targetId &&
+            c.id !== canonicalId &&
+            cleanUserIdKey(c.participantId) !== cleanUserIdKey(targetPartId)
         );
         localStorage.setItem(userKey, JSON.stringify(filtered));
       }
 
+      // Also clean the generic pm_user_conversations if present
+      try {
+        const genRaw = localStorage.getItem('pm_user_conversations');
+        if (genRaw) {
+          const genConvs: Conversation[] = JSON.parse(genRaw);
+          const genFiltered = genConvs.filter(
+            (c) =>
+              c.id !== targetId &&
+              c.id !== canonicalId &&
+              cleanUserIdKey(c.participantId) !== cleanUserIdKey(targetPartId)
+          );
+          localStorage.setItem('pm_user_conversations', JSON.stringify(genFiltered));
+        }
+      } catch {}
+
       // If active conversation was deleted, remove active pointer and select next available
       const activeKey = cleanMy ? `pm_active_conv_id_${cleanMy}` : 'pm_active_conv_id';
-      if (selectedConvId === targetId || activeConversation?.id === targetId) {
+      const isTargetActive =
+        selectedConvId === targetId ||
+        selectedConvId === canonicalId ||
+        activeConversation?.id === targetId ||
+        activeConversation?.id === canonicalId;
+
+      if (isTargetActive) {
         localStorage.removeItem(activeKey);
-        const remaining = conversations.filter((c) => c.id !== targetId);
+        localStorage.removeItem('pm_active_conv_id');
+        const remaining = conversations.filter(
+          (c) =>
+            c.id !== targetId &&
+            c.id !== canonicalId &&
+            cleanUserIdKey(c.participantId) !== cleanUserIdKey(targetPartId)
+        );
         if (remaining.length > 0) {
           setSelectedConvId(remaining[0].id);
           localStorage.setItem(activeKey, remaining[0].id);
@@ -963,38 +1038,58 @@ export function MessagesPage() {
           setSelectedConvId('');
         }
         setMobileChatOpen(false);
+        setFirebaseMessages([]);
       }
 
-      // Clean message state buffers
+      // Clean message state buffers for all ID variants
       setOptimisticMessages((prev) => {
         const copy = { ...prev };
         delete copy[targetId];
+        delete copy[canonicalId];
         return copy;
       });
       setServerMessages((prev) => {
         const copy = { ...prev };
         delete copy[targetId];
+        delete copy[canonicalId];
         return copy;
       });
       setBroadcastMessages((prev) => {
         const copy = { ...prev };
         delete copy[targetId];
+        delete copy[canonicalId];
         return copy;
       });
 
-      // Serverless backend deletion
-      fetch(`/api/conversations?id=${encodeURIComponent(targetId)}&userId=${encodeURIComponent(currentUserId)}`, {
-        method: 'DELETE',
-      }).catch(() => {});
+      // Clear local room caches
+      try {
+        localStorage.removeItem(`pm_room_${targetId}`);
+        localStorage.removeItem(`pm_room_${canonicalId}`);
+      } catch {}
 
-      // Firebase inbox deletion if configured
-      if (isFirebaseConfigured() && cleanMy) {
-        fetch(`${FIREBASE_DATABASE_URL}/user_inbox/${cleanMy}/${targetId}.json`, {
-          method: 'DELETE',
-        }).catch(() => {});
+      // 1. Permanently delete from Firebase Realtime DB (all messages, meta, typing, inboxes)
+      deleteConversationFromFirebase(targetId, currentUserId, targetPartId);
+      if (canonicalId && canonicalId !== targetId) {
+        deleteConversationFromFirebase(canonicalId, currentUserId, targetPartId);
       }
 
-      setNotice(`Conversation with ${targetParticipantName} deleted.`);
+      // 2. Permanently delete from Serverless Neon PostgreSQL database
+      const deleteUrls = [
+        `/api/conversations?id=${encodeURIComponent(targetId)}&participantId=${encodeURIComponent(targetPartId)}&userId=${encodeURIComponent(currentUserId)}`,
+      ];
+      if (canonicalId && canonicalId !== targetId) {
+        deleteUrls.push(
+          `/api/conversations?id=${encodeURIComponent(canonicalId)}&participantId=${encodeURIComponent(targetPartId)}&userId=${encodeURIComponent(currentUserId)}`
+        );
+      }
+      await Promise.allSettled(
+        deleteUrls.map((url) => fetch(url, { method: 'DELETE' }))
+      );
+
+      // Invalidate queries so TanStack cache reflects complete deletion from DB
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+      setNotice(`Conversation with ${targetParticipantName} deleted completely from database.`);
       setTimeout(() => setNotice(null), 3500);
       setConvToDelete(null);
       refetch();

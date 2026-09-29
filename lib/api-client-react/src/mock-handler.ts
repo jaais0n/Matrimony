@@ -927,11 +927,26 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
 
   if ((cleanUrl === '/api/conversations' || cleanUrl.startsWith('/api/conversations/')) && method === 'DELETE') {
     const convId = searchParams.get('id') || cleanUrl.replace('/api/conversations/', '').replace('/delete', '');
+    const partId = searchParams.get('participantId') || '';
     const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const cleanP = String(partId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
     const convKey = cleanU && cleanU !== 'guest' ? `pm_user_conversations_${cleanU}` : 'pm_user_conversations';
     let userConvs = getBrowserStorage<any[]>(convKey, []);
-    userConvs = userConvs.filter((c: any) => c.id !== convId);
+    userConvs = userConvs.filter((c: any) => {
+      if (convId && c.id === convId) return false;
+      if (cleanP) {
+        const cPart = String(c.participantId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+        const cCreator = String(c.creatorId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+        if (cPart === cleanP || cCreator === cleanP) return false;
+      }
+      return true;
+    });
     setBrowserStorage(convKey, userConvs);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        if (convId) localStorage.removeItem(`pm_room_${convId}`);
+      }
+    } catch {}
     return { success: true, deletedId: convId };
   }
 
