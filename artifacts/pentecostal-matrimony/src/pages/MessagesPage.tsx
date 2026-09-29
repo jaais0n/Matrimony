@@ -414,38 +414,40 @@ export function MessagesPage() {
       };
     }
 
-    // If not found in conversation list yet, check if registered candidate profile exists
-    try {
-      const raw = localStorage.getItem('pm_registered_profiles');
-      if (raw) {
-        const profs = JSON.parse(raw);
-        const cand = profs.find(
-          (p: any) =>
-            selectedConvId.includes(cleanUserIdKey(p.id)) ||
-            selectedConvId.includes(cleanUserIdKey(p.userId)) ||
-            cleanUserIdKey(p.id) === cleanUserIdKey(selectedConvId) ||
-            cleanUserIdKey(p.userId) === cleanUserIdKey(selectedConvId)
-        );
-        if (cand) {
-          const photo = cand.photos?.[0]?.url || cand.primaryPhotoUrl || findParticipantPhoto(cand.userId || cand.id, cand.displayName);
-          return {
-            id: getDeterministicConvId(currentUserId, cand.userId || cand.id),
-            participantId: cand.userId || cand.id,
-            participantName: cand.displayName || 'Believer Candidate',
-            participantAge: cand.age || 28,
-            participantLocation: [cand.location, cand.country].filter(Boolean).join(', ') || 'India',
-            participantPhoto: photo,
-            participantOccupation: cand.occupation || 'Professional',
-            participantDenomination: cand.denomination || 'Pentecostal',
-            status: 'active',
-            lastMessageText: 'No messages yet.',
-            lastMessageAt: new Date().toISOString(),
-            unreadCount: 0,
-            messages: [],
-          };
+    // If an explicit conversation ID was requested (e.g. from ?user= query param) but not yet in list
+    if (selectedConvId) {
+      try {
+        const raw = localStorage.getItem('pm_registered_profiles');
+        if (raw) {
+          const profs = JSON.parse(raw);
+          const cand = profs.find(
+            (p: any) =>
+              (p.id && cleanUserIdKey(p.id) === cleanUserIdKey(selectedConvId)) ||
+              (p.userId && cleanUserIdKey(p.userId) === cleanUserIdKey(selectedConvId)) ||
+              (p.id && selectedConvId === getDeterministicConvId(currentUserId, p.id)) ||
+              (p.userId && selectedConvId === getDeterministicConvId(currentUserId, p.userId))
+          );
+          if (cand) {
+            const photo = cand.photos?.[0]?.url || cand.primaryPhotoUrl || findParticipantPhoto(cand.userId || cand.id, cand.displayName);
+            return {
+              id: getDeterministicConvId(currentUserId, cand.userId || cand.id),
+              participantId: cand.userId || cand.id,
+              participantName: cand.displayName || 'Believer Candidate',
+              participantAge: cand.age || 28,
+              participantLocation: [cand.location, cand.country].filter(Boolean).join(', ') || 'India',
+              participantPhoto: photo,
+              participantOccupation: cand.occupation || 'Professional',
+              participantDenomination: cand.denomination || 'Pentecostal',
+              status: 'active',
+              lastMessageText: 'No messages yet.',
+              lastMessageAt: new Date().toISOString(),
+              unreadCount: 0,
+              messages: [],
+            };
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     return conversations[0] || null;
   }, [conversations, selectedConvId, currentUserId, findParticipantPhoto]);
@@ -1096,18 +1098,6 @@ export function MessagesPage() {
     }
   }, [currentMessages.length, scrollToBottom]);
 
-  // Registered candidate profiles for quick start if conversation list is empty
-  const registeredProfiles = (() => {
-    try {
-      const raw = localStorage.getItem('pm_registered_profiles');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed.filter((p: any) => !isSeedProfile(p));
-      }
-    } catch {}
-    return [];
-  })();
-
   return (
     <div className="h-[calc(100dvh-7.5rem)] md:h-[calc(100vh-4.5rem)] flex flex-col bg-slate-50 text-slate-900 overflow-hidden">
       {notice && (
@@ -1538,55 +1528,27 @@ export function MessagesPage() {
                   </form>
                 </>
               ) : (
-                <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-600 mb-3 shadow-xs">
-                    <MessageCircle size={26} />
+                <div className="flex h-full flex-col items-center justify-center p-8 text-center max-w-md mx-auto">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100 text-rose-700 mb-4 shadow-xs">
+                    <MessageCircle size={28} />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900">Select a Candidate to Message</h3>
-                  <p className="mt-1.5 max-w-sm text-xs text-slate-500 leading-relaxed">
-                    Choose a conversation from the sidebar or connect with verified believers in the directory.
+                  <h3 className="text-base font-bold text-slate-900">
+                    {conversations.length > 0 ? 'Select a Conversation' : 'Private Matrimonial Discernment'}
+                  </h3>
+                  <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                    {conversations.length > 0
+                      ? 'Choose a conversation from the sidebar to view your messages and continue discerning together.'
+                      : 'You do not have any active message threads. In our Pentecostal community, private messaging is intentional. Connect with verified believers through the directory to begin prayerful communication.'}
                   </p>
-
-                  {registeredProfiles.length > 0 && (
-                    <div className="mt-6 w-full max-w-md space-y-2">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Available Believers</p>
-                      {registeredProfiles.slice(0, 3).map((cand: any) => (
-                        <button
-                          key={cand.id}
-                          type="button"
-                          onClick={() => {
-                            const cid = initiateConversation(cand, currentUserId);
-                            setSelectedConvId(cid);
-                            refetch();
-                          }}
-                          className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 transition cursor-pointer text-left bg-white"
-                        >
-                          <div className="flex items-center gap-3">
-                            {cand.photos && cand.photos[0] ? (
-                              <img src={cand.photos[0].url} alt="" className="h-9 w-9 rounded-full object-cover border" />
-                            ) : (
-                              <div className="h-9 w-9 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs">
-                                {cand.displayName?.slice(0, 2).toUpperCase()}
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-xs font-bold text-slate-900">{cand.displayName}, {cand.age}</p>
-                              <p className="text-[10px] text-slate-500">{cand.denomination}</p>
-                            </div>
-                          </div>
-                          <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded-md">Chat</span>
-                        </button>
-                      ))}
-                    </div>
+                  {conversations.length === 0 && (
+                    <Link
+                      href="/discover"
+                      className="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-rose-700 hover:bg-rose-800 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                    >
+                      <Compass size={14} />
+                      <span>Browse Believers Directory</span>
+                    </Link>
                   )}
-
-                  <Link
-                    href="/discover"
-                    className="mt-6 inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:border-rose-400 hover:text-rose-700 transition shadow-2xs"
-                  >
-                    <Compass size={14} />
-                    <span>Open Discover Directory</span>
-                  </Link>
                 </div>
               )}
             </div>
