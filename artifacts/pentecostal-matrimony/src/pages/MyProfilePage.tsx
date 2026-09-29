@@ -495,7 +495,7 @@ export function MyProfilePage() {
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-16 text-slate-900">
       {/* Top Banner / Account Header */}
-      <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-rose-900 text-white pt-8 pb-12 px-4 sm:px-6 relative overflow-hidden border-b border-rose-900/40">
+      <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-rose-900 text-white pt-8 pb-8 sm:pb-10 px-4 sm:px-6 relative overflow-hidden border-b border-rose-900/40">
         <div className="pointer-events-none absolute -top-24 left-1/4 h-80 w-80 rounded-full bg-rose-500/10 blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 right-10 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl" />
 
@@ -575,7 +575,7 @@ export function MyProfilePage() {
       </div>
 
       {/* Main Content Hub with Sidebar Navigation */}
-      <div className="mx-auto max-w-5xl px-3 sm:px-6 -mt-6">
+      <div className="mx-auto max-w-5xl px-3 sm:px-6 mt-6 sm:mt-8">
         {/* Mobile Horizontal Navigation Tabs (Visible on Mobile/Tablet < lg) */}
         <div className="lg:hidden mb-4 overflow-x-auto no-scrollbar flex items-center gap-1.5 p-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
           {[

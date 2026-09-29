@@ -72,23 +72,57 @@ export default async function handler(req, res) {
       const userConvs = store.conversations
         .filter((c) => userIsParticipant(c, cleanUser))
         .map((c) => {
+          const convId = (c.id || '').toLowerCase();
+          const convParts = convId.replace(/^conv_/, '').split('_');
           const pClean = cleanIdKey(c.participantId || '');
           const cClean = cleanIdKey(c.creatorId || '');
-          // If the requester is participantId, invert so requester sees creator as participant
-          if (pClean === cleanUser && cClean && cClean !== cleanUser) {
+          const otherKey = convParts.find((k) => k && k !== cleanUser) || (pClean !== cleanUser ? pClean : cClean);
+          const otherProf = (store.profiles || []).find((p) => cleanIdKey(p.userId || p.id) === otherKey);
+
+          let participantId = c.participantId;
+          let participantName = c.participantName;
+          let participantPhoto = c.participantPhoto || '';
+          let participantAge = c.participantAge || 28;
+          let participantLocation = c.participantLocation || 'India';
+          let participantOccupation = c.participantOccupation || 'Professional';
+          let participantDenomination = c.participantDenomination || 'Pentecostal';
+
+          if (otherProf) {
+            participantId = otherProf.id || otherProf.userId;
+            participantName = otherProf.displayName || 'Candidate';
+            participantPhoto = (otherProf.photos?.[0]?.url || otherProf.primaryPhotoUrl) || participantPhoto;
+            participantAge = otherProf.age || participantAge;
+            participantLocation = otherProf.location || participantLocation;
+            participantOccupation = otherProf.occupation || participantOccupation;
+            participantDenomination = otherProf.denomination || participantDenomination;
+          } else if (pClean === cleanUser && cClean && cClean !== cleanUser) {
             const creatorProf = (store.profiles || []).find((p) => cleanIdKey(p.userId || p.id) === cClean);
-            return {
-              ...c,
-              participantId: c.creatorId,
-              participantName: c.creatorName || creatorProf?.displayName || 'Believer Candidate',
-              participantPhoto: c.creatorPhoto || (creatorProf?.photos?.[0]?.url || creatorProf?.primaryPhotoUrl) || '',
-              participantAge: creatorProf?.age || c.participantAge || 28,
-              participantLocation: (creatorProf?.location ? [creatorProf.location, creatorProf.country].filter(Boolean).join(', ') : '') || c.participantLocation || 'India',
-              participantOccupation: creatorProf?.occupation || c.participantOccupation || 'Professional',
-              participantDenomination: creatorProf?.denomination || c.participantDenomination || 'Pentecostal',
-            };
+            participantId = c.creatorId;
+            participantName = c.creatorName || creatorProf?.displayName || 'Believer Candidate';
+            participantPhoto = c.creatorPhoto || (creatorProf?.photos?.[0]?.url || creatorProf?.primaryPhotoUrl) || '';
+            participantAge = creatorProf?.age || c.participantAge || 28;
           }
-          return c;
+
+          // Strip synthetic / system messages
+          const cleanMsgs = (c.messages || []).filter((m) => {
+            const sId = String(m.senderId || '').toLowerCase();
+            const sName = String(m.senderName || '').toLowerCase();
+            const txt = String(m.content || m.text || '').toLowerCase();
+            return sId !== 'system' && !sName.includes('stewards') && !txt.includes('mutual connection confirmed');
+          });
+
+          return {
+            ...c,
+            participantId,
+            participantName,
+            participantPhoto,
+            participantAge,
+            participantLocation,
+            participantOccupation,
+            participantDenomination,
+            messages: cleanMsgs,
+            lastMessageText: cleanMsgs[cleanMsgs.length - 1]?.content || cleanMsgs[cleanMsgs.length - 1]?.text || 'No messages yet.',
+          };
         });
       res.status(200).json(userConvs);
       return;

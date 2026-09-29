@@ -895,19 +895,10 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
         participantOccupation: b.participantOccupation || 'Professional',
         participantDenomination: b.participantDenomination || 'Assemblies of God',
         status: 'active',
-        lastMessageText: 'Grace and peace to you in Christ Jesus.',
+        lastMessageText: '',
         lastMessageAt: new Date().toISOString(),
         unreadCount: 0,
-        messages: [
-          {
-            id: `msg_sys_${Date.now()}`,
-            senderId: 'system',
-            senderName: 'Platform Stewards',
-            content: 'Mutual connection confirmed. Messages automatically delete after 24 hours for member privacy.',
-            timestamp: new Date().toISOString(),
-            read: true,
-          },
-        ],
+        messages: [],
       };
 
       userConvs = [newConv, ...userConvs];
@@ -927,7 +918,7 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
       const now = Date.now();
       return (convs || []).map((c: any) => {
         const valid = (c.messages || []).filter((m: any) => {
-          if (m.senderId === 'system') return true;
+          if (m.senderId === 'system' || (m.senderName && m.senderName.includes('Stewards'))) return false;
           return now - new Date(m.timestamp).getTime() < TWENTY_FOUR_HOURS_MS;
         });
         return { ...c, messages: valid };

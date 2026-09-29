@@ -147,34 +147,70 @@ export function MessagesPage() {
     return '';
   }, [user?.imageUrl, currentUserId, currentUserName]);
 
-  const findParticipantPhoto = useCallback((participantId: string, participantName?: string): string => {
-    const cleanPart = cleanUserIdKey(participantId);
-    const cleanName = (participantName || '').trim().toLowerCase();
-
-    // 1. Check all registered profiles in localStorage
+  const findParticipantProfile = useCallback((participantId?: string, participantName?: string, convId?: string) => {
     try {
       const raw = localStorage.getItem('pm_registered_profiles');
-      if (raw) {
-        const profs = JSON.parse(raw);
-        const found = profs.find((p: any) => {
-          const pClean = cleanUserIdKey(p.userId || p.id);
-          const pName = (p.displayName || '').trim().toLowerCase();
-          return pClean === cleanPart || (cleanName && pName === cleanName);
+      if (!raw) return null;
+      const profs: any[] = JSON.parse(raw);
+      if (!Array.isArray(profs)) return null;
+
+      const pClean = cleanUserIdKey(participantId || '');
+      const pName = (participantName || '').trim().toLowerCase();
+      const myClean = cleanUserIdKey(currentUserId);
+
+      // 1. Direct ID match (ignoring system/stewards)
+      if (pClean && pClean !== 'system' && !pClean.includes('steward') && pClean !== myClean) {
+        const direct = profs.find((p) => {
+          const cId = cleanUserIdKey(p.userId || p.id);
+          return cId === pClean;
         });
-        if (found) {
-          const url = found.photos?.[0]?.url || found.primaryPhotoUrl;
-          if (url) return url;
+        if (direct) return direct;
+      }
+
+      // 2. Direct Name match (ignoring system/stewards)
+      if (pName && !pName.includes('steward') && !pName.includes('system') && !pName.includes('platform')) {
+        const directName = profs.find((p) => {
+          const dn = (p.displayName || '').trim().toLowerCase();
+          return dn === pName;
+        });
+        if (directName) return directName;
+      }
+
+      // 3. Search via convId (e.g. conv_test1_test3 or conv_user_test1_..._user_test3_...)
+      if (convId) {
+        const parts = convId.replace(/^conv_/, '').split('_');
+        for (const part of parts) {
+          const cleanPart = cleanUserIdKey(part);
+          if (cleanPart && cleanPart !== myClean && cleanPart !== 'system' && !cleanPart.includes('steward')) {
+            const match = profs.find((p) => {
+              const cId = cleanUserIdKey(p.userId || p.id);
+              return cId === cleanPart || cId.includes(cleanPart) || cleanPart.includes(cId);
+            });
+            if (match) return match;
+          }
         }
       }
     } catch {}
+    return null;
+  }, [currentUserId]);
 
-    // 2. Fallback for Suru
+  const findParticipantPhoto = useCallback((participantId: string, participantName?: string, convId?: string): string => {
+    const prof = findParticipantProfile(participantId, participantName, convId);
+    if (prof) {
+      const url = prof.photos?.[0]?.url || prof.primaryPhotoUrl;
+      if (url) return url;
+    }
+
+    const cleanPart = cleanUserIdKey(participantId);
+    const cleanName = (participantName || '').trim().toLowerCase();
+
+    // Fallback for Suru
     if (cleanPart === 'sura' || cleanName.includes('suru') || cleanName.includes('sura')) {
       return 'https://res.cloudinary.com/suvkbjww/image/upload/v1790445115/eljlyxdlh0rkbg4pqoih.jpg';
     }
 
     return '';
-  }, []);
+  }, [findParticipantProfile]);
 
   const [selectedConvId, setSelectedConvId] = useState<string>(() => {
     try {
@@ -340,7 +376,8 @@ export function MessagesPage() {
 
       let participantId = c.participantId;
       let participantName = c.participantName;
-      let participantPhoto = c.participantPhoto || findParticipantPhoto(c.participantId, c.participantName);
+      let participantAge = typeof c.participantAge === 'number' ? c.participantAge : 0;
+      let participantPhoto = c.participantPhoto;
 
       const partClean = cleanUserIdKey(c.participantId);
       const creatorClean = cleanUserIdKey(c.creatorId || '');
@@ -349,36 +386,65 @@ export function MessagesPage() {
       if (partClean === myCleanId && creatorClean && creatorClean !== myCleanId && c.creatorId) {
         participantId = c.creatorId;
         participantName = c.creatorName || 'Believer Candidate';
-        participantPhoto = c.creatorPhoto || findParticipantPhoto(c.creatorId, c.creatorName);
-      } else if (partClean === myCleanId) {
-        const otherMsg = (c.messages || []).find((m: any) => cleanUserIdKey(m.senderId) !== myCleanId);
+        participantPhoto = c.creatorPhoto;
+      } else if (
+        partClean === myCleanId ||
+        partClean === 'system' ||
+        partClean.includes('steward') ||
+        (participantName && participantName.toLowerCase().includes('steward'))
+      ) {
+        const otherMsg = (c.messages || []).find((m: any) => {
+          const sClean = cleanUserIdKey(m.senderId || '');
+          const sName = (m.senderName || '').toLowerCase();
+          return sClean !== myCleanId && sClean !== 'system' && !sClean.includes('steward') && !sName.includes('steward');
+        });
         if (otherMsg) {
           participantId = otherMsg.senderId;
           participantName = otherMsg.senderName || 'Believer Candidate';
-          participantPhoto = findParticipantPhoto(otherMsg.senderId, otherMsg.senderName);
-        } else {
-          continue;
         }
+      }
+
+      // Look up real candidate profile in DB / registered profiles
+      const prof = findParticipantProfile(participantId, participantName, c.id);
+      if (prof) {
+        participantId = prof.userId || prof.id || participantId;
+        participantName = prof.displayName || participantName;
+        participantAge = prof.age || participantAge;
+        participantPhoto = prof.photos?.[0]?.url || prof.primaryPhotoUrl || participantPhoto;
       }
 
       const otherClean = cleanUserIdKey(participantId);
       if (otherClean === myCleanId) continue;
+      if (
+        otherClean === 'system' ||
+        otherClean.includes('steward') ||
+        (participantName && participantName.toLowerCase().includes('steward'))
+      ) {
+        continue;
+      }
       if (participantName && myCleanName && participantName.trim().toLowerCase() === myCleanName) continue;
 
       const valid = (c.messages || []).filter((m: any) => {
         if (!m || !m.content) return false;
         const text = m.content;
+        const sClean = cleanUserIdKey(m.senderId || '');
+        const sName = (m.senderName || '').toLowerCase();
+        if (sClean === 'system' || sClean.includes('steward') || sName.includes('steward') || sName.includes('platform')) {
+          return false;
+        }
         return (
           !text.includes('Praise the Lord! Thank you for reaching out') &&
           !text.includes('God bless you. It is inspiring') &&
-          !text.includes('Mutual connection confirmed.')
+          !text.includes('Mutual connection confirmed.') &&
+          !text.includes('Grace and peace') &&
+          !text.includes('Messages automatically delete')
         );
       });
       const lastMsg = valid[valid.length - 1];
       const nameKey = (participantName || '').trim().toLowerCase();
       const participantKey = otherClean || nameKey || c.id;
       const canonicalConvId = getDeterministicConvId(currentUserId, participantId);
-      const photo = participantPhoto || findParticipantPhoto(participantId, participantName);
+      const photo = participantPhoto || findParticipantPhoto(participantId, participantName, c.id);
 
       const existing = map.get(participantKey);
       const convTime = new Date(lastMsg ? lastMsg.timestamp : (c.lastMessageAt || 0)).getTime();
@@ -390,6 +456,7 @@ export function MessagesPage() {
           id: canonicalConvId,
           participantId,
           participantName,
+          participantAge: participantAge || (prof ? prof.age : 0),
           participantPhoto: photo || existing?.participantPhoto || '',
           messages: valid,
           lastMessageText: lastMsg ? lastMsg.content : sanitizeText(c.lastMessageText),
@@ -404,12 +471,16 @@ export function MessagesPage() {
       const partClean = cleanUserIdKey(fi.participantId);
       // NEVER show self in conversation list
       if (partClean === myCleanId) continue;
+      if (partClean === 'system' || partClean.includes('steward') || (fi.participantName && fi.participantName.toLowerCase().includes('steward'))) continue;
       if (fi.participantName && myCleanName && fi.participantName.trim().toLowerCase() === myCleanName) continue;
 
-      const nameKey = (fi.participantName || '').trim().toLowerCase();
+      const prof = findParticipantProfile(fi.participantId, fi.participantName, fi.id);
+      const resolvedName = prof?.displayName || fi.participantName || 'Believer Candidate';
+      const resolvedAge = prof?.age || fi.participantAge || 28;
+      const nameKey = resolvedName.trim().toLowerCase();
       const participantKey = partClean || nameKey || fi.id;
       const canonicalConvId = getDeterministicConvId(currentUserId, fi.participantId);
-      const photo = fi.participantPhoto || findParticipantPhoto(fi.participantId, fi.participantName);
+      const photo = fi.participantPhoto || findParticipantPhoto(fi.participantId, resolvedName, fi.id);
       const existing = map.get(participantKey);
 
       if (existing) {
@@ -418,6 +489,8 @@ export function MessagesPage() {
         map.set(participantKey, {
           ...existing,
           id: canonicalConvId,
+          participantName: resolvedName,
+          participantAge: resolvedAge,
           participantPhoto: photo || existing.participantPhoto || '',
           lastMessageText: sanitizeText(fi.lastMessageText) || existing.lastMessageText,
           lastMessageAt: fiTime >= existingTime ? (fi.lastMessageAt || existing.lastMessageAt) : existing.lastMessageAt,
@@ -427,8 +500,8 @@ export function MessagesPage() {
         map.set(participantKey, {
           id: canonicalConvId,
           participantId: fi.participantId,
-          participantName: fi.participantName || 'Believer Candidate',
-          participantAge: fi.participantAge || 28,
+          participantName: resolvedName,
+          participantAge: resolvedAge,
           participantLocation: fi.participantLocation || 'India',
           participantPhoto: photo,
           participantOccupation: fi.participantOccupation || 'Professional',
@@ -445,7 +518,7 @@ export function MessagesPage() {
     const list = Array.from(map.values());
     list.sort((a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime());
     return list;
-  }, [rawConversations, firebaseInbox, currentUserId, currentUserName, findParticipantPhoto]);
+  }, [rawConversations, firebaseInbox, currentUserId, currentUserName, findParticipantPhoto, findParticipantProfile]);
 
   const activeConversation = useMemo(() => {
     if (!selectedConvId && conversations.length > 0) return conversations[0];
@@ -457,9 +530,12 @@ export function MessagesPage() {
         getDeterministicConvId(currentUserId, c.participantId) === selectedConvId
     );
     if (found) {
+      const prof = findParticipantProfile(found.participantId, found.participantName, found.id);
       return {
         ...found,
-        participantPhoto: found.participantPhoto || findParticipantPhoto(found.participantId, found.participantName),
+        participantName: prof?.displayName || found.participantName,
+        participantAge: prof?.age || found.participantAge,
+        participantPhoto: prof?.photos?.[0]?.url || prof?.primaryPhotoUrl || found.participantPhoto || findParticipantPhoto(found.participantId, found.participantName, found.id),
       };
     }
 
@@ -499,7 +575,7 @@ export function MessagesPage() {
     }
 
     return conversations[0] || null;
-  }, [conversations, selectedConvId, currentUserId, findParticipantPhoto]);
+  }, [conversations, selectedConvId, currentUserId, findParticipantPhoto, findParticipantProfile]);
 
   // Safe handler for remote typing events with auto-clear timeout
   const handleRemoteTyping = useCallback((typing: boolean) => {
@@ -1195,11 +1271,18 @@ export function MessagesPage() {
 
     const addMessage = (m: ChatMessage, prefix: string) => {
       if (!m || !m.content) return;
+      const sClean = cleanUserIdKey(m.senderId || '');
+      const sName = (m.senderName || '').toLowerCase();
+      if (sClean === 'system' || sClean.includes('steward') || sName.includes('steward') || sName.includes('platform')) {
+        return;
+      }
       if (
         m.content.includes('Praise the Lord! Thank you for reaching out') ||
         m.content.includes('God bless you. It is inspiring') ||
         m.content.includes('Mutual connection confirmed.') ||
-        m.content.includes('Started a conversation in faith.')
+        m.content.includes('Started a conversation in faith.') ||
+        m.content.includes('Grace and peace') ||
+        m.content.includes('Messages automatically delete')
       ) {
         return;
       }

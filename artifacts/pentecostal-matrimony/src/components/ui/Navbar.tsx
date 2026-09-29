@@ -73,6 +73,7 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
     { label: 'Search', href: '/search' },
     { label: 'Interests', href: '/interests' },
     { label: 'Messages', href: '/messages' },
+    { label: 'My Profile', href: '/my-profile' },
     ...(isAdmin ? [{ label: 'Admin Hub', href: '/admin' }] : []),
   ];
 
@@ -142,34 +143,14 @@ export function Navbar({ activeRole }: { activeRole?: string; onToggleRole?: (ro
             )}
           </Link>
 
-          {/* Desktop Right Button: Admin Portal for Admin, My Profile with Photo for Member */}
-          {isAdmin ? (
+          {/* Admin Portal link for Administrator */}
+          {isAdmin && (
             <Link
               href="/admin"
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 transition shadow-2xs shrink-0"
             >
               <Shield size={13} className="text-rose-400" />
               <span className="hidden sm:inline">Admin Portal</span>
-            </Link>
-          ) : (
-            <Link
-              href="/my-profile"
-              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full border border-rose-200 bg-rose-50/80 px-2 sm:px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 hover:border-rose-300 transition shadow-2xs shrink-0"
-            >
-              {userPhotoUrl ? (
-                <div className="h-6 w-6 rounded-full overflow-hidden border border-rose-300 shadow-2xs shrink-0">
-                  <img
-                    src={userPhotoUrl}
-                    alt="My Profile"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-200/60 text-rose-700 shrink-0">
-                  <User size={13} className="text-rose-700" />
-                </div>
-              )}
-              <span className="hidden sm:inline">My Profile</span>
             </Link>
           )}
 

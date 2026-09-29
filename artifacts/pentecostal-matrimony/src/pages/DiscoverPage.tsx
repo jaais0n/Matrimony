@@ -443,18 +443,7 @@ export function DiscoverPage() {
           )}
         </div>
 
-        {/* Profiles Count Banner */}
-        <div className="mt-3.5 sm:mt-5 flex items-center justify-between px-1">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-bold text-slate-700">
-              {`${displayedProfiles.length} Verified Believers Active`}
-            </span>
-          </div>
-          <span className="text-[11px] font-medium text-slate-400">
-            Faith & values alignment
-          </span>
-        </div>
+
 
         {/* Profiles Grid */}
         <div className="mt-3 sm:mt-4">
