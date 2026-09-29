@@ -180,12 +180,17 @@ export function deduplicateProfiles<T extends { id?: string; userId?: string; di
       const existingName = existing.displayName ? existing.displayName.trim().toLowerCase() : '';
       const existingUserId = existing.userId ? String(existing.userId).trim() : '';
       const existingId = existing.id ? String(existing.id).trim() : '';
-      const existingPhoto = existing.primaryPhotoUrl || (existing.photos && existing.photos[0] ? existing.photos[0].url : '');
 
+      // Direct ID or userId match
       if (idKey && existingId && idKey === existingId) return true;
       if (userIdKey && existingUserId && userIdKey === existingUserId) return true;
-      if (nameKey && existingName && nameKey === existingName) return true;
-      if (photoKey && existingPhoto && photoKey.length > 50 && photoKey === existingPhoto) return true;
+
+      // Never merge if either ID or userId are explicitly different
+      if (idKey && existingId && idKey !== existingId) return false;
+      if (userIdKey && existingUserId && userIdKey !== existingUserId) return false;
+
+      // Only match by name if neither record has an ID or userId
+      if (nameKey && existingName && nameKey === existingName && !idKey && !existingId && !userIdKey && !existingUserId) return true;
       return false;
     });
 

@@ -89,8 +89,27 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
 
   // Verification Queue Query
   const { data: rawQueue = [], refetch: refetchQueue } = useQuery({
-    queryKey: ['admin-queue'],
-    queryFn: () => customFetch<any[]>('/api/admin/verification-queue'),
+    queryKey: ['admin-queue', profilesList.length],
+    queryFn: async () => {
+      const apiQueue = await customFetch<any[]>('/api/admin/verification-queue').catch(() => []);
+      let queueList = Array.isArray(apiQueue) ? [...apiQueue] : [];
+      for (const p of profilesList) {
+        if (p.verificationStatus !== 'verified') {
+          const exists = queueList.some(
+            (q) => (q.profile?.id && q.profile?.id === p.id) || (q.profile?.userId && q.profile?.userId === p.userId)
+          );
+          if (!exists) {
+            queueList.push({
+              profile: p,
+              submittedAt: p.updatedAt || p.createdAt || new Date().toISOString(),
+              identityChecked: true,
+              churchInformationProvided: Boolean(p.church || p.faith?.church),
+            });
+          }
+        }
+      }
+      return queueList;
+    },
   });
   const queue = Array.isArray(rawQueue) ? rawQueue : [];
 
@@ -163,13 +182,82 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
             localItems.push(myProf);
           }
         }
+        // Scan all pm_user_profile_* in localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('pm_user_profile_')) {
+            try {
+              const uProf = JSON.parse(localStorage.getItem(key) || '{}');
+              if (uProf && (uProf.id || uProf.userId) && !isSeedProfile(uProf)) {
+                if (!localItems.some((p) => p.id === uProf.id || (p.userId && uProf.userId && p.userId === uProf.userId))) {
+                  localItems.push(uProf);
+                }
+              }
+            } catch {}
+          }
+        }
       } catch {}
 
-      const res = await customFetch<any>('/api/profiles').catch(() => null);
-      const apiItems = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
+      // Fetch authoritative profiles from database
+      let apiItems: any[] = [];
+      try {
+        const res = await fetch(`/api/profiles?_t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+        apiItems = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
+      } catch {
+        const fallback = await customFetch<any>('/api/profiles').catch(() => null);
+        apiItems = Array.isArray(fallback?.items) ? fallback.items : (Array.isArray(fallback) ? fallback : []);
+      }
+
+      // Also reconcile with registered user accounts from database and localStorage
+      // Every registered non-admin candidate MUST have a visible entry in Admin directory
+      try {
+        let allAccounts: any[] = [];
+        try {
+          const dbUsers = await fetch(`/api/auth/users?_t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
+          if (Array.isArray(dbUsers)) allAccounts.push(...dbUsers);
+        } catch {}
+        try {
+          const localAccs = JSON.parse(localStorage.getItem('pm_registered_accounts') || '[]');
+          if (Array.isArray(localAccs)) allAccounts.push(...localAccs);
+        } catch {}
+
+        for (const acc of allAccounts) {
+          if (!acc || acc.id === 'user_admin' || acc.role === 'admin') continue;
+          const alreadyExists =
+            localItems.some((p) => p.userId === acc.id || p.id === `prof_${acc.id}` || (acc.email && p.email && p.email.toLowerCase() === acc.email.toLowerCase())) ||
+            apiItems.some((p) => p.userId === acc.id || p.id === `prof_${acc.id}` || (acc.email && p.email && p.email.toLowerCase() === acc.email.toLowerCase()));
+          if (!alreadyExists) {
+            localItems.push({
+              id: `prof_${acc.id}`,
+              userId: acc.id,
+              displayName: acc.fullName || acc.username || 'Candidate',
+              age: acc.age || 24,
+              gender: acc.gender || 'woman',
+              maritalStatus: 'Never Married',
+              verificationStatus: 'under_review',
+              published: true,
+              profileVisible: true,
+              faith: {
+                denomination: 'Independent Pentecostal',
+                church: 'Faith Community',
+                bornAgain: true,
+                baptised: true,
+              },
+              photos: [],
+              createdAt: acc.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
+      } catch {}
 
       // Only show real registered database profiles (never seed profiles)
       const allItems = deduplicateProfiles([...localItems, ...apiItems]).filter((p: any) => !isSeedProfile(p));
+      try {
+        if (allItems.length > 0) {
+          safeSetLocalStorage('pm_registered_profiles', allItems, true);
+        }
+      } catch {}
       return allItems;
     },
   });

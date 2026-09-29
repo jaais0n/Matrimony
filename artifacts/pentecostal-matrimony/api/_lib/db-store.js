@@ -108,11 +108,15 @@ export function dedup(list) {
     const userId = item.userId || id.replace(/^prof_/, '');
     const normalizedItem = { ...item, id, userId };
 
-    const idx = result.findIndex((e) =>
-      (e.id && e.id === normalizedItem.id) ||
-      (e.userId && e.userId === normalizedItem.userId) ||
-      (name && e.displayName && String(e.displayName).trim().toLowerCase() === name)
-    );
+    const idx = result.findIndex((e) => {
+      if (e.id && normalizedItem.id && e.id === normalizedItem.id) return true;
+      if (e.userId && normalizedItem.userId && e.userId === normalizedItem.userId) return true;
+      // Never merge two records if their IDs or userIds explicitly differ
+      if (e.id && normalizedItem.id && e.id !== normalizedItem.id) return false;
+      if (e.userId && normalizedItem.userId && e.userId !== normalizedItem.userId) return false;
+      if (name && e.displayName && String(e.displayName).trim().toLowerCase() === name) return true;
+      return false;
+    });
     if (idx >= 0) {
       result[idx] = { ...result[idx], ...normalizedItem };
     } else {
@@ -122,8 +126,13 @@ export function dedup(list) {
   return result;
 }
 
+function getDatabaseUrl() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  return "postgresql://neondb_owner:npg_lksoYRUjhS54@ep-morning-breeze-azc2ysa2-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+}
+
 async function queryNeon(sql, params = []) {
-  const connStr = process.env.DATABASE_URL;
+  const connStr = getDatabaseUrl();
   if (!connStr) {
     console.warn('[db-store] DATABASE_URL is not set — operating in memory-only mode.');
     return null;

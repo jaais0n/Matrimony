@@ -48,7 +48,7 @@ const AdminDashboardPage = lazyWithRetry(() => import('./pages/AdminDashboardPag
 const NotFound = lazyWithRetry(() => import('./pages/not-found'));
 import { ErrorBoundary } from './components/error-boundary';
 
-import { safeSetLocalStorage } from './utils/storageHelper';
+import { safeSetLocalStorage, deduplicateProfiles } from './utils/storageHelper';
 import { isSeedProfile, INITIAL_REGISTERED_PROFILES } from '@workspace/api-client-react';
 
 import './index.css';
@@ -129,7 +129,22 @@ function DataSyncEffect() {
             const serverProfiles = rawServerProfiles.filter((p) => !isSeedProfile(p));
 
             if (serverProfiles.length > 0) {
-              safeSetLocalStorage('pm_registered_profiles', serverProfiles, true);
+              let localProfs: any[] = [];
+              try {
+                const parsed = JSON.parse(localStorage.getItem('pm_registered_profiles') || '[]');
+                if (Array.isArray(parsed)) localProfs = parsed;
+              } catch {}
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('pm_user_profile_')) {
+                  try {
+                    const up = JSON.parse(localStorage.getItem(key) || '{}');
+                    if (up && (up.id || up.userId)) localProfs.push(up);
+                  } catch {}
+                }
+              }
+              const consolidated = deduplicateProfiles([...localProfs, ...serverProfiles]).filter((p) => !isSeedProfile(p));
+              safeSetLocalStorage('pm_registered_profiles', consolidated, true);
 
               // Automatically restore My Profile for the currently logged-in user on this device
               try {
