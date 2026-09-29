@@ -215,13 +215,12 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         }
       } catch {}
 
-      // Combine, deduplicate by id, and strictly filter out ANY dummy report
+      // Combine, deduplicate by id and content signature, and strictly filter out ANY dummy report
       const allReports = [...dbReports, ...apiReports, ...localReports];
-      const seen = new Set<string>();
       const cleanReports: any[] = [];
 
       for (const r of allReports) {
-        if (!r || !r.id || seen.has(r.id)) continue;
+        if (!r || !r.id) continue;
         // Purge dummy reports completely
         if (
           r.reporterName === 'Pastor Thomas' ||
@@ -231,8 +230,51 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         ) {
           continue;
         }
-        seen.add(r.id);
-        cleanReports.push(r);
+
+        const repProf = String(r.reportedProfileName || r.reportedProfileId || '').trim().toLowerCase();
+        const reporter = String(r.reporterName || r.reporterId || '').trim().toLowerCase();
+        const reason = String(r.reason || '').trim().toLowerCase();
+        const details = String(r.details || '').trim().toLowerCase();
+
+        // Check if matching report already added
+        const existingIdx = cleanReports.findIndex((e) => {
+          if (e.id === r.id) return true;
+          const eRepProf = String(e.reportedProfileName || e.reportedProfileId || '').trim().toLowerCase();
+          const eReporter = String(e.reporterName || e.reporterId || '').trim().toLowerCase();
+          const eReason = String(e.reason || '').trim().toLowerCase();
+          const eDetails = String(e.details || '').trim().toLowerCase();
+
+          return (
+            eRepProf === repProf &&
+            eReporter === reporter &&
+            eReason === reason &&
+            (eDetails === details || !details || !eDetails)
+          );
+        });
+
+        if (existingIdx >= 0) {
+          // Merge duplicates: if one is already resolved or dismissed, keep that resolved status!
+          const existing = cleanReports[existingIdx];
+          const isResolved =
+            existing.status === 'resolved' ||
+            r.status === 'resolved' ||
+            existing.status === 'action_taken' ||
+            r.status === 'action_taken' ||
+            existing.status === 'dismissed' ||
+            r.status === 'dismissed';
+
+          const resolvedStatus =
+            existing.status !== 'open' ? existing.status : r.status;
+
+          cleanReports[existingIdx] = {
+            ...existing,
+            ...r,
+            status: isResolved ? resolvedStatus : 'open',
+            id: existing.id || r.id,
+          };
+        } else {
+          cleanReports.push(r);
+        }
       }
 
       // Update localStorage with clean reports only
@@ -644,15 +686,58 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   // Moderation Report Action
   const handleReportAction = async (reportId: string, action: 'dismissed' | 'action_taken') => {
     try {
+      try {
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reportId, action }),
+        });
+      } catch {}
+
       await customFetch(`/api/admin/reports/${reportId}/action`, {
         method: 'POST',
         body: JSON.stringify({ action }),
       });
+
+      try {
+        const raw = localStorage.getItem('pm_admin_reports');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            const updated = list.map((r: any) =>
+              r.id === reportId ? { ...r, status: action === 'dismissed' ? 'dismissed' : 'resolved' } : r
+            );
+            localStorage.setItem('pm_admin_reports', JSON.stringify(updated));
+          }
+        }
+      } catch {}
+
       showToast(`Report updated: ${action === 'dismissed' ? 'Dismissed' : 'Action Resolved'}`);
       refetchReports();
       refetchOverview();
     } catch {
       showToast('Action logged.');
+    }
+  };
+
+  // Delete Report
+  const handleDeleteReport = async (reportId: string) => {
+    try {
+      await fetch(`/api/reports?id=${encodeURIComponent(reportId)}`, { method: 'DELETE' }).catch(() => {});
+      try {
+        const raw = localStorage.getItem('pm_admin_reports');
+        if (raw) {
+          const list = JSON.parse(raw);
+          const filtered = Array.isArray(list) ? list.filter((r: any) => r.id !== reportId) : [];
+          localStorage.setItem('pm_admin_reports', JSON.stringify(filtered));
+        }
+      } catch {}
+      showToast('Report deleted.');
+      refetchReports();
+      refetchOverview();
+    } catch {
+      showToast('Report deleted.');
+      refetchReports();
     }
   };
 
@@ -1297,22 +1382,37 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
                           </span>
                         </div>
 
-                        {r.status === 'open' && (
-                          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">
-                            <button
-                              onClick={() => handleReportAction(r.id, 'dismissed')}
-                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                            >
-                              Dismiss
-                            </button>
-                            <button
-                              onClick={() => handleReportAction(r.id, 'action_taken')}
-                              className="rounded-lg bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-800 shadow-xs"
-                            >
-                              Resolve & Suspend
-                            </button>
-                          </div>
-                        )}
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => handleDeleteReport(r.id)}
+                            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-1 transition"
+                            title="Delete this report"
+                          >
+                            <Trash2 size={13} />
+                            <span>Delete</span>
+                          </button>
+
+                          {r.status === 'open' ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleReportAction(r.id, 'dismissed')}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                              >
+                                Dismiss
+                              </button>
+                              <button
+                                onClick={() => handleReportAction(r.id, 'action_taken')}
+                                className="rounded-lg bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-800 shadow-xs transition"
+                              >
+                                Resolve & Suspend
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] font-medium text-slate-400">
+                              Status: {r.status}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

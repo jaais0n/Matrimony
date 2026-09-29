@@ -759,24 +759,35 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     setBrowserStorage('pm_admin_reports', stored);
 
     if (method === 'POST' && body) {
+      const b = body as any;
+      const reportId = b.id || `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const newRep = {
-        id: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        status: 'open',
-        createdAt: new Date().toISOString(),
-        ...(body as any),
+        id: reportId,
+        status: b.status || 'open',
+        createdAt: b.createdAt || new Date().toISOString(),
+        ...b,
       };
+
       // Prevent synthetic dummy reports
       if (newRep.reporterName !== 'Pastor Thomas' && newRep.id !== 'rep_1') {
-        stored = [newRep, ...stored];
+        const repProf = String(newRep.reportedProfileName || '').toLowerCase();
+        const repUser = String(newRep.reporterName || '').toLowerCase();
+        const repReason = String(newRep.reason || '').toLowerCase();
+
+        const existingIdx = stored.findIndex(
+          (r) =>
+            r.id === reportId ||
+            (String(r.reportedProfileName || '').trim().toLowerCase() === repProf &&
+              String(r.reporterName || '').trim().toLowerCase() === repUser &&
+              String(r.reason || '').trim().toLowerCase() === repReason)
+        );
+
+        if (existingIdx >= 0) {
+          stored[existingIdx] = { ...stored[existingIdx], ...newRep };
+        } else {
+          stored = [newRep, ...stored];
+        }
         setBrowserStorage('pm_admin_reports', stored);
-        // Sync to backend /api/reports in background
-        try {
-          fetch('/api/reports', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newRep),
-          }).catch(() => {});
-        } catch {}
       }
       return newRep;
     }

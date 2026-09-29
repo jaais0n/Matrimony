@@ -226,8 +226,10 @@ export function ProfileDetailPage() {
         'Verified Believer';
 
       const reporterEmail = user?.primaryEmailAddress?.emailAddress || '';
+      const reportId = `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
       const reportPayload = {
+        id: reportId,
         reportedProfileId: p.id,
         reportedProfileName: p.displayName,
         reporterId: currentUserId,
@@ -239,27 +241,26 @@ export function ProfileDetailPage() {
         status: 'open',
       };
 
-      // 1. Submit to API / Mock Handler
-      await customFetch('/api/admin/reports', {
-        method: 'POST',
-        body: JSON.stringify(reportPayload),
-      }).catch(() => {});
-
-      // 2. Submit to serverless /api/reports if reachable
+      // 1. Submit once to serverless API / Neon Postgres
       try {
         await fetch('/api/reports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(reportPayload),
+        });
+      } catch {
+        await customFetch('/api/admin/reports', {
+          method: 'POST',
+          body: JSON.stringify(reportPayload),
         }).catch(() => {});
-      } catch {}
+      }
 
-      // 3. Save to localStorage for immediate UI consistency
+      // 2. Save once to localStorage with the exact same ID
       try {
         const raw = localStorage.getItem('pm_admin_reports');
         const list = raw ? JSON.parse(raw) : [];
-        const clean = Array.isArray(list) ? list.filter((r: any) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1') : [];
-        clean.unshift({ id: `rep_${Date.now()}`, ...reportPayload });
+        const clean = Array.isArray(list) ? list.filter((r: any) => r && r.id !== reportId && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1') : [];
+        clean.unshift(reportPayload);
         localStorage.setItem('pm_admin_reports', JSON.stringify(clean));
       } catch {}
 

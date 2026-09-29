@@ -243,7 +243,9 @@ export function MessagesPage() {
   const handleReportUser = async (reason: string, details: string) => {
     if (!activeConversation) return;
     try {
+      const reportId = `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const reportPayload = {
+        id: reportId,
         reportedProfileId: activeConversation.participantId || '',
         reportedProfileName: activeConversation.participantName || 'Candidate',
         reporterId: currentUserId,
@@ -254,24 +256,26 @@ export function MessagesPage() {
         status: 'open',
       };
 
-      await customFetch('/api/admin/reports', {
-        method: 'POST',
-        body: JSON.stringify(reportPayload),
-      }).catch(() => {});
-
+      // 1. Submit once to serverless API / Neon Postgres
       try {
         await fetch('/api/reports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(reportPayload),
+        });
+      } catch {
+        await customFetch('/api/admin/reports', {
+          method: 'POST',
+          body: JSON.stringify(reportPayload),
         }).catch(() => {});
-      } catch {}
+      }
 
+      // 2. Save once to localStorage with exact same ID
       try {
         const raw = localStorage.getItem('pm_admin_reports');
         const list = raw ? JSON.parse(raw) : [];
-        const clean = Array.isArray(list) ? list.filter((r: any) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1') : [];
-        clean.unshift({ id: `rep_${Date.now()}`, ...reportPayload });
+        const clean = Array.isArray(list) ? list.filter((r: any) => r && r.id !== reportId && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1') : [];
+        clean.unshift(reportPayload);
         localStorage.setItem('pm_admin_reports', JSON.stringify(clean));
       } catch {}
 

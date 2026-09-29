@@ -34,8 +34,8 @@ export default async function handler(req, res) {
   // POST /api/reports — submit a real report or update an existing report action
   if (req.method === 'POST') {
     const body = req.body || {};
-    const { action, reportId, id } = body;
-    const targetId = reportId || id || req.query?.id;
+    const { action, reportId: actionReportId, id: actionId } = body;
+    const targetId = actionReportId || actionId || req.query?.id;
 
     // Action handling (dismiss or resolve)
     if (action && targetId) {
@@ -59,8 +59,9 @@ export default async function handler(req, res) {
       return;
     }
 
+    const reportId = body.id || `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newReport = {
-      id: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: reportId,
       reportedProfileId: body.reportedProfileId || body.profileId || '',
       reportedProfileName: reportedProfileName.trim(),
       reporterId: body.reporterId || '',
@@ -68,11 +69,32 @@ export default async function handler(req, res) {
       reporterEmail: body.reporterEmail || '',
       reason: reason.trim(),
       details: details.trim(),
-      createdAt: new Date().toISOString(),
-      status: 'open',
+      createdAt: body.createdAt || new Date().toISOString(),
+      status: body.status || 'open',
     };
 
-    store.reports = [newReport, ...(store.reports || []).filter((r) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1')];
+    const cleanExisting = (store.reports || []).filter((r) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1');
+    const repProf = newReport.reportedProfileName.toLowerCase();
+    const repUser = newReport.reporterName.toLowerCase();
+    const repReason = newReport.reason.toLowerCase();
+
+    const existingIdx = cleanExisting.findIndex(
+      (r) =>
+        r.id === reportId ||
+        (String(r.reportedProfileName || '').trim().toLowerCase() === repProf &&
+          String(r.reporterName || '').trim().toLowerCase() === repUser &&
+          String(r.reason || '').trim().toLowerCase() === repReason)
+    );
+
+    if (existingIdx >= 0) {
+      cleanExisting[existingIdx] = { ...cleanExisting[existingIdx], ...newReport };
+      store.reports = cleanExisting;
+      await writeStore(store);
+      res.status(200).json(cleanExisting[existingIdx]);
+      return;
+    }
+
+    store.reports = [newReport, ...cleanExisting];
     await writeStore(store);
 
     res.status(201).json(newReport);
@@ -94,11 +116,18 @@ export default async function handler(req, res) {
     return;
   }
 
-  // DELETE /api/reports — admin wipe
+  // DELETE /api/reports — admin delete single report by ?id= or wipe all
   if (req.method === 'DELETE') {
-    store.reports = [];
+    const { id, all } = req.query || {};
+    if (all === 'true') {
+      store.reports = [];
+    } else if (id) {
+      store.reports = (store.reports || []).filter((r) => r.id !== id);
+    } else {
+      store.reports = [];
+    }
     await writeStore(store);
-    res.status(200).json({ success: true, message: 'All reports cleared.' });
+    res.status(200).json({ success: true, message: 'Report deleted.' });
     return;
   }
 
