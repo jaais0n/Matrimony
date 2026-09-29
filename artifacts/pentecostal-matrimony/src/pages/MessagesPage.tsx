@@ -18,6 +18,7 @@ import { customFetch, isSeedProfile } from '@workspace/api-client-react';
 import type { Conversation, ChatMessage } from '../types';
 import { ReportModal } from '../components/ui/ReportModal';
 import { BlockModal } from '../components/ui/BlockModal';
+import { DeleteChatModal } from '../components/ui/DeleteChatModal';
 import { initiateConversation } from '../utils/storageHelper';
 import {
   isFirebaseConfigured,
@@ -31,6 +32,7 @@ import {
   setUserPresence,
   subscribeToUserPresence,
   getAllOnlineUsers,
+  FIREBASE_DATABASE_URL,
 } from '../utils/firebaseHelper';
 import { markConversationAsRead } from '../utils/useUnreadMessages';
 import { useAuth, useUser } from '../auth';
@@ -206,6 +208,8 @@ export function MessagesPage() {
   const [inputText, setInputText] = useState('');
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [deleteChatModalOpen, setDeleteChatModalOpen] = useState(false);
+  const [convToDelete, setConvToDelete] = useState<Conversation | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
@@ -927,6 +931,77 @@ export function MessagesPage() {
     } catch {}
   };
 
+  const handleDeleteConversation = () => {
+    if (!convToDelete) return;
+    const targetId = convToDelete.id;
+    const targetPartId = convToDelete.participantId;
+    const targetParticipantName = convToDelete.participantName;
+
+    try {
+      const cleanMy = cleanUserIdKey(currentUserId);
+      const userKey = cleanMy ? `pm_user_conversations_${cleanMy}` : 'pm_user_conversations';
+      const raw = localStorage.getItem(userKey);
+      if (raw) {
+        const convs: Conversation[] = JSON.parse(raw);
+        const filtered = convs.filter(
+          (c) => c.id !== targetId && cleanUserIdKey(c.participantId) !== cleanUserIdKey(targetPartId)
+        );
+        localStorage.setItem(userKey, JSON.stringify(filtered));
+      }
+
+      // If active conversation was deleted, remove active pointer and select next available
+      const activeKey = cleanMy ? `pm_active_conv_id_${cleanMy}` : 'pm_active_conv_id';
+      if (selectedConvId === targetId || activeConversation?.id === targetId) {
+        localStorage.removeItem(activeKey);
+        const remaining = conversations.filter((c) => c.id !== targetId);
+        if (remaining.length > 0) {
+          setSelectedConvId(remaining[0].id);
+          localStorage.setItem(activeKey, remaining[0].id);
+        } else {
+          setSelectedConvId('');
+        }
+        setMobileChatOpen(false);
+      }
+
+      // Clean message state buffers
+      setOptimisticMessages((prev) => {
+        const copy = { ...prev };
+        delete copy[targetId];
+        return copy;
+      });
+      setServerMessages((prev) => {
+        const copy = { ...prev };
+        delete copy[targetId];
+        return copy;
+      });
+      setBroadcastMessages((prev) => {
+        const copy = { ...prev };
+        delete copy[targetId];
+        return copy;
+      });
+
+      // Serverless backend deletion
+      fetch(`/api/conversations?id=${encodeURIComponent(targetId)}&userId=${encodeURIComponent(currentUserId)}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+
+      // Firebase inbox deletion if configured
+      if (isFirebaseConfigured() && cleanMy) {
+        fetch(`${FIREBASE_DATABASE_URL}/user_inbox/${cleanMy}/${targetId}.json`, {
+          method: 'DELETE',
+        }).catch(() => {});
+      }
+
+      setNotice(`Conversation with ${targetParticipantName} deleted.`);
+      setTimeout(() => setNotice(null), 3500);
+      setConvToDelete(null);
+      refetch();
+    } catch {
+      setNotice('Could not delete conversation. Please try again.');
+      setTimeout(() => setNotice(null), 3000);
+    }
+  };
+
   const handleEndConversation = () => {
     setNotice(`Conversation with ${activeConversation?.participantName} has ended.`);
     setMenuOpen(false);
@@ -1055,6 +1130,15 @@ export function MessagesPage() {
             onConfirm={() => setNotice('User blocked.')}
             profileName={activeConversation.participantName}
           />
+          <DeleteChatModal
+            isOpen={deleteChatModalOpen}
+            onClose={() => {
+              setDeleteChatModalOpen(false);
+              setConvToDelete(null);
+            }}
+            onConfirm={handleDeleteConversation}
+            participantName={convToDelete?.participantName || activeConversation.participantName}
+          />
         </>
       )}
 
@@ -1099,16 +1183,26 @@ export function MessagesPage() {
                     const isSelected = activeConversation?.id === c.id;
                     const isOnline = Boolean(onlineUsersMap[cleanUserIdKey(c.participantId)]);
                     return (
-                      <button
+                      <div
                         key={c.id}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => {
                           setSelectedConvId(c.id);
                           localStorage.setItem(cleanMyKey ? `pm_active_conv_id_${cleanMyKey}` : 'pm_active_conv_id', c.id);
                           setMobileChatOpen(true);
                           markConversationAsRead(c.id, currentUserId);
                         }}
-                        className={`w-full text-left p-3.5 flex items-center gap-3 transition cursor-pointer ${
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedConvId(c.id);
+                            localStorage.setItem(cleanMyKey ? `pm_active_conv_id_${cleanMyKey}` : 'pm_active_conv_id', c.id);
+                            setMobileChatOpen(true);
+                            markConversationAsRead(c.id, currentUserId);
+                          }
+                        }}
+                        className={`group w-full text-left p-3.5 flex items-center gap-3 transition cursor-pointer select-none ${
                           isSelected
                             ? 'bg-rose-50/80 border-l-4 border-rose-700'
                             : 'hover:bg-slate-100/80 bg-white'
@@ -1148,18 +1242,32 @@ export function MessagesPage() {
                             <p className={`text-xs truncate ${isSelected ? 'text-rose-950 font-medium' : 'text-slate-500'}`}>
                               {c.lastMessageText || 'No messages yet.'}
                             </p>
-                            {/* Unread message count badge with dot */}
-                            {typeof c.unreadCount === 'number' && c.unreadCount > 0 && (
-                              <span className="relative flex items-center justify-center shrink-0 ml-1.5">
+                            <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
+                              {/* Unread message count badge with dot */}
+                              {typeof c.unreadCount === 'number' && c.unreadCount > 0 && (
                                 <span className="h-4 min-w-[18px] rounded-full bg-rose-600 px-1 text-[9px] font-extrabold text-white flex items-center justify-center shadow-xs">
                                   <span className="h-1.5 w-1.5 rounded-full bg-white mr-0.5 shrink-0" />
                                   {c.unreadCount}
                                 </span>
-                              </span>
-                            )}
+                              )}
+                              {/* Delete Chat action trigger on hover/focus */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConvToDelete(c);
+                                  setDeleteChatModalOpen(true);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                title="Delete chat"
+                                aria-label={`Delete chat with ${c.participantName}`}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1241,33 +1349,49 @@ export function MessagesPage() {
                       {menuOpen && (
                         <div className="absolute right-0 top-11 z-30 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg text-xs">
                           <button
+                            type="button"
+                            onClick={() => {
+                              setConvToDelete(activeConversation as Conversation);
+                              setDeleteChatModalOpen(true);
+                              setMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition font-semibold cursor-pointer"
+                          >
+                            <Trash2 size={13} className="text-rose-500" />
+                            <span>Delete Chat</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={handleClearChatHistory}
-                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition"
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 flex items-center gap-2 transition cursor-pointer"
                           >
                             <Trash2 size={13} className="text-slate-400" />
                             <span>Clear Chat History</span>
                           </button>
                           <button
+                            type="button"
                             onClick={handleEndConversation}
-                            className="w-full text-left px-3.5 py-2 hover:bg-rose-50 hover:text-rose-700 transition"
+                            className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-700 transition cursor-pointer"
                           >
                             End Conversation
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setReportModalOpen(true);
                               setMenuOpen(false);
                             }}
-                            className="w-full text-left px-3.5 py-2 hover:bg-amber-50 hover:text-amber-800 transition"
+                            className="w-full text-left px-3.5 py-2 hover:bg-amber-50 hover:text-amber-800 transition cursor-pointer"
                           >
                             Report Profile
                           </button>
                           <button
+                            type="button"
                             onClick={() => {
                               setBlockModalOpen(true);
                               setMenuOpen(false);
                             }}
-                            className="w-full text-left px-3.5 py-2 text-rose-600 hover:bg-rose-50 transition"
+                            className="w-full text-left px-3.5 py-2 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
                           >
                             Block User
                           </button>

@@ -925,6 +925,16 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     return matchedConv?.messages || [];
   }
 
+  if ((cleanUrl === '/api/conversations' || cleanUrl.startsWith('/api/conversations/')) && method === 'DELETE') {
+    const convId = searchParams.get('id') || cleanUrl.replace('/api/conversations/', '').replace('/delete', '');
+    const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');
+    const convKey = cleanU && cleanU !== 'guest' ? `pm_user_conversations_${cleanU}` : 'pm_user_conversations';
+    let userConvs = getBrowserStorage<any[]>(convKey, []);
+    userConvs = userConvs.filter((c: any) => c.id !== convId);
+    setBrowserStorage(convKey, userConvs);
+    return { success: true, deletedId: convId };
+  }
+
   if (cleanUrl.startsWith('/api/conversations/')) {
     const convId = cleanUrl.replace('/api/conversations/', '');
     const cleanU = String(userId || '').trim().toLowerCase().replace(/^prof_user_/, '').replace(/^prof_/, '').replace(/^user_/, '');

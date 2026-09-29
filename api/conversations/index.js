@@ -199,5 +199,46 @@ export default async function handler(req, res) {
     return;
   }
 
+  if (req.method === 'DELETE') {
+    const { id: deleteId, all } = req.query || {};
+    const convId = deleteId || queryId || (req.body && (req.body.id || req.body.conversationId));
+
+    if (all === 'true' || all === true) {
+      if (!currentUserId) {
+        res.status(401).json({ error: 'User ID required to clear conversations' });
+        return;
+      }
+      const cleanUser = cleanIdKey(currentUserId);
+      store.conversations = (store.conversations || []).filter((c) => !userIsParticipant(c, cleanUser));
+      await writeStore(store);
+      res.status(200).json({ success: true, count: 0, items: [] });
+      return;
+    }
+
+    if (!convId) {
+      res.status(400).json({ error: 'Conversation id is required for deletion' });
+      return;
+    }
+
+    const cleanUser = cleanIdKey(currentUserId);
+    const existingIndex = store.conversations.findIndex((c) => c.id === convId);
+
+    if (existingIndex >= 0) {
+      const conv = store.conversations[existingIndex];
+      // Only authorized if user is a participant or creator
+      if (cleanUser && !userIsParticipant(conv, cleanUser)) {
+        res.status(403).json({ error: 'Access denied: You are not authorized to delete this conversation.' });
+        return;
+      }
+      store.conversations.splice(existingIndex, 1);
+      await writeStore(store);
+      res.status(200).json({ success: true, deletedId: convId });
+      return;
+    }
+
+    res.status(200).json({ success: true, deletedId: convId, note: 'Already removed or not found' });
+    return;
+  }
+
   res.status(405).json({ error: 'Method not allowed' });
 }
