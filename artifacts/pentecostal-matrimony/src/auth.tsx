@@ -383,23 +383,78 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       return { success: false, error: 'Incorrect password for admin. Use "admin".' };
     }
 
-    // 2. Query Live Database Users and Local Registered Accounts
-    let liveDbUsers = await fetchLiveDatabaseUsers();
-    let localUsers = getRegisteredUsers();
+    // 2. Authoritative Database-First Authentication via /api/auth/login
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: cleanId, password: cleanPass }),
+      });
 
-    const allAccounts = [...liveDbUsers];
-    for (const loc of localUsers) {
-      if (!allAccounts.some((a) => a.id === loc.id || (a.email && loc.email && a.email.toLowerCase() === loc.email.toLowerCase()))) {
-        allAccounts.push(loc);
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success && data?.user) {
+        const dbUser = data.user;
+        const authUser: AuthUser = {
+          id: dbUser.id,
+          firstName: dbUser.firstName || (dbUser.fullName ? dbUser.fullName.split(' ')[0] : 'Member'),
+          fullName: dbUser.fullName || 'Member',
+          primaryEmailAddress: { emailAddress: dbUser.email },
+          publicMetadata: { role: dbUser.role || 'member' },
+          username: dbUser.username || (dbUser.email?.includes('@') ? dbUser.email.split('@')[0] : dbUser.email),
+        };
+
+        setCurrentUser(authUser);
+        setIsDbVerified(true);
+        setIsCheckingDb(false);
+        localStorage.setItem('pm_auth_user', JSON.stringify(authUser));
+        localStorage.setItem('pm_demo_signed_in', 'true');
+        localStorage.setItem('pm_demo_role', authUser.publicMetadata.role);
+
+        // Store profile if returned from DB
+        if (data.profile) {
+          localStorage.setItem('pm_my_profile', JSON.stringify(data.profile));
+          localStorage.setItem(`pm_user_profile_${authUser.id}`, JSON.stringify(data.profile));
+        } else {
+          syncProfileForUser(authUser);
+        }
+
+        // Cache registered account locally with real password
+        try {
+          const current = getRegisteredUsers().filter((u) => u.id !== authUser.id);
+          current.push({
+            id: authUser.id,
+            username: authUser.username,
+            email: dbUser.email,
+            phone: dbUser.phone,
+            password: cleanPass,
+            fullName: authUser.fullName,
+            firstName: authUser.firstName,
+            role: authUser.publicMetadata.role as 'admin' | 'member',
+          });
+          localStorage.setItem('pm_registered_accounts', JSON.stringify(current));
+        } catch {}
+
+        window.dispatchEvent(new CustomEvent('pm:sync'));
+        return { success: true, user: authUser };
       }
+
+      // If database explicitly rejected credentials, return database error
+      if (data?.error) {
+        return { success: false, error: data.error };
+      }
+    } catch (networkErr) {
+      console.warn('Network issue reaching /api/auth/login, falling back to local verification:', networkErr);
     }
 
-    const matchedAccount = allAccounts.find(
+    // 3. Fallback to Local Accounts (offline or network failure only)
+    let localUsers = getRegisteredUsers();
+    const matchedAccount = localUsers.find(
       (a) =>
-        a.email.toLowerCase() === cleanId ||
+        a.email?.toLowerCase() === cleanId ||
         a.username?.toLowerCase() === cleanId ||
-        a.fullName.toLowerCase() === cleanId ||
-        a.id.toLowerCase() === cleanId ||
+        a.fullName?.toLowerCase() === cleanId ||
+        a.id?.toLowerCase() === cleanId ||
         (a.phone && isPhoneMatch(a.phone, cleanId))
     );
 
@@ -410,11 +465,11 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
       };
     }
 
-    // Verify password
+    // Verify password locally
     const validPass =
       matchedAccount.password === cleanPass ||
       matchedAccount.password?.toLowerCase() === cleanPass.toLowerCase() ||
-      (matchedAccount.role === 'admin' && (cleanPass === 'admin' || cleanPass.toLowerCase() === 'admin'));
+      (matchedAccount.role === 'admin' && cleanPass.toLowerCase() === 'admin');
 
     if (!validPass) {
       return { success: false, error: 'Incorrect password. Please try again.' };
@@ -437,7 +492,6 @@ export function ClerkProvider(props: { children: React.ReactNode; publishableKey
     localStorage.setItem('pm_demo_role', matchedAccount.role);
     syncProfileForUser(authUser);
 
-    // Keep local accounts in sync
     try {
       const current = getRegisteredUsers().filter((u) => u.id !== authUser.id);
       current.push(matchedAccount);
