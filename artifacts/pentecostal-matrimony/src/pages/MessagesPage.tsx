@@ -28,6 +28,7 @@ import {
   sendFirebaseTyping,
   sendFirebaseMessage,
   deleteConversationFromFirebase,
+  deleteAllUserConversationsFromFirebase,
   getDeterministicConvId,
   cleanUserIdKey,
   setUserPresence,
@@ -211,6 +212,7 @@ export function MessagesPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [deleteChatModalOpen, setDeleteChatModalOpen] = useState(false);
+  const [deleteAllModalOpen, setDeleteAllModalOpen] = useState(false);
   const [convToDelete, setConvToDelete] = useState<Conversation | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -1099,6 +1101,42 @@ export function MessagesPage() {
     }
   };
 
+  const handleDeleteAllConversations = async () => {
+    try {
+      const cleanMy = cleanUserIdKey(currentUserId);
+      const userKey = cleanMy ? `pm_user_conversations_${cleanMy}` : 'pm_user_conversations';
+      localStorage.removeItem(userKey);
+      localStorage.removeItem('pm_user_conversations');
+      localStorage.removeItem(cleanMy ? `pm_active_conv_id_${cleanMy}` : 'pm_active_conv_id');
+      localStorage.removeItem('pm_active_conv_id');
+
+      // Clear all message state buffers
+      setOptimisticMessages({});
+      setServerMessages({});
+      setBroadcastMessages({});
+      setFirebaseMessages([]);
+      setSelectedConvId('');
+      setMobileChatOpen(false);
+
+      // 1. Permanently delete all conversation rooms and inboxes from Firebase Realtime DB
+      await deleteAllUserConversationsFromFirebase(currentUserId);
+
+      // 2. Permanently delete from Serverless Neon PostgreSQL database
+      await fetch(`/api/conversations?all=true&userId=${encodeURIComponent(currentUserId)}`, {
+        method: 'DELETE',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      setNotice('All chat conversations permanently deleted from database.');
+      setTimeout(() => setNotice(null), 3500);
+      setDeleteAllModalOpen(false);
+      refetch();
+    } catch {
+      setNotice('Could not delete all conversations. Please try again.');
+      setTimeout(() => setNotice(null), 3000);
+    }
+  };
+
   const handleEndConversation = () => {
     setNotice(`Conversation with ${activeConversation?.participantName} has ended.`);
     setMenuOpen(false);
@@ -1201,30 +1239,62 @@ export function MessagesPage() {
         </div>
       )}
 
-      {activeConversation && (
-        <>
-          <ReportModal
-            isOpen={reportModalOpen}
-            onClose={() => setReportModalOpen(false)}
-            onSubmit={() => setNotice('Report submitted to stewards.')}
-            profileName={activeConversation.participantName}
-          />
-          <BlockModal
-            isOpen={blockModalOpen}
-            onClose={() => setBlockModalOpen(false)}
-            onConfirm={() => setNotice('User blocked.')}
-            profileName={activeConversation.participantName}
-          />
-          <DeleteChatModal
-            isOpen={deleteChatModalOpen}
-            onClose={() => {
-              setDeleteChatModalOpen(false);
-              setConvToDelete(null);
-            }}
-            onConfirm={handleDeleteConversation}
-            participantName={convToDelete?.participantName || activeConversation.participantName}
-          />
-        </>
+      <ReportModal
+        isOpen={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        onSubmit={() => setNotice('Report submitted to stewards.')}
+        profileName={activeConversation?.participantName || 'Candidate'}
+      />
+      <BlockModal
+        isOpen={blockModalOpen}
+        onClose={() => setBlockModalOpen(false)}
+        onConfirm={() => setNotice('User blocked.')}
+        profileName={activeConversation?.participantName || 'Candidate'}
+      />
+      <DeleteChatModal
+        isOpen={deleteChatModalOpen}
+        onClose={() => {
+          setDeleteChatModalOpen(false);
+          setConvToDelete(null);
+        }}
+        onConfirm={handleDeleteConversation}
+        participantName={convToDelete?.participantName || activeConversation?.participantName || 'Candidate'}
+      />
+
+      {/* Delete All Chats Confirmation Modal */}
+      {deleteAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Delete All Chats?</h3>
+                <p className="text-xs text-slate-500">Permanently erase from database</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This will completely and permanently delete all your conversation rooms, message history, and inboxes from both the cloud database and real-time messaging servers. This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteAllModalOpen(false)}
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAllConversations}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-rose-700 hover:bg-rose-800 rounded-lg shadow-xs transition"
+              >
+                Delete All From DB
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="w-full h-full flex flex-col max-w-6xl mx-auto md:p-4 min-h-0">
@@ -1237,9 +1307,22 @@ export function MessagesPage() {
               }`}
             >
               <div className="border-b border-slate-200 p-3.5 bg-white flex items-center justify-between shrink-0">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                  Conversations ({conversations.length})
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                    Conversations ({conversations.length})
+                  </span>
+                  {conversations.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteAllModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-[11px] text-rose-600 hover:text-rose-800 font-semibold hover:underline cursor-pointer transition"
+                      title="Permanently delete all chats from database"
+                    >
+                      <Trash2 size={11} />
+                      <span>Delete All</span>
+                    </button>
+                  )}
+                </div>
                 <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                   Live
                 </span>

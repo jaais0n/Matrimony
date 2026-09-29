@@ -707,38 +707,43 @@ export async function deleteConversationFromFirebase(
   // 1. Primary room
   paths.add(`conversations/${convId}`);
 
-  // 2. Canonical deterministic IDs
-  if (userId1 && userId2) {
-    const canonicalId = getDeterministicConvId(userId1, userId2);
-    paths.add(`conversations/${canonicalId}`);
+  // 2. Collect all token variations for both users
+  const tokens1: string[] = [];
+  const tokens2: string[] = [];
 
-    const u1 = cleanUserIdKey(userId1);
-    const u2 = cleanUserIdKey(userId2);
-    if (u1) {
-      paths.add(`user_inbox/${u1}/${convId}`);
-      paths.add(`user_inbox/${u1}/${canonicalId}`);
-    }
-    if (u2) {
-      paths.add(`user_inbox/${u2}/${convId}`);
-      paths.add(`user_inbox/${u2}/${canonicalId}`);
-    }
-
-    const rawU1 = String(userId1).replace(/^user_/, '').replace(/^prof_/, '');
-    const rawU2 = String(userId2).replace(/^user_/, '').replace(/^prof_/, '');
-    if (rawU1) {
-      paths.add(`user_inbox/${rawU1}/${convId}`);
-      paths.add(`user_inbox/${rawU1}/${canonicalId}`);
-    }
-    if (rawU2) {
-      paths.add(`user_inbox/${rawU2}/${convId}`);
-      paths.add(`user_inbox/${rawU2}/${canonicalId}`);
-    }
-  } else if (userId1) {
-    const u1 = cleanUserIdKey(userId1);
-    if (u1) paths.add(`user_inbox/${u1}/${convId}`);
+  if (userId1) {
+    tokens1.push(cleanUserIdKey(userId1));
+    tokens1.push(String(userId1).replace(/^user_/, '').replace(/^prof_/, ''));
+    tokens1.push(String(userId1).replace(/^user_/, '').replace(/^prof_/, '').split('_')[0]);
+    tokens1.push(String(userId1).split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, ''));
+  }
+  if (userId2) {
+    tokens2.push(cleanUserIdKey(userId2));
+    tokens2.push(String(userId2).replace(/^user_/, '').replace(/^prof_/, ''));
+    tokens2.push(String(userId2).replace(/^user_/, '').replace(/^prof_/, '').split('_')[0]);
+    tokens2.push(String(userId2).split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, ''));
   }
 
-  // 3. Fallback extraction from convId format (e.g. conv_user1_user2)
+  const cleanTokens1 = Array.from(new Set(tokens1.filter(Boolean)));
+  const cleanTokens2 = Array.from(new Set(tokens2.filter(Boolean)));
+
+  // Generate pairwise conversation room and inbox candidates
+  for (const t1 of cleanTokens1) {
+    paths.add(`user_inbox/${t1}/${convId}`);
+    for (const t2 of cleanTokens2) {
+      const r1 = `conv_${t1}_${t2}`;
+      const r2 = `conv_${t2}_${t1}`;
+      paths.add(`conversations/${r1}`);
+      paths.add(`conversations/${r2}`);
+      paths.add(`user_inbox/${t1}/${r1}`);
+      paths.add(`user_inbox/${t1}/${r2}`);
+      paths.add(`user_inbox/${t2}/${r1}`);
+      paths.add(`user_inbox/${t2}/${r2}`);
+      paths.add(`user_inbox/${t2}/${convId}`);
+    }
+  }
+
+  // Fallback extraction from convId format (e.g. conv_user1_user2)
   if (convId.startsWith('conv_')) {
     const parts = convId.replace(/^conv_/, '').split('_').filter(Boolean);
     if (parts.length >= 2) {
@@ -746,6 +751,29 @@ export async function deleteConversationFromFirebase(
       paths.add(`user_inbox/${parts[1]}/${convId}`);
     }
   }
+
+  // 3. Dynamic shallow discovery in Firebase to catch any room matching both users
+  try {
+    const res = await fetch(`${FIREBASE_DATABASE_URL}/conversations.json?shallow=true`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        const roomKeys = Object.keys(data);
+        for (const k of roomKeys) {
+          const lk = k.toLowerCase();
+          if (lk === convId.toLowerCase()) {
+            paths.add(`conversations/${k}`);
+          } else if (cleanTokens1.length > 0 && cleanTokens2.length > 0) {
+            const has1 = cleanTokens1.some((t) => lk.includes(t.toLowerCase()));
+            const has2 = cleanTokens2.some((t) => lk.includes(t.toLowerCase()));
+            if (has1 && has2) {
+              paths.add(`conversations/${k}`);
+            }
+          }
+        }
+      }
+    }
+  } catch {}
 
   // Execute all deletions in parallel
   try {
@@ -770,4 +798,63 @@ export async function deleteConversationFromFirebase(
 
   return true;
 }
+
+/**
+ * Permanently and completely deletes all conversations and inbox records
+ * for a user from Firebase Realtime Database.
+ */
+export async function deleteAllUserConversationsFromFirebase(userId: string): Promise<boolean> {
+  if (!isFirebaseConfigured() || !userId) return false;
+
+  try {
+    const uClean = cleanUserIdKey(userId);
+    const uRaw = String(userId).replace(/^user_/, '').replace(/^prof_/, '');
+    const uPrefix = uRaw.split('_')[0];
+    const userTokens = Array.from(new Set([uClean, uRaw, uPrefix].filter(Boolean)));
+
+    // 1. Delete all inbox entries for this user
+    await Promise.allSettled(
+      userTokens.map((t) =>
+        fetch(`${FIREBASE_DATABASE_URL}/user_inbox/${t}.json`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
+
+    // 2. Discover and delete all conversation rooms involving this user
+    const res = await fetch(`${FIREBASE_DATABASE_URL}/conversations.json?shallow=true`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        const roomKeys = Object.keys(data);
+        const toDelete = roomKeys.filter((k) => {
+          const lk = k.toLowerCase();
+          return userTokens.some((t) => lk.includes(t.toLowerCase()));
+        });
+        await Promise.allSettled(
+          toDelete.map((k) =>
+            fetch(`${FIREBASE_DATABASE_URL}/conversations/${k}.json`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        );
+      }
+    }
+
+    // Broadcast across tabs
+    try {
+      const bc = new BroadcastChannel('pm_live_matrimony_chat');
+      bc.postMessage({ type: 'ALL_CONVERSATIONS_DELETED', userId });
+      bc.close();
+    } catch {}
+
+    return true;
+  } catch (err) {
+    console.warn('[Firebase] deleteAllUserConversations error:', err);
+    return false;
+  }
+}
+
 
