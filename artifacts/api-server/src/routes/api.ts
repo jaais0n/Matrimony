@@ -833,13 +833,50 @@ apiRouter.get('/admin/denominations', (_req: Request, res: Response) => {
 });
 
 apiRouter.get('/admin/reports', (_req: Request, res: Response) => {
-  res.json(reportsStore);
+  res.json(reportsStore.filter((r) => r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1'));
+});
+
+apiRouter.post('/admin/reports', (req: Request, res: Response) => {
+  const { reportedProfileName, reportedProfileId, reporterName, reporterEmail, reason, details } = req.body;
+  const newReport = {
+    id: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    reportedProfileId: reportedProfileId || '',
+    reportedProfileName: reportedProfileName || 'Profile',
+    reporterName: reporterName || 'Concerned Believer',
+    reporterEmail: reporterEmail || '',
+    reason: reason || 'Concern',
+    details: details || '',
+    createdAt: new Date().toISOString(),
+    status: 'open',
+  };
+  reportsStore.unshift(newReport);
+  saveStoreToDisk();
+  res.status(201).json(newReport);
+});
+
+apiRouter.post('/reports', (req: Request, res: Response) => {
+  const { reportedProfileName, reportedProfileId, reporterName, reporterEmail, reason, details } = req.body;
+  const newReport = {
+    id: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    reportedProfileId: reportedProfileId || '',
+    reportedProfileName: reportedProfileName || 'Profile',
+    reporterName: reporterName || 'Concerned Believer',
+    reporterEmail: reporterEmail || '',
+    reason: reason || 'Concern',
+    details: details || '',
+    createdAt: new Date().toISOString(),
+    status: 'open',
+  };
+  reportsStore.unshift(newReport);
+  saveStoreToDisk();
+  res.status(201).json(newReport);
 });
 
 apiRouter.post('/admin/reports/:id/action', (req: Request, res: Response) => {
   const { id } = req.params;
   const { action } = req.body; // 'dismiss' | 'action_taken'
-  reportsStore = reportsStore.map((r) => (r.id === id ? { ...r, status: action } : r));
+  reportsStore = reportsStore.map((r) => (r.id === id ? { ...r, status: action === 'dismiss' ? 'dismissed' : 'resolved' } : r));
+  saveStoreToDisk();
   res.json({ success: true });
 });
 

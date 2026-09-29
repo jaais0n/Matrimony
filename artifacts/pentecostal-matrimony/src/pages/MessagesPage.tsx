@@ -240,6 +240,47 @@ export function MessagesPage() {
     el.scrollTo({ top: el.scrollHeight, behavior });
   }, []);
 
+  const handleReportUser = async (reason: string, details: string) => {
+    if (!activeConversation) return;
+    try {
+      const reportPayload = {
+        reportedProfileId: activeConversation.participantId || '',
+        reportedProfileName: activeConversation.participantName || 'Candidate',
+        reporterId: currentUserId,
+        reporterName: currentUserName || 'Concerned Member',
+        reason,
+        details,
+        createdAt: new Date().toISOString(),
+        status: 'open',
+      };
+
+      await customFetch('/api/admin/reports', {
+        method: 'POST',
+        body: JSON.stringify(reportPayload),
+      }).catch(() => {});
+
+      try {
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reportPayload),
+        }).catch(() => {});
+      } catch {}
+
+      try {
+        const raw = localStorage.getItem('pm_admin_reports');
+        const list = raw ? JSON.parse(raw) : [];
+        const clean = Array.isArray(list) ? list.filter((r: any) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1') : [];
+        clean.unshift({ id: `rep_${Date.now()}`, ...reportPayload });
+        localStorage.setItem('pm_admin_reports', JSON.stringify(clean));
+      } catch {}
+
+      setNotice('Report submitted to pastoral administration for review.');
+    } catch {
+      setNotice('Report submitted to pastoral administration for review.');
+    }
+  };
+
   const handleChatScroll = useCallback(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
@@ -1242,7 +1283,7 @@ export function MessagesPage() {
       <ReportModal
         isOpen={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
-        onSubmit={() => setNotice('Report submitted to stewards.')}
+        onSubmit={handleReportUser}
         profileName={activeConversation?.participantName || 'Candidate'}
       />
       <BlockModal

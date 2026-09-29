@@ -26,7 +26,8 @@ export function ReportModal({ isOpen, onClose, onSubmit, profileName }: ReportMo
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(selectedReason, details);
+    const reasonObj = REPORT_REASONS.find((r) => r.id === selectedReason);
+    onSubmit(reasonObj ? reasonObj.label : selectedReason, details);
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);

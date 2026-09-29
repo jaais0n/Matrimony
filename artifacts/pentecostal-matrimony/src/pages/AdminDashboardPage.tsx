@@ -188,10 +188,61 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   });
   const queue = Array.isArray(rawQueue) ? rawQueue : [];
 
-  // Moderation Reports Query
+  // Moderation Reports Query (Authoritative user reports from DB & API)
   const { data: rawReports = [], refetch: refetchReports } = useQuery({
     queryKey: ['admin-reports'],
-    queryFn: () => customFetch<any[]>('/api/admin/reports'),
+    queryFn: async () => {
+      let dbReports: any[] = [];
+      try {
+        const resp = await fetch(`/api/reports?_t=${Date.now()}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+        if (Array.isArray(resp)) {
+          dbReports = resp;
+        }
+      } catch {}
+
+      let apiReports: any[] = [];
+      try {
+        const res = await customFetch<any[]>('/api/admin/reports').catch(() => []);
+        if (Array.isArray(res)) apiReports = res;
+      } catch {}
+
+      let localReports: any[] = [];
+      try {
+        const localRaw = localStorage.getItem('pm_admin_reports');
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw);
+          if (Array.isArray(parsed)) localReports = parsed;
+        }
+      } catch {}
+
+      // Combine, deduplicate by id, and strictly filter out ANY dummy report
+      const allReports = [...dbReports, ...apiReports, ...localReports];
+      const seen = new Set<string>();
+      const cleanReports: any[] = [];
+
+      for (const r of allReports) {
+        if (!r || !r.id || seen.has(r.id)) continue;
+        // Purge dummy reports completely
+        if (
+          r.reporterName === 'Pastor Thomas' ||
+          r.id === 'rep_1' ||
+          r.reporterName === 'Pastor Council' ||
+          String(r.reportedProfileName || '').includes('User Profile Verification Issue')
+        ) {
+          continue;
+        }
+        seen.add(r.id);
+        cleanReports.push(r);
+      }
+
+      // Update localStorage with clean reports only
+      try {
+        localStorage.setItem('pm_admin_reports', JSON.stringify(cleanReports));
+      } catch {}
+
+      return cleanReports;
+    },
+    refetchInterval: 3000,
   });
   const reports = Array.isArray(rawReports) ? rawReports : [];
 
@@ -303,7 +354,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   const [showAddReportModal, setShowAddReportModal] = useState(false);
   const [reportForm, setReportForm] = useState({
     reportedProfileName: '',
-    reporterName: 'Pastor Council',
+    reporterName: 'Community Member',
     reason: 'Profile Verification Required',
     details: '',
   });
@@ -318,15 +369,13 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   const [broadcastLogs, setBroadcastLogs] = useState<any[]>(() => {
     try {
       const raw = localStorage.getItem('pm_admin_broadcasts');
-      return raw ? JSON.parse(raw) : [
-        {
-          id: 'b1',
-          title: 'Welcome to Pentecostal Matrimony',
-          target: 'All Members',
-          sentAt: new Date(Date.now() - 86400000).toLocaleString(),
-          recipientCount: 24,
-        },
-      ];
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((b: any) => b.id !== 'b1' && b.title !== 'Welcome to Pentecostal Matrimony');
+        }
+      }
+      return [];
     } catch {
       return [];
     }
@@ -615,17 +664,32 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
       return;
     }
     try {
+      const payload = {
+        ...reportForm,
+        id: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        status: 'open',
+        createdAt: new Date().toISOString(),
+      };
       await customFetch('/api/admin/reports', {
         method: 'POST',
-        body: JSON.stringify(reportForm),
+        body: JSON.stringify(payload),
       });
+      try {
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch {}
       showToast('Moderation report logged successfully.');
-      setReportForm({ reportedProfileName: '', reporterName: 'Pastor Council', reason: 'Profile Verification Required', details: '' });
+      setReportForm({ reportedProfileName: '', reporterName: 'Community Member', reason: 'Profile Verification Required', details: '' });
       setShowAddReportModal(false);
       refetchReports();
       refetchOverview();
     } catch {
       showToast('Report created.');
+      setShowAddReportModal(false);
+      refetchReports();
     }
   };
 
@@ -1206,47 +1270,53 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  {reports.map((r: any) => (
-                    <div key={r.id} className="rounded-xl border border-slate-200 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-700 uppercase">
-                              {r.reason}
-                            </span>
-                            <span className="text-xs font-bold text-slate-900">Against: {r.reportedProfileName}</span>
+                {reports.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-500">
+                    No moderation complaints reported. The community is clean and peaceful.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {reports.map((r: any) => (
+                      <div key={r.id} className="rounded-xl border border-slate-200 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-700 uppercase">
+                                {r.reason}
+                              </span>
+                              <span className="text-xs font-bold text-slate-900">Against: {r.reportedProfileName}</span>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-700 leading-relaxed">{r.details}</p>
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Reported by {r.reporterName} on {new Date(r.createdAt).toLocaleDateString()}
+                            </p>
                           </div>
-                          <p className="mt-2 text-xs text-slate-700 leading-relaxed">{r.details}</p>
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            Reported by {r.reporterName} on {new Date(r.createdAt).toLocaleDateString()}
-                          </p>
+
+                          <span className={`text-[10px] font-bold uppercase rounded-md border px-2 py-0.5 ${r.status === 'open' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-slate-200 text-slate-500'}`}>
+                            {r.status}
+                          </span>
                         </div>
 
-                        <span className={`text-[10px] font-bold uppercase rounded-md border px-2 py-0.5 ${r.status === 'open' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-slate-200 text-slate-500'}`}>
-                          {r.status}
-                        </span>
+                        {r.status === 'open' && (
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">
+                            <button
+                              onClick={() => handleReportAction(r.id, 'dismissed')}
+                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              Dismiss
+                            </button>
+                            <button
+                              onClick={() => handleReportAction(r.id, 'action_taken')}
+                              className="rounded-lg bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-800 shadow-xs"
+                            >
+                              Resolve & Suspend
+                            </button>
+                          </div>
+                        )}
                       </div>
-
-                      {r.status === 'open' && (
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">
-                          <button
-                            onClick={() => handleReportAction(r.id, 'dismissed')}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                          >
-                            Dismiss
-                          </button>
-                          <button
-                            onClick={() => handleReportAction(r.id, 'action_taken')}
-                            className="rounded-lg bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-800 shadow-xs"
-                          >
-                            Resolve & Suspend
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

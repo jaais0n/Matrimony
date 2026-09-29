@@ -100,6 +100,12 @@ Pentecostal-Matrimony/
 - **Unique Email Constraint**: Prohibits multiple accounts with the same Gmail/email address across client forms (`OnboardingPage`, `SignUp`) and serverless handlers (`/api/auth/register`).
 - **Unique Phone Constraint**: Prohibits multiple accounts with the same phone number (accounting for country codes and 10-digit national numbers) via `isPhoneMatch` and server validation.
 
+### 9. Zero Dummy Reports & End-to-End Moderation Complaint Pipeline
+- **Zero Dummy Data Standard**: No mock or synthetic reports (such as dummy Pastor Thomas / `rep_1`) are permitted anywhere in the production environment or database.
+- **Production Empty State**: When no complaints have been filed by believers, the Admin Moderation Complaints tab displays a clean empty state: *"No moderation complaints reported. The community is clean and peaceful."* and badge count is cleanly hidden.
+- **Authentic Reporting Flow**: Believers can report suspicious accounts directly from Profile Detail views (`ProfileDetailPage`) or direct message threads (`MessagesPage`).
+- **Dual Cloud & Edge Sync**: Submitting a report persists to Neon PostgreSQL (`pm_store -> data.reports`) via `/api/reports`, ensuring live moderation queue updates across administrator consoles in real-time.
+
 ---
 
 ## 🔒 Security & Privacy Controls

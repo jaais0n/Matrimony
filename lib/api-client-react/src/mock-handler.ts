@@ -745,24 +745,39 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
   }
 
   // 13. ADMIN REPORTS
-  if (cleanUrl === '/api/admin/reports') {
-    const defaultReports = [
-      {
-        id: 'rep_1',
-        reportedProfileId: 'prof_sample_1',
-        reportedProfileName: 'User Profile Verification Issue',
-        reporterName: 'Pastor Thomas',
-        reason: 'Incomplete Church Information',
-        details: 'Candidate needs to provide verified baptism certificate and local pastor contact number.',
+  if (cleanUrl === '/api/admin/reports' || cleanUrl === '/api/reports') {
+    let stored = getBrowserStorage<any[]>('pm_admin_reports', []);
+    // Strict purge of all synthetic dummy reports
+    stored = stored.filter(
+      (r) =>
+        r &&
+        r.reporterName !== 'Pastor Thomas' &&
+        r.id !== 'rep_1' &&
+        r.reporterName !== 'Pastor Council' &&
+        !String(r.reportedProfileName || '').includes('User Profile Verification Issue')
+    );
+    setBrowserStorage('pm_admin_reports', stored);
+
+    if (method === 'POST' && body) {
+      const newRep = {
+        id: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         status: 'open',
         createdAt: new Date().toISOString(),
-      },
-    ];
-    let stored = getBrowserStorage<any[]>('pm_admin_reports', defaultReports);
-    if (method === 'POST' && body) {
-      const newRep = { id: `rep_${Date.now()}`, status: 'open', createdAt: new Date().toISOString(), ...(body as any) };
-      stored = [newRep, ...stored];
-      setBrowserStorage('pm_admin_reports', stored);
+        ...(body as any),
+      };
+      // Prevent synthetic dummy reports
+      if (newRep.reporterName !== 'Pastor Thomas' && newRep.id !== 'rep_1') {
+        stored = [newRep, ...stored];
+        setBrowserStorage('pm_admin_reports', stored);
+        // Sync to backend /api/reports in background
+        try {
+          fetch('/api/reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newRep),
+          }).catch(() => {});
+        } catch {}
+      }
       return newRep;
     }
     return stored;
@@ -774,6 +789,13 @@ export function handleMockRequest(url: string, method: string, body?: unknown): 
     const stored = getBrowserStorage<any[]>('pm_admin_reports', []);
     const updated = stored.map((r) => (r.id === reportId ? { ...r, status: action === 'dismissed' ? 'dismissed' : 'resolved' } : r));
     setBrowserStorage('pm_admin_reports', updated);
+    try {
+      fetch(`/api/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId, action }),
+      }).catch(() => {});
+    } catch {}
     return { success: true, reportId, status: action };
   }
 

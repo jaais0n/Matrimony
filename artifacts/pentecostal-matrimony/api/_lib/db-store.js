@@ -7,6 +7,8 @@ import { defaultStore } from './default-store.js';
 let memoryStore = {
   users: Array.isArray(defaultStore.users) ? [...defaultStore.users] : [],
   profiles: Array.isArray(defaultStore.profiles) ? [...defaultStore.profiles] : [],
+  conversations: [],
+  reports: [],
 };
 
 const SEED_PROFILE_IDS = new Set([
@@ -176,6 +178,7 @@ export async function readStore() {
       profiles: (memoryStore.profiles || []).filter((p) => !isSeedProfile(p)),
       users: memoryStore.users || [],
       conversations: memoryStore.conversations || [],
+      reports: (memoryStore.reports || []).filter((r) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1'),
     };
   }
 
@@ -188,9 +191,11 @@ export async function readStore() {
       const cleaned = rawProfiles.filter((p) => !isSeedProfile(p));
       const users = Array.isArray(data.users) ? data.users : [];
       const conversations = Array.isArray(data.conversations) ? data.conversations : [];
-      memoryStore = { profiles: cleaned, users, conversations };
+      const rawReports = Array.isArray(data.reports) ? data.reports : [];
+      const reports = rawReports.filter((r) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1');
+      memoryStore = { profiles: cleaned, users, conversations, reports };
       lastNeonFetchTime = Date.now();
-      return { profiles: cleaned, users, conversations };
+      return { profiles: cleaned, users, conversations, reports };
     }
   } catch (err) {
     console.warn('readStore Neon error:', err);
@@ -201,6 +206,7 @@ export async function readStore() {
     profiles: (memoryStore.profiles || []).filter((p) => !isSeedProfile(p)),
     users: memoryStore.users || [],
     conversations: memoryStore.conversations || [],
+    reports: (memoryStore.reports || []).filter((r) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1'),
   };
 }
 
@@ -208,7 +214,8 @@ export async function writeStore(data) {
   const profiles = (Array.isArray(data?.profiles) ? data.profiles : []).filter((p) => !isSeedProfile(p));
   const users = Array.isArray(data?.users) ? data.users : [];
   const conversations = Array.isArray(data?.conversations) ? data.conversations : [];
-  const cleanData = { profiles, users, conversations, savedAt: new Date().toISOString() };
+  const reports = (Array.isArray(data?.reports) ? data.reports : []).filter((r) => r && r.reporterName !== 'Pastor Thomas' && r.id !== 'rep_1');
+  const cleanData = { profiles, users, conversations, reports, savedAt: new Date().toISOString() };
 
   // Always update in-memory cache immediately
   memoryStore = cleanData;
