@@ -5,6 +5,7 @@
  */
 
 import { readStore, writeStore, dedup, isSeedProfile } from '../_lib/db-store.js';
+import { rateLimit, getClientKey } from '../_lib/rate-limit.js';
 
 export default async function handler(req, res) {
   // CORS headers
@@ -49,8 +50,14 @@ export default async function handler(req, res) {
     return;
   }
 
-  // DELETE /api/profiles — delete single profile by id or wipe all with ?all=true
+  // DELETE /api/profiles — requires admin authorization
   if (req.method === 'DELETE') {
+    const adminKey = process.env.ADMIN_SECRET;
+    const providedKey = req.headers['x-admin-key'];
+    if (!adminKey || !providedKey || providedKey !== adminKey) {
+      res.status(401).json({ error: 'Unauthorized: valid X-Admin-Key required for delete operations.' });
+      return;
+    }
     const { id, all } = req.query || {};
     const body = req.body || {};
     if (all === 'true' || all === true || body.all === true) {

@@ -8,6 +8,7 @@
  */
 
 import { readStore, writeStore } from '../_lib/db-store.js';
+import { rateLimit, getClientKey } from '../_lib/rate-limit.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,6 +22,13 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Rate limiting: max 10 registrations per IP per minute
+  const rl = rateLimit(getClientKey(req, 'register'), 10, 60_000);
+  if (!rl.allowed) {
+    res.status(429).json({ error: 'Too many requests. Please wait before registering again.' });
     return;
   }
 
@@ -75,7 +83,7 @@ export default async function handler(req, res) {
     phone: rawPhone || undefined,
     fullName: account.fullName || (emailClean.includes('@') ? emailClean.split('@')[0] : emailClean),
     firstName: account.firstName || account.fullName?.split(' ')[0] || 'Member',
-    password: account.password || 'password123',
+    password: account.password || undefined, // never store plaintext default; missing means no auth
     role: account.role || 'member',
     createdAt: account.createdAt || new Date().toISOString(),
   };
@@ -87,5 +95,7 @@ export default async function handler(req, res) {
   }
 
   await writeStore(store);
-  res.status(200).json(newUser);
+  // Strip password from response — never return credentials to the client
+  const { password: _pw, ...safeUser } = newUser;
+  res.status(200).json(safeUser);
 }

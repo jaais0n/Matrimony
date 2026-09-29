@@ -26,7 +26,8 @@ export default async function handler(req, res) {
   let dbHost = null;
 
   try {
-    const connStr = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_lksoYRUjhS54@ep-morning-breeze-azc2ysa2-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+    const connStr = process.env.DATABASE_URL;
+    if (!connStr) throw new Error('DATABASE_URL not configured');
     const url = new URL(connStr);
     dbHost = url.hostname;
     const neonEndpoint = `https://${url.hostname}/sql`;
@@ -45,19 +46,20 @@ export default async function handler(req, res) {
       dbRows = data?.rows?.length || 0;
     }
   } catch (err) {
-    dbError = err.message;
+    // Log internally, never expose raw message to clients
+    console.error('[status] DB probe error:', err.message);
+    dbError = true;
   }
 
   res.status(200).json({
     status: statusOk ? 'ok' : 'degraded',
     serverless: true,
-    dbConnected: true,
+    dbConnected: !dbError,
     storageEngine: 'neon-postgresql',
     profilesCount: storeProfilesCount,
     usersCount: storeUsersCount,
-    dbHost,
     dbRows,
-    dbError,
+    // dbError intentionally omitted from client response to prevent information disclosure
     timestamp: new Date().toISOString(),
   });
 }

@@ -1,6 +1,7 @@
 import { defaultStore } from './default-store.js';
 
-const FALLBACK_CONN = 'postgresql://neondb_owner:npg_lksoYRUjhS54@ep-morning-breeze-azc2ysa2-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+// DATABASE_URL must be set as an environment variable on Vercel.
+// Never hardcode credentials here — rotate the key on Neon if it was ever committed.
 
 // In-memory cache for ultra-fast serverless response
 let memoryStore = {
@@ -122,8 +123,11 @@ export function dedup(list) {
 }
 
 async function queryNeon(sql, params = []) {
-  const connStr = process.env.DATABASE_URL || FALLBACK_CONN;
-  if (!connStr) return null;
+  const connStr = process.env.DATABASE_URL;
+  if (!connStr) {
+    console.warn('[db-store] DATABASE_URL is not set — operating in memory-only mode.');
+    return null;
+  }
   try {
     const url = new URL(connStr);
     const neonEndpoint = `https://${url.hostname}/sql`;

@@ -143,8 +143,13 @@ export function OnboardingPage() {
       return false;
     }
 
-    if (!pass || pass.length < 4) {
-      setStep2Error('Password must be at least 4 characters long.');
+    if (!pass || pass.length < 8) {
+      setStep2Error('Password must be at least 8 characters long.');
+      return false;
+    }
+
+    if (!/[0-9!@#$%^&*]/.test(pass)) {
+      setStep2Error('Password must contain at least one number or special character (!@#$%^&*).');
       return false;
     }
 
@@ -267,13 +272,13 @@ export function OnboardingPage() {
         fullName: userName,
         email: userEmail || 'user@example.com',
         phone: userPhone,
-        password: userPass || 'password123',
+        password: userPass,
         role: 'member',
       });
 
       if (signIn) {
         setPublishingMessage('Securing spiritual background & pastoral details...');
-        await signIn(registered.email, userPass || 'password123');
+        await signIn(registered.email, userPass);
       }
 
       // 2. Assemble complete profile object from all wizard steps
@@ -480,7 +485,7 @@ export function OnboardingPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">Password</label>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">Password <span className="font-normal normal-case text-slate-400">(min 8 chars + number/symbol)</span></label>
                     <input
                       type="password"
                       placeholder="Create a secure password"

@@ -41,6 +41,14 @@ import { useClerk, useUser } from '../auth';
 import { deduplicateProfiles, notifySync } from '../utils/storageHelper';
 import { FIREBASE_DATABASE_URL } from '../utils/firebaseHelper';
 
+// Admin secret loaded from Vite env at build time (set VITE_ADMIN_SECRET on Vercel).
+// This is used as the X-Admin-Key header required by all destructive server-side operations.
+const ADMIN_KEY = import.meta.env.VITE_ADMIN_SECRET ?? '';
+const adminHeaders = () => ({
+  'Content-Type': 'application/json',
+  ...(ADMIN_KEY ? { 'X-Admin-Key': ADMIN_KEY } : {}),
+});
+
 interface AdminSettingsState {
   requirePastoralVerification: boolean;
   enableBlurredPhotosDefault: boolean;
@@ -280,8 +288,8 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
       setIsWiping(true);
       // 1. Wipe backend Neon PostgreSQL store (profiles + non-admin users + conversations)
       await Promise.allSettled([
-        fetch('/api/profiles?all=true', { method: 'DELETE' }),
-        fetch('/api/auth/users?all=true', { method: 'DELETE' }),
+        fetch('/api/profiles?all=true', { method: 'DELETE', headers: adminHeaders() }),
+        fetch('/api/auth/users?all=true', { method: 'DELETE', headers: adminHeaders() }),
       ]);
 
       // 2. Wipe Firebase Realtime Database
@@ -352,8 +360,8 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
       setIsDeleting(true);
       if (deleteTarget.type === 'user') {
         await Promise.allSettled([
-          fetch(`/api/auth/users?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }),
-          fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }),
+          fetch(`/api/auth/users?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
+          fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
           customFetch(`/api/admin/users/${deleteTarget.id}/delete`, { method: 'POST' }),
         ]);
 
@@ -392,7 +400,7 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
         refetchOverview();
       } else {
         await Promise.allSettled([
-          fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE' }),
+          fetch(`/api/profiles?id=${encodeURIComponent(deleteTarget.id)}`, { method: 'DELETE', headers: adminHeaders() }),
           customFetch(`/api/admin/profiles/${deleteTarget.id}/delete`, { method: 'POST' }),
         ]);
 

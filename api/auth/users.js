@@ -4,6 +4,7 @@
  */
 
 import { readStore, writeStore } from '../_lib/db-store.js';
+import { rateLimit, getClientKey } from '../_lib/rate-limit.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,6 +18,22 @@ export default async function handler(req, res) {
   }
 
   const store = await readStore();
+
+  // ---------- AUTHORIZATION ----------
+  // All mutating / destructive operations require the X-Admin-Key header.
+  // The key is set as the ADMIN_SECRET environment variable on Vercel.
+  const isDestructive =
+    req.method === 'DELETE' ||
+    (req.method === 'POST' && (req.query?.action === 'delete' || req.body?.action === 'delete'));
+
+  if (isDestructive) {
+    const adminKey = process.env.ADMIN_SECRET;
+    const providedKey = req.headers['x-admin-key'];
+    if (!adminKey || !providedKey || providedKey !== adminKey) {
+      res.status(401).json({ error: 'Unauthorized: valid X-Admin-Key required for this operation.' });
+      return;
+    }
+  }
 
   // DELETE /api/auth/users — wipe all non-admin users with ?all=true or delete specific user with ?id=...
   if (req.method === 'DELETE' || (req.method === 'POST' && (req.query?.action === 'delete' || req.body?.action === 'delete'))) {
@@ -68,6 +85,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  // GET /api/auth/users
-  res.status(200).json(store.users || []);
+  // GET /api/auth/users — strip passwords before returning
+  const safeUsers = (store.users || []).map(({ password: _pw, ...u }) => u);
+  res.status(200).json(safeUsers);
 }
