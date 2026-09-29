@@ -270,10 +270,15 @@ export function initiateConversation(profile: any, currentUserId?: string): stri
       if (!convs[existingIndex].participantPhoto && partPhoto) {
         convs[existingIndex].participantPhoto = partPhoto;
       }
+      if (!convs[existingIndex].creatorId) {
+        convs[existingIndex].creatorId = myId;
+      }
       try {
         localStorage.setItem(userKey, JSON.stringify(convs));
       } catch {}
-      localStorage.setItem('pm_active_conv_id', convId);
+      // User-scoped active conversation key prevents cross-account bleed
+      const cleanMy = cleanUserIdKey(myId);
+      localStorage.setItem(cleanMy ? `pm_active_conv_id_${cleanMy}` : 'pm_active_conv_id', convId);
       return convId;
     }
 
@@ -293,48 +298,20 @@ export function initiateConversation(profile: any, currentUserId?: string): stri
       messages: [],
     };
 
-    convs.unshift(newConv);
+    convs.unshift({
+      ...newConv,
+      creatorId: myId,  // always store creatorId so ownership checks work
+    });
     localStorage.setItem(userKey, JSON.stringify(convs));
-    localStorage.setItem('pm_active_conv_id', convId);
+    // User-scoped active conversation key prevents cross-account bleed on shared devices
+    const cleanMy = cleanUserIdKey(myId);
+    localStorage.setItem(cleanMy ? `pm_active_conv_id_${cleanMy}` : 'pm_active_conv_id', convId);
 
-    // Also populate recipient's inbox so instant switching/cross-tab sees the conversation immediately
-    const cleanPartKey = cleanUserIdKey(partId);
-    if (cleanPartKey && cleanPartKey !== cleanUserIdKey(myId)) {
-      const recipientKey = `pm_user_conversations_${cleanPartKey}`;
-      try {
-        let recipientConvs: any[] = [];
-        const rRaw = localStorage.getItem(recipientKey);
-        if (rRaw) recipientConvs = JSON.parse(rRaw);
-        if (!Array.isArray(recipientConvs)) recipientConvs = [];
-        const rIdx = recipientConvs.findIndex((c) => c.id === convId);
-        if (rIdx < 0) {
-          let myName = 'Believer Candidate';
-          let myPhoto = '';
-          try {
-            const authUser = JSON.parse(localStorage.getItem('pm_auth_user') || '{}');
-            myName = authUser.fullName || myName;
-            const myProf = JSON.parse(localStorage.getItem('pm_my_profile') || '{}');
-            myPhoto = myProf.photos?.[0]?.url || myProf.primaryPhotoUrl || '';
-          } catch {}
-          recipientConvs.unshift({
-            id: convId,
-            participantId: myId,
-            participantName: myName,
-            participantPhoto: myPhoto,
-            participantAge: 28,
-            participantLocation: 'India',
-            participantOccupation: 'Member',
-            participantDenomination: 'Pentecostal',
-            status: 'active',
-            lastMessageText: 'No messages yet.',
-            lastMessageAt: new Date().toISOString(),
-            unreadCount: 0,
-            messages: [],
-          });
-          localStorage.setItem(recipientKey, JSON.stringify(recipientConvs));
-        }
-      } catch {}
-    }
+    // NOTE: we do NOT mirror into the recipient's localStorage here.
+    // Doing so contaminates other accounts' data on shared devices.
+    // The recipient will see this conversation via the server API
+    // (/api/conversations?userId=...) which is polled every 2.5 seconds,
+    // or instantly via Firebase real-time subscription.
 
     // Sync to serverless API in background
     let myCreatorName = 'Believer Candidate';

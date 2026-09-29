@@ -44,11 +44,24 @@ function getStoredConversations(currentUserId?: string): Conversation[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.filter(
-          (c: any) =>
-            c &&
-            cleanUserIdKey(c.participantId) !== cleanId &&
-            !c.lastMessageText?.includes('Praise the Lord! Thank you for reaching out') &&
-            !c.lastMessageText?.includes('God bless you. It is inspiring')
+          (c: any) => {
+            if (!c) return false;
+            // Never show self-conversations
+            if (cleanUserIdKey(c.participantId) === cleanId) return false;
+            // Discard dummy seed messages
+            if (c.lastMessageText?.includes('Praise the Lord! Thank you for reaching out')) return false;
+            if (c.lastMessageText?.includes('God bless you. It is inspiring')) return false;
+            // Ownership gate: only include conversations where I am explicitly the creator,
+            // OR the deterministic conv ID confirms my involvement.
+            if (!cleanId) return true;
+            const creatorClean = cleanUserIdKey(c.creatorId || '');
+            if (creatorClean === cleanId) return true;
+            const cId = (c.id || '').toLowerCase();
+            // Deterministic conv ID is: conv_${sorted([k1, k2]).join('_')}
+            // We check prefix and suffix to avoid partial-string false positives.
+            if (cId.startsWith(`conv_${cleanId}_`) || cId.endsWith(`_${cleanId}`)) return true;
+            return false;
+          }
         );
       }
     }
@@ -173,15 +186,16 @@ export function MessagesPage() {
         })();
         return getDeterministicConvId(myId, targetUserId);
       }
-      const savedActive = localStorage.getItem('pm_active_conv_id');
-      if (savedActive) return savedActive;
-      // Read from user-scoped key, not global key
+      // User-scoped active conv key prevents restoring another account's active thread
       const myId = (() => {
         try {
           const raw = localStorage.getItem('pm_auth_user');
           return raw ? JSON.parse(raw).id : '';
         } catch { return ''; }
       })();
+      const cleanMy = cleanUserIdKey(myId);
+      const savedActive = localStorage.getItem(cleanMy ? `pm_active_conv_id_${cleanMy}` : 'pm_active_conv_id');
+      if (savedActive) return savedActive;
       const initial = getStoredConversations(myId);
       return initial[0]?.id || '';
     } catch {
@@ -255,6 +269,22 @@ export function MessagesPage() {
     // 1. From server/local storage
     for (const c of rawConversations) {
       if (!c || !c.id) continue;
+
+      // ── Hard ownership gate ────────────────────────────────────────────
+      // Only process conversations where the current user is provably a
+      // participant (creatorId, participantId, or the deterministic conv ID).
+      // This prevents cross-account contamination on shared devices.
+      const _partCleanCheck = cleanUserIdKey(c.participantId);
+      const _creatorCleanCheck = cleanUserIdKey(c.creatorId || '');
+      const _convIdStr = (c.id || '').toLowerCase();
+      const _isMeInvolved =
+        _partCleanCheck === myCleanId ||
+        _creatorCleanCheck === myCleanId ||
+        _convIdStr.startsWith(`conv_${myCleanId}_`) ||
+        _convIdStr.endsWith(`_${myCleanId}`);
+      if (myCleanId && !_isMeInvolved) continue;
+      // ──────────────────────────────────────────────────────────────────
+
       let participantId = c.participantId;
       let participantName = c.participantName;
       let participantPhoto = c.participantPhoto || findParticipantPhoto(c.participantId, c.participantName);
@@ -757,7 +787,7 @@ export function MessagesPage() {
     const cleanMy = cleanUserIdKey(currentUserId);
     const cleanPart = cleanUserIdKey(activeConversation.participantId);
 
-    // 2. Update user-scoped local conversation storage for sender
+    // 3. Persist new message to sender's user-scoped conversations in localStorage
     try {
       const userKey = cleanMy ? `pm_user_conversations_${cleanMy}` : 'pm_user_conversations';
       const raw = localStorage.getItem(userKey);
@@ -767,9 +797,11 @@ export function MessagesPage() {
         localConvs[idx].messages = [...(localConvs[idx].messages || []), tempUserMsg];
         localConvs[idx].lastMessageText = userText;
         localConvs[idx].lastMessageAt = tempUserMsg.timestamp;
+        if (!localConvs[idx].creatorId) localConvs[idx].creatorId = currentUserId;
       } else {
         localConvs.unshift({
           ...activeConversation,
+          creatorId: currentUserId, // always persist creatorId for ownership checks
           status: (activeConversation.status ?? 'active') as 'active' | 'ended' | 'blocked',
           lastMessageText: userText,
           lastMessageAt: tempUserMsg.timestamp,
@@ -779,40 +811,11 @@ export function MessagesPage() {
       localStorage.setItem(userKey, JSON.stringify(localConvs));
     } catch {}
 
-    // 3. Mirror into recipient's local conversation storage for immediate cross-account viewing on same device
-    if (cleanPart && cleanPart !== cleanMy) {
-      try {
-        const recipientKey = `pm_user_conversations_${cleanPart}`;
-        const rRaw = localStorage.getItem(recipientKey);
-        let rConvs: Conversation[] = rRaw ? JSON.parse(rRaw) : [];
-        const rIdx = rConvs.findIndex(
-          (c) => c.id === activeConversation.id || cleanUserIdKey(c.participantId) === cleanMy
-        );
-        if (rIdx >= 0) {
-          rConvs[rIdx].messages = [...(rConvs[rIdx].messages || []), tempUserMsg];
-          rConvs[rIdx].lastMessageText = userText;
-          rConvs[rIdx].lastMessageAt = tempUserMsg.timestamp;
-          rConvs[rIdx].unreadCount = (rConvs[rIdx].unreadCount || 0) + 1;
-        } else {
-          rConvs.unshift({
-            id: activeConversation.id,
-            participantId: currentUserId,
-            participantName: currentUserName,
-            participantPhoto: currentUserPhoto,
-            participantAge: 28,
-            participantLocation: 'India',
-            participantOccupation: 'Member',
-            participantDenomination: 'Pentecostal',
-            status: 'active',
-            lastMessageText: userText,
-            lastMessageAt: tempUserMsg.timestamp,
-            unreadCount: 1,
-            messages: [tempUserMsg],
-          });
-        }
-        localStorage.setItem(recipientKey, JSON.stringify(rConvs));
-      } catch {}
-    }
+    // NOTE: We do NOT mirror messages into the recipient's localStorage.
+    // Cross-writing into another account's storage key is the root cause of
+    // conversations leaking between accounts on shared devices.
+    // The recipient sees new messages via the server API (polled every 2.5 s)
+    // and Firebase real-time subscriptions.
 
     // 4. Cross-tab live broadcast via BroadcastChannel and window custom event
     try {
@@ -1090,7 +1093,7 @@ export function MessagesPage() {
                         type="button"
                         onClick={() => {
                           setSelectedConvId(c.id);
-                          localStorage.setItem('pm_active_conv_id', c.id);
+                          localStorage.setItem(cleanMyKey ? `pm_active_conv_id_${cleanMyKey}` : 'pm_active_conv_id', c.id);
                           setMobileChatOpen(true);
                           markConversationAsRead(c.id, currentUserId);
                         }}
