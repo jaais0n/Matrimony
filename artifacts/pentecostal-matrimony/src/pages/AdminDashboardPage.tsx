@@ -87,83 +87,6 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
     queryFn: () => customFetch<any>('/api/admin/overview'),
   });
 
-  // Verification Queue Query
-  const { data: rawQueue = [], refetch: refetchQueue } = useQuery({
-    queryKey: ['admin-queue', profilesList.length],
-    queryFn: async () => {
-      const apiQueue = await customFetch<any[]>('/api/admin/verification-queue').catch(() => []);
-      let queueList = Array.isArray(apiQueue) ? [...apiQueue] : [];
-      for (const p of profilesList) {
-        if (p.verificationStatus !== 'verified') {
-          const exists = queueList.some(
-            (q) => (q.profile?.id && q.profile?.id === p.id) || (q.profile?.userId && q.profile?.userId === p.userId)
-          );
-          if (!exists) {
-            queueList.push({
-              profile: p,
-              submittedAt: p.updatedAt || p.createdAt || new Date().toISOString(),
-              identityChecked: true,
-              churchInformationProvided: Boolean(p.church || p.faith?.church),
-            });
-          }
-        }
-      }
-      return queueList;
-    },
-  });
-  const queue = Array.isArray(rawQueue) ? rawQueue : [];
-
-  // Moderation Reports Query
-  const { data: rawReports = [], refetch: refetchReports } = useQuery({
-    queryKey: ['admin-reports'],
-    queryFn: () => customFetch<any[]>('/api/admin/reports'),
-  });
-  const reports = Array.isArray(rawReports) ? rawReports : [];
-
-  // Registered Accounts Query
-  const { data: rawUsersList = [], refetch: refetchUsers } = useQuery({
-    queryKey: ['admin-users'],
-    queryFn: async () => {
-      const res = await customFetch<any[]>('/api/admin/users');
-      if (Array.isArray(res) && res.length > 0) return res;
-      try {
-        const raw = localStorage.getItem('pm_registered_accounts') || localStorage.getItem('pm_registered_users');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((u: any) => ({
-              id: u.id,
-              name: u.name || u.fullName || (u.email ? u.email.split('@')[0] : 'Member'),
-              fullName: u.fullName || u.name,
-              email: u.email,
-              role: u.role || 'member',
-              status: 'active',
-              plan: u.plan || 'Free Believer',
-              interestsRemaining: u.interestsRemaining ?? 10,
-              registeredAt: 'Today',
-            }));
-          }
-        }
-      } catch {}
-      return res || [];
-    },
-  });
-  const usersList = Array.isArray(rawUsersList) ? rawUsersList : [];
-
-  // Churches Query
-  const { data: rawChurchesList = [], refetch: refetchChurches } = useQuery({
-    queryKey: ['admin-churches'],
-    queryFn: () => customFetch<any[]>('/api/admin/churches'),
-  });
-  const churchesList = Array.isArray(rawChurchesList) ? rawChurchesList : [];
-
-  // Denominations Query
-  const { data: rawDenominationsList = [], refetch: refetchDenominations } = useQuery({
-    queryKey: ['admin-denominations'],
-    queryFn: () => customFetch<any[]>('/api/admin/denominations'),
-  });
-  const denominationsList = Array.isArray(rawDenominationsList) ? rawDenominationsList : [];
-
   // Profiles Query (Database-backed)
   const { data: profilesData, refetch: refetchProfiles } = useQuery<any>({
     queryKey: ['admin-profiles'],
@@ -263,6 +186,84 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
   });
 
   const profilesList = Array.isArray(profilesData) ? profilesData : ((profilesData as any)?.items || []);
+
+  // Verification Queue Query
+  const { data: rawQueue = [], refetch: refetchQueue } = useQuery({
+    queryKey: ['admin-queue', profilesList.length],
+    queryFn: async () => {
+      const apiQueue = await customFetch<any[]>('/api/admin/verification-queue').catch(() => []);
+      let queueList = Array.isArray(apiQueue) ? [...apiQueue] : [];
+      for (const p of profilesList) {
+        if (p.verificationStatus !== 'verified') {
+          const exists = queueList.some(
+            (q) => (q.profile?.id && q.profile?.id === p.id) || (q.profile?.userId && q.profile?.userId === p.userId)
+          );
+          if (!exists) {
+            queueList.push({
+              profile: p,
+              submittedAt: p.updatedAt || p.createdAt || new Date().toISOString(),
+              identityChecked: true,
+              churchInformationProvided: Boolean(p.church || p.faith?.church),
+            });
+          }
+        }
+      }
+      return queueList;
+    },
+  });
+  const queue = Array.isArray(rawQueue) ? rawQueue : [];
+
+  // Moderation Reports Query
+  const { data: rawReports = [], refetch: refetchReports } = useQuery({
+    queryKey: ['admin-reports'],
+    queryFn: () => customFetch<any[]>('/api/admin/reports'),
+  });
+  const reports = Array.isArray(rawReports) ? rawReports : [];
+
+  // Registered Accounts Query
+  const { data: rawUsersList = [], refetch: refetchUsers } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: async () => {
+      const res = await customFetch<any[]>('/api/admin/users');
+      if (Array.isArray(res) && res.length > 0) return res;
+      try {
+        const raw = localStorage.getItem('pm_registered_accounts') || localStorage.getItem('pm_registered_users');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((u: any) => ({
+              id: u.id,
+              name: u.name || u.fullName || (u.email ? u.email.split('@')[0] : 'Member'),
+              fullName: u.fullName || u.name,
+              email: u.email,
+              role: u.role || 'member',
+              status: 'active',
+              plan: u.plan || 'Free Believer',
+              interestsRemaining: u.interestsRemaining ?? 10,
+              registeredAt: 'Today',
+            }));
+          }
+        }
+      } catch {}
+      return res || [];
+    },
+  });
+  const usersList = Array.isArray(rawUsersList) ? rawUsersList : [];
+
+  // Churches Query
+  const { data: rawChurchesList = [], refetch: refetchChurches } = useQuery({
+    queryKey: ['admin-churches'],
+    queryFn: () => customFetch<any[]>('/api/admin/churches'),
+  });
+  const churchesList = Array.isArray(rawChurchesList) ? rawChurchesList : [];
+
+  // Denominations Query
+  const { data: rawDenominationsList = [], refetch: refetchDenominations } = useQuery({
+    queryKey: ['admin-denominations'],
+    queryFn: () => customFetch<any[]>('/api/admin/denominations'),
+  });
+  const denominationsList = Array.isArray(rawDenominationsList) ? rawDenominationsList : [];
+
   const [profileSearch, setProfileSearch] = useState('');
   const [profileStatusFilter, setProfileStatusFilter] = useState<'all' | 'verified' | 'under_review' | 'unverified'>('all');
 
