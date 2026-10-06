@@ -50,16 +50,30 @@ export default async function handler(req, res) {
   });
 
   const now = new Date();
-  const durationMonths = planId === 'elite' ? 6 : planId === 'premium' ? 3 : 1;
-  const expiresAt = new Date(now.getTime() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
+  const durationMonths =
+    planId === 'elite' || planId === 'year1'
+      ? 12
+      : planId === 'premium' || planId === 'month3'
+      ? 3
+      : planId === 'starter' || planId === 'month1'
+      ? 1
+      : 0;
+  const expiresAt = new Date(now.getTime() + (durationMonths || 120) * 30 * 24 * 60 * 60 * 1000).toISOString();
   const resolvedPlanName =
-    planName || (planId === 'elite' ? 'Elite VIP Steward' : planId === 'premium' ? 'Premium Partner' : 'Free Believer');
+    planName ||
+    (planId === 'elite' || planId === 'year1'
+      ? '1 Year VIP Steward'
+      : planId === 'premium' || planId === 'month3'
+      ? '3 Months Pro'
+      : planId === 'starter' || planId === 'month1'
+      ? '1 Month Starter'
+      : 'Basic Fellowship');
 
   let updatedUser = null;
   if (userIdx >= 0) {
     store.users[userIdx].plan = resolvedPlanName;
     store.users[userIdx].planTier = planId;
-    store.users[userIdx].isVip = planId === 'premium' || planId === 'elite';
+    store.users[userIdx].isVip = planId === 'starter' || planId === 'premium' || planId === 'elite';
     store.users[userIdx].interestsRemaining = planId === 'free' ? 10 : 9999;
     store.users[userIdx].planSubscribedAt = now.toISOString();
     store.users[userIdx].planExpiresAt = expiresAt;
@@ -75,18 +89,28 @@ export default async function handler(req, res) {
 
   if (profIdx >= 0) {
     store.profiles[profIdx].plan = planId;
-    store.profiles[profIdx].isVip = planId === 'premium' || planId === 'elite';
-    store.profiles[profIdx].vipBadge = planId === 'elite' ? 'VIP Steward' : planId === 'premium' ? 'Premium' : undefined;
+    store.profiles[profIdx].isVip = planId === 'starter' || planId === 'premium' || planId === 'elite';
+    store.profiles[profIdx].vipBadge =
+      planId === 'elite' ? 'VIP Steward' : planId === 'premium' ? 'Premium' : planId === 'starter' ? 'Starter' : undefined;
   }
 
   // Record transaction audit
+  const defaultAmount =
+    planId === 'elite' || planId === 'year1'
+      ? 9999
+      : planId === 'premium' || planId === 'month3'
+      ? 3999
+      : planId === 'starter' || planId === 'month1'
+      ? 799
+      : 0;
+
   const transaction = {
     id: `txn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     userId: cleanUser || cleanEmail || 'guest',
     userEmail: cleanEmail || (updatedUser ? updatedUser.email : ''),
     planId,
     planName: resolvedPlanName,
-    amount: amount ?? (planId === 'elite' ? 2999 : planId === 'premium' ? 1499 : 0),
+    amount: amount ?? defaultAmount,
     currency: 'INR',
     paymentMethod: paymentMethod || 'UPI',
     paymentId: paymentId || `pay_${Date.now()}`,

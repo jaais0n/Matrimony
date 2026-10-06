@@ -9,7 +9,6 @@ import {
   Heart,
   Lock,
   MessageCircle,
-  Play,
   ShieldCheck,
   Sparkles,
   Star,
@@ -17,16 +16,69 @@ import {
   UserPlus,
   Compass,
   CalendarCheck,
+  Crown,
+  User,
   X
 } from 'lucide-react';
 import { useAuth, useClerk, useUser } from '../auth';
 import { Footer } from '../components/ui/Footer';
-import { PaymentModal } from '../components/ui/PaymentModal';
-import heroCard1 from '../assets/hero/card1.jpg';
-import heroCard2 from '../assets/hero/card2.jpg';
-import heroCard3 from '../assets/hero/card3.jpg';
-import heroCard4 from '../assets/hero/card4.jpg';
-import heroCard5 from '../assets/hero/card5.jpg';
+import { PaymentModal, PlanId } from '../components/ui/PaymentModal';
+import homeCard1 from '../assets/hero/home1.png';
+import homeCard2 from '../assets/hero/home2.png';
+import homeCard3 from '../assets/hero/home3.png';
+import homeCard4 from '../assets/hero/home4.png';
+import homeCard5 from '../assets/hero/home5.png';
+
+const COUPLES_TESTIMONIALS = [
+  {
+    name: 'Daniel Morris',
+    church: 'Assemblies of God, Kottayam',
+    quote:
+      'I had almost given up on digital matrimony because everything felt superficial. Pentecostal Matrimony felt completely different. The faith transparency introduced me to someone who truly shared my Pentecostal roots.',
+    photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150',
+    tag: 'Holy Matrimony 2024',
+  },
+  {
+    name: 'Thomas & Susan',
+    church: 'Church of God, Trivandrum',
+    quote:
+      'From pastoral verification to prayerful compatibility, we experienced God’s peace at every step of our courtship. We were married in November 2024 with the blessings of both our home assemblies.',
+    photo: 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&q=80&w=150',
+    tag: 'Blessed Marriage 2024',
+  },
+  {
+    name: 'Rosie Alexander',
+    church: 'IPC Central, Bangalore',
+    quote:
+      'What stood out most was the quality of genuine connections. Instead of endless casual browsing, every person here is intentional about building something lasting. We found each other within two months.',
+    photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150',
+    tag: 'Holy Matrimony 2023',
+  },
+  {
+    name: 'Savannah Philip',
+    church: 'Church of God, Dubai',
+    quote:
+      'I loved how safe and thoughtfully designed the experience felt. From pastoral verification to private messaging, everything eliminated the awkwardness of traditional arranged marriage setups.',
+    photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=150',
+    tag: 'Blessed Union 2024',
+  },
+  {
+    name: 'Philip & Blessy',
+    church: 'Sharon Fellowship, Kochi',
+    quote:
+      'Our parents and pastors both appreciated the transparency. You can clearly see baptism details and spiritual commitment upfront before initiating contact.',
+    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150',
+    tag: 'Blessed Union 2024',
+  },
+  {
+    name: 'Joel & Hannah',
+    church: 'IPC Hebron, Kumbanad',
+    quote:
+      'God answered our family’s prayers through this platform. Finding a life partner with the same spiritual values and vision for ministry was our greatest answered prayer.',
+    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
+    tag: 'Holy Matrimony 2024',
+  },
+];
 
 const HERO_CARDS = [
   {
@@ -37,7 +89,7 @@ const HERO_CARDS = [
     denomination: 'Assemblies of God',
     profession: 'Architect',
     tag: 'Worship Team',
-    photo: heroCard3,
+    photo: homeCard3,
   },
   {
     id: 'joshua',
@@ -47,7 +99,7 @@ const HERO_CARDS = [
     denomination: 'IPC Ebenezer',
     profession: 'Tech Lead',
     tag: 'Youth Leader',
-    photo: heroCard2,
+    photo: homeCard4,
   },
   {
     id: 'believer_1',
@@ -57,7 +109,7 @@ const HERO_CARDS = [
     denomination: 'Church of God',
     profession: 'Healthcare',
     tag: 'Water Baptized',
-    photo: heroCard1,
+    photo: homeCard1,
   },
   {
     id: 'julian',
@@ -67,7 +119,7 @@ const HERO_CARDS = [
     denomination: 'Church of God',
     profession: 'Civil Eng',
     tag: 'Sunday School',
-    photo: heroCard4,
+    photo: homeCard5,
   },
   {
     id: 'sharon',
@@ -77,7 +129,7 @@ const HERO_CARDS = [
     denomination: 'Sharon Fellow.',
     profession: 'Physiotherapist',
     tag: 'Choir Member',
-    photo: heroCard5,
+    photo: homeCard2,
   },
 ];
 
@@ -89,10 +141,10 @@ export function LandingPage() {
   const currentUserId = user?.id || userId || '';
   const currentUserEmail = user?.primaryEmailAddress?.emailAddress || '';
 
-  const [userActivePlan, setUserActivePlan] = useState<'free' | 'premium' | 'elite'>('free');
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'premium' | 'elite'>('premium');
+  const [userActivePlan, setUserActivePlan] = useState<PlanId>('free');
+  const [selectedPlan, setSelectedPlan] = useState<PlanId>('premium');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [selectedPlanForModal, setSelectedPlanForModal] = useState<'free' | 'premium' | 'elite'>('premium');
+  const [selectedPlanForModal, setSelectedPlanForModal] = useState<PlanId>('premium');
   const [isSpread, setIsSpread] = useState(false);
   const [activeSection, setActiveSection] = useState<'home' | 'journey' | 'plans' | 'testimonials'>('home');
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
@@ -108,12 +160,16 @@ export function LandingPage() {
         const rawAuth = localStorage.getItem('pm_auth_user');
         if (rawAuth) {
           const authUser = JSON.parse(rawAuth);
-          if (authUser.planTier === 'elite' || authUser.plan?.toLowerCase().includes('elite')) {
+          if (authUser.planTier === 'elite' || authUser.plan?.toLowerCase().includes('elite') || authUser.planTier === 'year1') {
             setUserActivePlan('elite');
             return;
           }
-          if (authUser.planTier === 'premium' || authUser.plan?.toLowerCase().includes('premium') || authUser.isVip) {
+          if (authUser.planTier === 'premium' || authUser.plan?.toLowerCase().includes('premium') || authUser.planTier === 'month3') {
             setUserActivePlan('premium');
+            return;
+          }
+          if (authUser.planTier === 'starter' || authUser.plan?.toLowerCase().includes('starter') || authUser.planTier === 'month1' || authUser.isVip) {
+            setUserActivePlan('starter');
             return;
           }
         }
@@ -127,12 +183,16 @@ export function LandingPage() {
               (currentUserEmail && a.email?.toLowerCase() === currentUserEmail.toLowerCase())
           );
           if (matched) {
-            if (matched.planTier === 'elite' || matched.plan?.toLowerCase().includes('elite')) {
+            if (matched.planTier === 'elite' || matched.plan?.toLowerCase().includes('elite') || matched.planTier === 'year1') {
               setUserActivePlan('elite');
               return;
             }
-            if (matched.planTier === 'premium' || matched.plan?.toLowerCase().includes('premium') || matched.isVip) {
+            if (matched.planTier === 'premium' || matched.plan?.toLowerCase().includes('premium') || matched.planTier === 'month3') {
               setUserActivePlan('premium');
+              return;
+            }
+            if (matched.planTier === 'starter' || matched.plan?.toLowerCase().includes('starter') || matched.planTier === 'month1' || matched.isVip) {
+              setUserActivePlan('starter');
               return;
             }
           }
@@ -362,11 +422,11 @@ export function LandingPage() {
             }`}>
               <div className="h-56 sm:h-72 md:h-84 w-full overflow-hidden bg-slate-100">
                 <img
-                  src={heroCard1}
+                  src={homeCard1}
                   alt="Verified Member"
                   loading="eager"
                   decoding="async"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-[center_20%]"
                 />
               </div>
               <div className="absolute inset-x-2 bottom-2 rounded-xl sm:rounded-2xl bg-white/95 backdrop-blur-md p-2.5 sm:p-3 shadow-md">
@@ -389,11 +449,11 @@ export function LandingPage() {
             }`}>
               <div className="h-58 sm:h-76 md:h-88 w-full overflow-hidden bg-slate-100">
                 <img
-                  src={heroCard2}
-                  alt="Joshua V."
+                  src={homeCard4}
+                  alt="Joshua"
                   loading="eager"
                   decoding="async"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-[center_12%]"
                 />
               </div>
               <div className="absolute inset-x-2.5 bottom-2.5 rounded-xl sm:rounded-2xl bg-white/95 backdrop-blur-md p-2.5 sm:p-3.5 shadow-md">
@@ -416,11 +476,11 @@ export function LandingPage() {
             }`}>
               <div className="h-64 sm:h-82 md:h-96 w-full overflow-hidden bg-slate-100 relative">
                 <img
-                  src={heroCard3}
-                  alt="Grace E. Thomas"
+                  src={homeCard3}
+                  alt="Grace"
                   loading="eager"
                   decoding="async"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-[55%_22%]"
                 />
                 <div className="absolute top-3 right-3 rounded-full bg-rose-600 text-white p-1 shadow-md">
                   <Sparkles size={14} />
@@ -455,11 +515,11 @@ export function LandingPage() {
             }`}>
               <div className="h-58 sm:h-76 md:h-88 w-full overflow-hidden bg-slate-100">
                 <img
-                  src={heroCard4}
-                  alt="Julian Toby"
+                  src={homeCard5}
+                  alt="Julian"
                   loading="eager"
                   decoding="async"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-[45%_18%]"
                 />
               </div>
               <div className="absolute inset-x-2.5 bottom-2.5 rounded-xl sm:rounded-2xl bg-white/95 backdrop-blur-md p-2.5 sm:p-3.5 shadow-md">
@@ -482,11 +542,11 @@ export function LandingPage() {
             }`}>
               <div className="h-56 sm:h-72 md:h-84 w-full overflow-hidden bg-slate-100">
                 <img
-                  src={heroCard5}
-                  alt="Sharon M."
+                  src={homeCard2}
+                  alt="Sharon"
                   loading="eager"
                   decoding="async"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-[center_18%]"
                 />
               </div>
               <div className="absolute inset-x-2 bottom-2 rounded-xl sm:rounded-2xl bg-white/95 backdrop-blur-md p-2.5 sm:p-3 shadow-md">
@@ -616,58 +676,77 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3 items-stretch">
+          <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
             
-            {/* Free Plan */}
-            <div className="flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/90 backdrop-blur-sm p-8 luxury-card-shadow hover:shadow-xl hover:border-rose-300 transition-all duration-300">
+            {/* Card 1: BASIC */}
+            <div className={`flex flex-col justify-between rounded-3xl border p-6 sm:p-7 transition-all duration-300 ${
+              isSignedIn && userActivePlan === 'free'
+                ? 'border-slate-400 bg-white shadow-md'
+                : 'border-slate-200/90 bg-white shadow-sm hover:shadow-xl hover:border-slate-300'
+            }`}>
               <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-serif-fancy text-xl font-bold text-slate-900">Free</h3>
-                  {isSignedIn && userActivePlan === 'free' ? (
-                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
-                      <Check size={11} className="stroke-[3]" /> Active Plan
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-[#f4ebe3] border border-[#ebdcd0] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                      Basic
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                    <User size={18} />
+                  </div>
+                  {isSignedIn && userActivePlan === 'free' && (
+                    <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
                     </span>
                   )}
                 </div>
-                <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-slate-900">₹0</span>
-                  <span className="text-xs text-slate-500 ml-1">/forever</span>
-                </div>
-                <div className="text-[11px] text-emerald-700 font-semibold mt-1">
-                  Standard Believer Fellowship
-                </div>
 
-                <div className="mt-6 border-t border-[#ebdcd0]/70 pt-6">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">What you get</p>
-                  <ul className="space-y-3 text-xs text-slate-600">
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
-                      <span>Create verified believer profile</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
-                      <span>10 Express Interests per month</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
-                      <span>Basic denomination & assembly filters</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
-                      <span>Direct connection messaging</span>
-                    </li>
-                  </ul>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">BASIC</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹0</span>
+                  <span className="text-xs text-slate-500 ml-1">/ forever</span>
                 </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  Auto-activated after profile completion. Limited daily access.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-600">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>20 profile views per day</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>2 interests per day</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No messaging</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No contact details</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No WhatsApp access</span>
+                  </li>
+                </ul>
               </div>
 
-              <div className="mt-8 pt-4">
+              <div className="mt-8 pt-2">
                 {isSignedIn && userActivePlan === 'free' ? (
-                  <div className="w-full text-center rounded-full border border-emerald-300 bg-emerald-50/70 py-3 text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center justify-center gap-1.5 shadow-2xs">
-                    <Check size={14} className="stroke-[2.5]" /> Current Plan
+                  <div className="w-full text-center rounded-xl border border-slate-300 bg-slate-100 py-2.5 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 shadow-xs">
+                    <Check size={13} className="stroke-[2.5]" /> Current Plan
                   </div>
                 ) : (
                   <button
@@ -680,7 +759,7 @@ export function LandingPage() {
                         setLocation('/onboarding');
                       }
                     }}
-                    className="w-full text-center rounded-full border border-[#ebdcd0] bg-white py-3 text-xs font-bold uppercase tracking-wider text-slate-800 hover:border-rose-400 hover:text-rose-600 transition cursor-pointer"
+                    className="w-full text-center rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 transition cursor-pointer shadow-xs"
                   >
                     Get Started Free
                   </button>
@@ -688,138 +767,244 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Premium Plan (Featured in reference with luxury warm glow) */}
-            <div className="relative flex flex-col justify-between rounded-3xl border-2 border-rose-400/80 bg-gradient-to-b from-white via-[#fff9f6] to-[#fff2ec] p-8 shadow-2xl shadow-rose-900/10 transform md:-translate-y-2">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-rose-700 px-4 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-md whitespace-nowrap">
-                Popular Choice
-              </div>
-
+            {/* Card 2: 1 MONTH */}
+            <div className={`flex flex-col justify-between rounded-3xl border p-6 sm:p-7 transition-all duration-300 ${
+              isSignedIn && userActivePlan === 'starter'
+                ? 'border-rose-400 bg-white shadow-md'
+                : 'border-slate-200/90 bg-white shadow-sm hover:shadow-xl hover:border-slate-300'
+            }`}>
               <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-serif-fancy text-xl font-bold text-slate-900">Premium</h3>
-                  {isSignedIn && userActivePlan === 'premium' ? (
-                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
-                      <Check size={11} className="stroke-[3]" /> Active Plan
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-rose-100 border border-rose-200 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 uppercase tracking-wider">
-                      3 Months Plan
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-700">
+                    <Star size={18} className="fill-rose-700 text-rose-700" />
+                  </div>
+                  {isSignedIn && userActivePlan === 'starter' && (
+                    <span className="rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
                     </span>
                   )}
                 </div>
-                <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-rose-600">₹1,499</span>
-                  <span className="text-xs text-slate-500 ml-1">/ 3 mo</span>
-                </div>
-                <div className="text-[11px] text-rose-700 font-semibold mt-1">
-                  ₹499 / mo equivalent • Save 50%
-                </div>
 
-                <div className="mt-6 border-t border-rose-200/60 pt-6">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-rose-600 mb-4">What you get</p>
-                  <ul className="space-y-3 text-xs text-slate-700">
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-600 flex-shrink-0" />
-                      <span><strong>Unlimited</strong> daily Express Interests</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-600 flex-shrink-0" />
-                      <span>View verified contact numbers & email</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-600 flex-shrink-0" />
-                      <span>See who viewed & liked your profile</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-600 flex-shrink-0" />
-                      <span>Advanced denomination, assembly & NRI filters</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-600 flex-shrink-0" />
-                      <span>Priority in pastoral verification queue</span>
-                    </li>
-                  </ul>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">1 MONTH</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹799</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 1 month</span>
                 </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  One month of full communication access.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-600">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited profile views</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Send up to 100 interests</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited messaging</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>View 50 contact details</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No pastoral concierge</span>
+                  </li>
+                </ul>
               </div>
 
-              <div className="mt-8 pt-4">
+              <div className="mt-8 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPlanForModal('starter');
+                    setPaymentModalOpen(true);
+                  }}
+                  className="w-full text-center rounded-xl bg-rose-800 hover:bg-rose-900 text-white py-2.5 text-xs font-bold shadow-sm transition cursor-pointer"
+                >
+                  {isSignedIn && userActivePlan === 'starter' ? 'Current Plan (Extend ₹799)' : 'Choose 1 Month'}
+                </button>
+              </div>
+            </div>
+
+            {/* Card 3: 3 MONTHS (MOST POPULAR) */}
+            <div className={`relative flex flex-col justify-between rounded-3xl border-2 p-6 sm:p-7 transition-all duration-300 transform lg:-translate-y-2 ${
+              isSignedIn && userActivePlan === 'premium'
+                ? 'border-rose-600 bg-white shadow-xl'
+                : 'border-rose-500 bg-white shadow-lg hover:border-rose-600'
+            }`}>
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-rose-700 px-4 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm whitespace-nowrap">
+                MOST POPULAR
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-800">
+                    <Star size={18} className="fill-rose-800 text-rose-800" />
+                  </div>
+                  {isSignedIn && userActivePlan === 'premium' && (
+                    <span className="rounded-full bg-rose-100 border border-rose-300 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-rose-900 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">3 MONTHS</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹2,999</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 3 months</span>
+                </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  Three months — our recommended plan.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-700">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited profile views</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Send up to 300 interests</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited messaging</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>View 150 contact details</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 font-medium text-slate-800">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Priority pastoral verification</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mt-8 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedPlanForModal('premium');
                     setPaymentModalOpen(true);
                   }}
-                  className="w-full text-center rounded-full bg-rose-700 py-3 text-xs font-bold uppercase tracking-wider !text-white shadow-md hover:bg-rose-800 transition active:scale-95 cursor-pointer"
+                  className="w-full text-center rounded-xl bg-rose-700 hover:bg-rose-800 text-white py-2.5 text-xs font-bold shadow-md transition cursor-pointer"
                 >
-                  {isSignedIn && userActivePlan === 'premium' ? 'Current Plan (Extend ₹1,499)' : 'Choose Premium (₹1,499)'}
+                  {isSignedIn && userActivePlan === 'premium' ? 'Current Plan (Extend ₹2,999)' : 'Choose 3 Months'}
                 </button>
               </div>
             </div>
 
-            {/* Elite Plan */}
-            <div className="flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/90 backdrop-blur-sm p-8 luxury-card-shadow hover:shadow-xl hover:border-amber-400/60 transition-all duration-300">
+            {/* Card 4: 1 YEAR */}
+            <div className={`flex flex-col justify-between rounded-3xl border p-6 sm:p-7 transition-all duration-300 ${
+              isSignedIn && userActivePlan === 'elite'
+                ? 'border-amber-400 bg-white shadow-md'
+                : 'border-slate-200/90 bg-white shadow-sm hover:shadow-xl hover:border-slate-300'
+            }`}>
               <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-serif-fancy text-xl font-bold text-slate-900">Elite</h3>
-                  {isSignedIn && userActivePlan === 'elite' ? (
-                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
-                      <Check size={11} className="stroke-[3]" /> Active Plan
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                      VIP Steward
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-700">
+                    <Crown size={18} className="fill-amber-600 text-amber-700" />
+                  </div>
+                  {isSignedIn && userActivePlan === 'elite' && (
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
                     </span>
                   )}
                 </div>
-                <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-slate-900">₹2,999</span>
-                  <span className="text-xs text-slate-500 ml-1">/ 6 mo</span>
-                </div>
-                <div className="text-[11px] text-amber-800 font-semibold mt-1">
-                  ₹499 / mo equivalent • Full Pastoral Concierge
-                </div>
 
-                <div className="mt-6 border-t border-[#ebdcd0]/70 pt-6">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">What you get</p>
-                  <ul className="space-y-3 text-xs text-slate-600">
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Everything in Premium</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Dedicated pastoral family steward concierge</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Pastoral reference check concierge</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Exclusive profile highlight badge & spotlight</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Personalized matrimonial match assistance</span>
-                    </li>
-                  </ul>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">1 YEAR</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹9,999</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 1 year</span>
                 </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  Full year of unlimited matchmaking.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-600">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited profile views</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited interests</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited messaging</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>View 400 contact details</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 font-medium text-slate-800">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-amber-50 text-amber-700 flex-shrink-0">
+                      <Crown size={11} className="fill-amber-600" />
+                    </span>
+                    <span>Dedicated Pastoral Concierge & VIP badge</span>
+                  </li>
+                </ul>
               </div>
 
-              <div className="mt-8 pt-4">
+              <div className="mt-8 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedPlanForModal('elite');
                     setPaymentModalOpen(true);
                   }}
-                  className={`w-full text-center rounded-full py-3 text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
-                    isSignedIn && userActivePlan === 'elite'
-                      ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md'
-                      : 'border border-[#ebdcd0] bg-white text-slate-800 hover:border-amber-400 hover:text-amber-700'
-                  }`}
+                  className="w-full text-center rounded-xl bg-slate-900 hover:bg-black text-white py-2.5 text-xs font-bold shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  {isSignedIn && userActivePlan === 'elite' ? 'Current Plan (Extend ₹2,999)' : 'Go Elite (₹2,999)'}
+                  <Crown size={13} className="fill-amber-400 text-amber-400" />
+                  <span>{isSignedIn && userActivePlan === 'elite' ? 'Current Plan (Extend ₹9,999)' : 'Choose 1 Year'}</span>
                 </button>
               </div>
             </div>
@@ -843,10 +1028,10 @@ export function LandingPage() {
                 <div className="flex items-center justify-center gap-4 mb-8">
                   <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-rose-300 shadow-md">
                     <img
-                      src={heroCard3}
+                      src={homeCard3}
                       alt="Believer Bride"
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-[55%_22%]"
                     />
                   </div>
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600">
@@ -854,10 +1039,10 @@ export function LandingPage() {
                   </div>
                   <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-rose-300 shadow-md">
                     <img
-                      src={heroCard2}
+                      src={homeCard4}
                       alt="Believer Groom"
                       loading="lazy"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-[center_12%]"
                     />
                   </div>
                 </div>
@@ -929,115 +1114,82 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* WHAT OUR USERS SAY (WARM CHAMPAGNE AMBIENCE WITH LUXURY CARDS) */}
+      {/* WHAT OUR USERS SAY (WARM CHAMPAGNE AMBIENCE WITH INFINITE LOOP SCROLLING) */}
       <section id="testimonials" className="py-20 sm:py-28 bg-gradient-to-b from-[#fbf5ee] via-[#f7f0ea] to-[#f5eae0] border-t border-[#ebdcd0] relative overflow-hidden">
         {/* Soft Radial Ambient Lighting */}
         <div className="pointer-events-none absolute top-10 right-1/3 h-96 w-96 rounded-full bg-amber-100/30 blur-3xl" />
         <div className="pointer-events-none absolute bottom-10 left-10 h-80 w-80 rounded-full bg-rose-200/20 blur-3xl" />
 
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
-          
           <div className="text-center">
             <h2 className="font-serif-fancy text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
               What Our Blessed Couples Say
             </h2>
             <div className="mx-auto mt-3 h-1 w-16 rounded-full bg-rose-500" />
-            <p className="mx-auto mt-3 text-xs sm:text-sm text-slate-500">
+            <p className="mx-auto mt-3 text-xs sm:text-sm text-slate-500 max-w-xl">
               Real stories of prayer, pastoral discernment, and God’s perfect timing.
             </p>
           </div>
+        </div>
 
-          <div className="mt-16 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
-            
-            {/* Testimonial 1 */}
-            <div className="flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/90 backdrop-blur-sm p-6 luxury-card-shadow hover:shadow-xl hover:border-rose-300 transition-all duration-300">
-              <div>
-                <div className="h-10 w-10 rounded-full overflow-hidden mb-4 border border-rose-200 shadow-xs">
-                  <img
-                    src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=150"
-                    alt="Daniel"
-                    className="h-full w-full object-cover"
-                  />
+        {/* Infinite Loop Scrolling Track */}
+        <div className="mt-14 relative w-full overflow-hidden">
+          {/* Subtle Left & Right Luxury Fade Gradients */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-36 bg-gradient-to-r from-[#fbf5ee] via-[#fbf5ee]/80 to-transparent z-10" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-36 bg-gradient-to-l from-[#f5eae0] via-[#f5eae0]/80 to-transparent z-10" />
+
+          {/* Continuous Smooth Infinite Marquee */}
+          <div className="animate-marquee-scroll flex gap-6 py-4 px-4 select-none">
+            {[...COUPLES_TESTIMONIALS, ...COUPLES_TESTIMONIALS].map((t, idx) => (
+              <div
+                key={idx}
+                className="w-[300px] sm:w-[360px] md:w-[390px] flex-shrink-0 flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/95 backdrop-blur-sm p-6 sm:p-7 luxury-card-shadow hover:shadow-xl hover:border-rose-300 transition-all duration-300"
+              >
+                <div>
+                  {/* Avatar & 5 Stars */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-11 w-11 rounded-full overflow-hidden border-2 border-rose-200/80 shadow-xs flex-shrink-0">
+                        <img
+                          src={t.photo}
+                          alt={t.name}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-serif text-sm font-bold text-slate-900 block leading-tight truncate">
+                          {t.name}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+                          {t.church}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center text-amber-400 gap-0.5 flex-shrink-0">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={12} className="fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quote Body */}
+                  <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed italic">
+                    "{t.quote}"
+                  </p>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "I had almost given up on digital matrimony because everything felt superficial. Pentecostal Matrimony felt completely different. The faith transparency introduced me to someone who truly shared my Pentecostal roots."
-                </p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-[#ebdcd0]/70">
-                <span className="font-script-fancy text-2xl text-slate-800 block">
-                  Daniel Morris
-                </span>
-                <span className="text-[10px] text-slate-400">Assemblies of God, Kottayam</span>
-              </div>
-            </div>
 
-            {/* Testimonial 2 (Couple Video Thumbnail card like reference) */}
-            <div className="relative group rounded-3xl overflow-hidden shadow-md flex items-center justify-center min-h-[280px] border border-[#ebdcd0]">
-              <img
-                src="https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&q=80&w=500"
-                alt="Married Couple"
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-slate-900/30 group-hover:bg-slate-900/20 transition-colors" />
-              
-              <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-white/95 text-rose-600 shadow-xl backdrop-blur-sm group-hover:scale-110 transition-transform">
-                <Play size={20} className="fill-rose-600 ml-1" />
-              </div>
-
-              <div className="absolute bottom-4 inset-x-4 text-center z-10">
-                <span className="font-script-fancy text-2xl text-white drop-shadow-md">
-                  Thomas & Susan
-                </span>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-rose-100 drop-shadow">
-                  Blessed Marriage 2024
-                </span>
-              </div>
-            </div>
-
-            {/* Testimonial 3 */}
-            <div className="flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/90 backdrop-blur-sm p-6 luxury-card-shadow hover:shadow-xl hover:border-rose-300 transition-all duration-300">
-              <div>
-                <div className="h-10 w-10 rounded-full overflow-hidden mb-4 border border-rose-200 shadow-xs">
-                  <img
-                    src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150"
-                    alt="Rosie"
-                    className="h-full w-full object-cover"
-                  />
+                {/* Bottom Signature & Tag */}
+                <div className="mt-6 pt-4 border-t border-[#ebdcd0]/70 flex items-center justify-between">
+                  <span className="font-script-fancy text-2xl text-slate-800 block">
+                    {t.name}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100 flex-shrink-0">
+                    <Heart size={9} className="fill-rose-500 text-rose-500" /> {t.tag}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "What stood out most was the quality of genuine connections. Instead of endless casual browsing, every person here is intentional about building something lasting. We found each other within two months."
-                </p>
               </div>
-              <div className="mt-6 pt-4 border-t border-[#ebdcd0]/70">
-                <span className="font-script-fancy text-2xl text-slate-800 block">
-                  Rosie Alexander
-                </span>
-                <span className="text-[10px] text-slate-400">IPC Central, Bangalore</span>
-              </div>
-            </div>
-
-            {/* Testimonial 4 */}
-            <div className="flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/90 backdrop-blur-sm p-6 luxury-card-shadow hover:shadow-xl hover:border-rose-300 transition-all duration-300">
-              <div>
-                <div className="h-10 w-10 rounded-full overflow-hidden mb-4 border border-rose-200 shadow-xs">
-                  <img
-                    src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=150"
-                    alt="Savannah"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "I loved how safe and thoughtfully designed the experience felt. From pastoral verification to private messaging, everything eliminated the awkwardness of traditional arranged marriage setups."
-                </p>
-              </div>
-              <div className="mt-6 pt-4 border-t border-[#ebdcd0]/70">
-                <span className="font-script-fancy text-2xl text-slate-800 block">
-                  Savannah Philip
-                </span>
-                <span className="text-[10px] text-slate-400">Church of God, Dubai</span>
-              </div>
-            </div>
-
+            ))}
           </div>
         </div>
       </section>

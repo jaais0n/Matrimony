@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Check, ShieldCheck, Zap, Sparkles, Award, ArrowLeft } from 'lucide-react';
+import { Check, ShieldCheck, Zap, Sparkles, Award, ArrowLeft, Crown, User, Star, X } from 'lucide-react';
 import { Link } from 'wouter';
 import { useAuth, useUser } from '../auth';
-import { PaymentModal, INDIAN_RUPEE_PLANS } from '../components/ui/PaymentModal';
+import { PaymentModal, INDIAN_RUPEE_PLANS, PlanId } from '../components/ui/PaymentModal';
 
 export function SubscriptionPage() {
   const { user } = useUser();
@@ -10,9 +10,9 @@ export function SubscriptionPage() {
   const currentUserId = user?.id || userId || '';
   const currentUserEmail = user?.primaryEmailAddress?.emailAddress || '';
 
-  const [activeUserPlan, setActiveUserPlan] = useState<'free' | 'premium' | 'elite'>('free');
+  const [activeUserPlan, setActiveUserPlan] = useState<PlanId>('free');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [selectedPlanForModal, setSelectedPlanForModal] = useState<'free' | 'premium' | 'elite'>('premium');
+  const [selectedPlanForModal, setSelectedPlanForModal] = useState<PlanId>('premium');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -27,12 +27,16 @@ export function SubscriptionPage() {
         const rawAuth = localStorage.getItem('pm_auth_user');
         if (rawAuth) {
           const authUser = JSON.parse(rawAuth);
-          if (authUser.planTier === 'elite' || authUser.plan?.toLowerCase().includes('elite')) {
+          if (authUser.planTier === 'elite' || authUser.plan?.toLowerCase().includes('elite') || authUser.planTier === 'year1') {
             setActiveUserPlan('elite');
             return;
           }
-          if (authUser.planTier === 'premium' || authUser.plan?.toLowerCase().includes('premium') || authUser.isVip) {
+          if (authUser.planTier === 'premium' || authUser.plan?.toLowerCase().includes('premium') || authUser.planTier === 'month3') {
             setActiveUserPlan('premium');
+            return;
+          }
+          if (authUser.planTier === 'starter' || authUser.plan?.toLowerCase().includes('starter') || authUser.planTier === 'month1' || authUser.isVip) {
+            setActiveUserPlan('starter');
             return;
           }
         }
@@ -46,12 +50,16 @@ export function SubscriptionPage() {
               (currentUserEmail && a.email?.toLowerCase() === currentUserEmail.toLowerCase())
           );
           if (matched) {
-            if (matched.planTier === 'elite' || matched.plan?.toLowerCase().includes('elite')) {
+            if (matched.planTier === 'elite' || matched.plan?.toLowerCase().includes('elite') || matched.planTier === 'year1') {
               setActiveUserPlan('elite');
               return;
             }
-            if (matched.planTier === 'premium' || matched.plan?.toLowerCase().includes('premium') || matched.isVip) {
+            if (matched.planTier === 'premium' || matched.plan?.toLowerCase().includes('premium') || matched.planTier === 'month3') {
               setActiveUserPlan('premium');
+              return;
+            }
+            if (matched.planTier === 'starter' || matched.plan?.toLowerCase().includes('starter') || matched.planTier === 'month1' || matched.isVip) {
+              setActiveUserPlan('starter');
               return;
             }
           }
@@ -67,7 +75,7 @@ export function SubscriptionPage() {
     return () => window.removeEventListener('pm:sync', updateActivePlan);
   }, [currentUserId, currentUserEmail]);
 
-  const handleOpenPlanModal = (planId: 'free' | 'premium' | 'elite') => {
+  const handleOpenPlanModal = (planId: PlanId) => {
     setSelectedPlanForModal(planId);
     setPaymentModalOpen(true);
   };
@@ -95,7 +103,7 @@ export function SubscriptionPage() {
         </div>
 
         <div className="rounded-3xl border border-rose-100 bg-white p-6 sm:p-10 text-center shadow-sm overflow-hidden relative">
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-600 via-amber-500 to-rose-700" />
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-rose-700" />
           
           <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-[11px] font-bold text-rose-700 uppercase tracking-wider mb-2 border border-rose-200">
             <Sparkles size={12} /> Indian Rupee Membership Plans
@@ -107,180 +115,336 @@ export function SubscriptionPage() {
             Transparent, honest plans in Indian Rupees (₹) designed to support serious Christian believers and family stewards with manual pastoral verification and direct contact facilitation.
           </p>
 
-          <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-3 text-left items-stretch">
-            {/* 1. Free Tier */}
-            <div className={`rounded-3xl border-2 p-6 sm:p-8 flex flex-col justify-between transition ${
+          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 text-left items-stretch">
+            {/* Card 1: BASIC */}
+            <div className={`flex flex-col justify-between rounded-3xl border p-6 sm:p-7 transition-all duration-300 ${
               activeUserPlan === 'free'
-                ? 'border-slate-300 bg-slate-50/70 shadow-xs'
-                : 'border-slate-200 bg-white hover:border-slate-300'
+                ? 'border-slate-400 bg-white shadow-md'
+                : 'border-slate-200/90 bg-white shadow-sm hover:shadow-md hover:border-slate-300'
             }`}>
               <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Standard Tier</span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                    <User size={18} />
+                  </div>
                   {activeUserPlan === 'free' && (
-                    <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[10px] font-bold text-slate-700 uppercase">
-                      Current Plan
+                    <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
                     </span>
                   )}
                 </div>
-                <h3 className="mt-3 text-2xl font-extrabold text-slate-900 font-serif-fancy">Free Fellowship</h3>
-                <p className="mt-1 text-xs text-slate-600">
-                  Essential tools to discover and connect with verified Pentecostal profiles.
-                </p>
-                <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-slate-900">₹0</span>
-                  <span className="text-xs text-slate-500 ml-1">/forever</span>
-                </div>
-                <div className="text-[11px] text-emerald-700 font-semibold mt-1">
-                  Standard Believer Fellowship
-                </div>
 
-                <ul className="mt-6 space-y-3 text-xs border-t border-slate-200/80 pt-6">
-                  <li className="flex items-center gap-2 text-slate-700">
-                    <Check size={16} className="text-emerald-600 stroke-[2.5]" /> 10 Express Interests per month
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">BASIC</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹0</span>
+                  <span className="text-xs text-slate-500 ml-1">/ forever</span>
+                </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  Auto-activated after profile completion. Limited daily access.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-600">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>20 profile views per day</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-700">
-                    <Check size={16} className="text-emerald-600 stroke-[2.5]" /> Verified member profile badge
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>2 interests per day</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-700">
-                    <Check size={16} className="text-emerald-600 stroke-[2.5]" /> Access to full public directory
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No messaging</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-700">
-                    <Check size={16} className="text-emerald-600 stroke-[2.5]" /> Private chat upon mutual connection
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No contact details</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-400">
-                    <span className="h-2 w-2 rounded-full bg-slate-300" /> Standard discovery ranking
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No WhatsApp access</span>
                   </li>
                 </ul>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-200/80">
-                <button
-                  type="button"
-                  onClick={() => handleOpenPlanModal('free')}
-                  disabled={activeUserPlan === 'free'}
-                  className="w-full rounded-xl border border-slate-300 bg-white py-3 text-xs font-bold text-slate-700 uppercase tracking-wider hover:bg-slate-50 transition cursor-pointer disabled:opacity-50 disabled:cursor-default"
-                >
-                  {activeUserPlan === 'free' ? 'Active Standard Tier' : 'Select Free Plan'}
-                </button>
+              <div className="mt-8 pt-2">
+                {activeUserPlan === 'free' ? (
+                  <div className="w-full text-center rounded-xl border border-slate-300 bg-slate-100 py-2.5 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 shadow-xs">
+                    <Check size={13} className="stroke-[2.5]" /> Current Plan
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPlanModal('free')}
+                    className="w-full text-center rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                  >
+                    Select Free Plan
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* 2. Premium Tier (Featured) */}
-            <div className={`rounded-3xl border-2 p-6 sm:p-8 flex flex-col justify-between relative transition shadow-md ${
+            {/* Card 2: 1 MONTH */}
+            <div className={`flex flex-col justify-between rounded-3xl border p-6 sm:p-7 transition-all duration-300 ${
+              activeUserPlan === 'starter'
+                ? 'border-rose-400 bg-white shadow-md'
+                : 'border-slate-200/90 bg-white shadow-sm hover:shadow-xl hover:border-slate-300'
+            }`}>
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-700">
+                    <Star size={18} className="fill-rose-700 text-rose-700" />
+                  </div>
+                  {activeUserPlan === 'starter' && (
+                    <span className="rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">1 MONTH</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹799</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 1 month</span>
+                </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  One month of full communication access at our low introductory trial rate.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-600">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited profile views</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Send up to 100 interests</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited messaging</span>
+                  </li>
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>View 50 contact details</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 text-slate-400">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-100 text-slate-400 flex-shrink-0">
+                      <X size={11} className="stroke-[2.5]" />
+                    </span>
+                    <span>No WhatsApp concierge</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mt-8 pt-2">
+                {activeUserPlan === 'starter' ? (
+                  <div className="w-full text-center rounded-xl border border-slate-300 bg-slate-100 py-2.5 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 shadow-xs">
+                    <Check size={13} className="stroke-[2.5]" /> Current Plan
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPlanModal('starter')}
+                    className="w-full text-center rounded-xl bg-rose-800 hover:bg-rose-900 text-white py-2.5 text-xs font-bold shadow-sm transition cursor-pointer"
+                  >
+                    Choose 1 Month
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Card 3: 3 MONTHS (MOST POPULAR) */}
+            <div className={`relative flex flex-col justify-between rounded-3xl border-2 p-6 sm:p-7 transition-all duration-300 transform lg:-translate-y-2 ${
               activeUserPlan === 'premium'
-                ? 'border-rose-600 bg-gradient-to-b from-rose-50/70 to-white ring-2 ring-rose-500/20'
-                : 'border-rose-400/80 bg-gradient-to-b from-white via-[#fff9f6] to-[#fff2ec]'
+                ? 'border-rose-600 bg-white shadow-xl'
+                : 'border-rose-500 bg-white shadow-lg hover:border-rose-600'
             }`}>
-              <div className="absolute -top-3.5 right-6 rounded-full bg-rose-700 px-3.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-xs">
-                Popular Choice
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-rose-700 px-4 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm whitespace-nowrap">
+                MOST POPULAR
               </div>
 
               <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-widest text-rose-700">Premium Partner</span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-800">
+                    <Star size={18} className="fill-rose-800 text-rose-800" />
+                  </div>
                   {activeUserPlan === 'premium' && (
-                    <span className="rounded-full bg-rose-100 border border-rose-300 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 uppercase">
-                      Active Plan
+                    <span className="rounded-full bg-rose-100 border border-rose-300 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-rose-900 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
                     </span>
                   )}
                 </div>
-                <h3 className="mt-3 text-2xl font-extrabold text-slate-900 font-serif-fancy">Premium Membership</h3>
-                <p className="mt-1 text-xs text-slate-600">
-                  Unmetered connections, direct contact sharing, and pastoral verification priority.
-                </p>
-                <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-rose-600">₹1,499</span>
-                  <span className="text-xs text-slate-500 ml-1">/ 3 Months</span>
-                </div>
-                <div className="text-[11px] text-rose-700 font-semibold mt-1">
-                  ₹499 / mo equivalent • Save 50%
-                </div>
 
-                <ul className="mt-6 space-y-3 text-xs border-t border-rose-100 pt-6">
-                  <li className="flex items-center gap-2 font-semibold text-slate-900">
-                    <Check size={16} className="text-rose-600 stroke-[3]" /> Unlimited Express Interests
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">3 MONTHS</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹2,999</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 3 months</span>
+                </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  Three months — our recommended plan. Full matchmaking and pastor verification.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-600">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited profile views</span>
                   </li>
-                  <li className="flex items-center gap-2 font-semibold text-slate-900">
-                    <Check size={16} className="text-rose-600 stroke-[3]" /> View verified contact phone & email
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Send up to 300 interests</span>
                   </li>
-                  <li className="flex items-center gap-2 font-semibold text-slate-900">
-                    <Check size={16} className="text-rose-600 stroke-[3]" /> Priority pastoral verification review
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited messaging</span>
                   </li>
-                  <li className="flex items-center gap-2 font-semibold text-slate-900">
-                    <Check size={16} className="text-rose-600 stroke-[3]" /> Advanced search & NRI diocese filters
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>View 150 contact details</span>
                   </li>
-                  <li className="flex items-center gap-2 font-semibold text-slate-900">
-                    <Check size={16} className="text-rose-600 stroke-[3]" /> Highlighted placement in directory
+                  <li className="flex items-center gap-2.5 font-medium text-slate-800">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Pastoral badge priority</span>
                   </li>
                 </ul>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-rose-100">
-                <button
-                  type="button"
-                  onClick={() => handleOpenPlanModal('premium')}
-                  className="w-full rounded-xl bg-rose-700 py-3 text-xs font-bold text-white uppercase tracking-wider shadow-md hover:bg-rose-800 transition cursor-pointer"
-                >
-                  {activeUserPlan === 'premium' ? 'Renew / Extend Premium' : 'Upgrade to Premium (₹1,499)'}
-                </button>
+              <div className="mt-8 pt-2">
+                {activeUserPlan === 'premium' ? (
+                  <div className="w-full text-center rounded-xl border border-slate-300 bg-slate-100 py-2.5 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 shadow-xs">
+                    <Check size={13} className="stroke-[2.5]" /> Current Plan
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPlanModal('premium')}
+                    className="w-full text-center rounded-xl bg-rose-700 hover:bg-rose-800 text-white py-2.5 text-xs font-bold shadow-md transition cursor-pointer"
+                  >
+                    Choose 3 Months
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* 3. Elite Tier */}
-            <div className={`rounded-3xl border-2 p-6 sm:p-8 flex flex-col justify-between transition ${
+            {/* Card 4: 1 YEAR */}
+            <div className={`flex flex-col justify-between rounded-3xl border p-6 sm:p-7 transition-all duration-300 ${
               activeUserPlan === 'elite'
-                ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/20'
-                : 'border-[#ebdcd0] bg-white hover:border-amber-400'
+                ? 'border-amber-400 bg-white shadow-md'
+                : 'border-slate-200/90 bg-white shadow-sm hover:shadow-xl hover:border-slate-300'
             }`}>
               <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-widest text-amber-800">VIP Steward</span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-700">
+                    <Crown size={18} className="fill-amber-600 text-amber-700" />
+                  </div>
                   {activeUserPlan === 'elite' && (
-                    <span className="rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 uppercase">
-                      Active VIP
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                      <Check size={10} className="stroke-[3]" /> Active Plan
                     </span>
                   )}
                 </div>
-                <h3 className="mt-3 text-2xl font-extrabold text-slate-900 font-serif-fancy">Elite VIP Plan</h3>
-                <p className="mt-1 text-xs text-slate-600">
-                  Full dedicated pastoral family steward concierge & personalized matchmaking.
-                </p>
-                <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-slate-900">₹2,999</span>
-                  <span className="text-xs text-slate-500 ml-1">/ 6 Months</span>
-                </div>
-                <div className="text-[11px] text-amber-800 font-semibold mt-1">
-                  ₹499 / mo equivalent • Full Pastoral Concierge
-                </div>
 
-                <ul className="mt-6 space-y-3 text-xs border-t border-slate-200/80 pt-6">
-                  <li className="flex items-center gap-2 text-slate-800 font-semibold">
-                    <Check size={16} className="text-amber-600 stroke-[3]" /> Everything in Premium included
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">1 YEAR</h3>
+                
+                <div className="mt-2 flex items-baseline">
+                  <span className="text-3xl font-black text-slate-900">₹9,999</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 1 year</span>
+                </div>
+                
+                <p className="mt-2 text-xs text-slate-500 leading-relaxed min-h-[36px]">
+                  Full year of unlimited matchmaking, VIP concierge & dedicated pastoral facilitation.
+                </p>
+
+                <div className="my-5 border-t border-slate-100" />
+
+                <ul className="space-y-3 text-xs text-slate-600">
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited profile views</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-800 font-semibold">
-                    <Check size={16} className="text-amber-600 stroke-[3]" /> Dedicated family steward assistance
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited interests</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-800 font-semibold">
-                    <Check size={16} className="text-amber-600 stroke-[3]" /> Pastoral reference check concierge
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>Unlimited messaging</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-800 font-semibold">
-                    <Check size={16} className="text-amber-600 stroke-[3]" /> Exclusive VIP candidate spotlight badge
+                  <li className="flex items-center gap-2.5">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <Check size={11} className="stroke-[3]" />
+                    </span>
+                    <span>View 400 contact details</span>
                   </li>
-                  <li className="flex items-center gap-2 text-slate-800 font-semibold">
-                    <Check size={16} className="text-amber-600 stroke-[3]" /> Personalized introduction assistance
+                  <li className="flex items-center gap-2.5 font-medium text-slate-800">
+                    <span className="flex h-4 w-4 items-center justify-center rounded bg-amber-50 text-amber-700 flex-shrink-0">
+                      <Crown size={11} className="fill-amber-600" />
+                    </span>
+                    <span>Direct WhatsApp & VIP support</span>
                   </li>
                 </ul>
               </div>
 
-              <div className="mt-8 pt-6 border-t border-slate-200/80">
-                <button
-                  type="button"
-                  onClick={() => handleOpenPlanModal('elite')}
-                  className="w-full rounded-xl border border-amber-400 bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 py-3 text-xs font-bold uppercase tracking-wider transition cursor-pointer"
-                >
-                  {activeUserPlan === 'elite' ? 'Renew / Extend Elite' : 'Select Elite VIP (₹2,999)'}
-                </button>
+              <div className="mt-8 pt-2">
+                {activeUserPlan === 'elite' ? (
+                  <div className="w-full text-center rounded-xl border border-slate-300 bg-slate-100 py-2.5 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 shadow-xs">
+                    <Check size={13} className="stroke-[2.5]" /> Current Plan
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPlanModal('elite')}
+                    className="w-full text-center rounded-xl bg-slate-900 hover:bg-black text-white py-2.5 text-xs font-bold shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Crown size={14} className="fill-amber-400 text-amber-400" /> Choose 1 Year
+                  </button>
+                )}
               </div>
             </div>
           </div>

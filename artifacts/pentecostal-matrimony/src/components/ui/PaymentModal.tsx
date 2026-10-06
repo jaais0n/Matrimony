@@ -12,12 +12,22 @@ import {
   Award,
   Zap,
   CheckCircle2,
-  QrCode
+  QrCode,
+  Crown,
+  User,
+  Star
 } from 'lucide-react';
 import { useAuth, useUser } from '../../auth';
 
+export type PlanId = 'free' | 'starter' | 'premium' | 'elite';
+
+export interface PlanPerkItem {
+  text: string;
+  included: boolean;
+}
+
 export interface PlanDetails {
-  id: 'free' | 'premium' | 'elite';
+  id: PlanId;
   name: string;
   badge: string;
   priceInr: number;
@@ -25,57 +35,101 @@ export interface PlanDetails {
   monthlyEquivalent: string;
   description: string;
   perks: string[];
+  structuredPerks?: PlanPerkItem[];
 }
 
-export const INDIAN_RUPEE_PLANS: Record<'free' | 'premium' | 'elite', PlanDetails> = {
+export const INDIAN_RUPEE_PLANS: Record<PlanId, PlanDetails> = {
   free: {
     id: 'free',
-    name: 'Free Fellowship',
+    name: 'BASIC',
     badge: 'Basic',
     priceInr: 0,
-    durationLabel: 'Free Forever',
-    monthlyEquivalent: '₹0 / mo',
-    description: 'Essential fellowship tools to discover and connect with verified Pentecostal profiles.',
+    durationLabel: '/ forever',
+    monthlyEquivalent: '₹0 / forever',
+    description: 'Auto-activated after profile completion. Limited daily access.',
     perks: [
-      'Create verified believer profile',
-      '10 Express Interests per month',
-      'Basic denomination & assembly filters',
-      'Direct chat with mutual connections',
-      'Standard discovery listing',
+      '20 profile views per day',
+      '2 interests per day',
+      'Basic denomination filters',
+      'Standard directory listing',
+    ],
+    structuredPerks: [
+      { text: '20 profile views per day', included: true },
+      { text: '2 interests per day', included: true },
+      { text: 'No messaging', included: false },
+      { text: 'No contact details', included: false },
+      { text: 'No WhatsApp access', included: false },
+    ],
+  },
+  starter: {
+    id: 'starter',
+    name: '1 MONTH',
+    badge: 'Starter',
+    priceInr: 799,
+    durationLabel: '/ 1 month',
+    monthlyEquivalent: '₹799 / mo',
+    description: 'One month of full communication access.',
+    perks: [
+      'Unlimited profile views',
+      'Send up to 100 interests',
+      'Unlimited messaging',
+      'View 50 contact details',
+      'Verified member badge',
+    ],
+    structuredPerks: [
+      { text: 'Unlimited profile views', included: true },
+      { text: 'Send up to 100 interests', included: true },
+      { text: 'Unlimited messaging', included: true },
+      { text: 'View 50 contact details', included: true },
+      { text: 'No pastoral concierge', included: false },
     ],
   },
   premium: {
     id: 'premium',
-    name: 'Premium Partner',
-    badge: 'Popular Choice',
-    priceInr: 1499,
-    durationLabel: '3 Months Plan',
-    monthlyEquivalent: '₹499 / mo equivalent',
-    description: 'Unmetered communication, verified contacts, and priority pastoral review for serious seekers.',
+    name: '3 MONTHS',
+    badge: 'Most Popular',
+    priceInr: 2999,
+    durationLabel: '/ 3 months',
+    monthlyEquivalent: '₹999 / mo equivalent',
+    description: 'Three months — our recommended plan.',
     perks: [
-      'Unlimited daily Express Interests',
-      'View verified contact numbers & email',
-      'See who viewed & liked your profile',
-      'Advanced assembly, church & NRI filters',
-      'Priority in pastoral verification queue',
-      'Highlighted candidate search card',
+      'Unlimited profile views',
+      'Send up to 300 interests',
+      'Unlimited messaging',
+      'View 150 contact details',
+      'Priority pastoral verification queue',
+      'Highlighted candidate search placement',
+    ],
+    structuredPerks: [
+      { text: 'Unlimited profile views', included: true },
+      { text: 'Send up to 300 interests', included: true },
+      { text: 'Unlimited messaging', included: true },
+      { text: 'View 150 contact details', included: true },
+      { text: 'Priority pastoral verification', included: true },
     ],
   },
   elite: {
     id: 'elite',
-    name: 'Elite VIP Steward',
-    badge: 'VIP Steward',
-    priceInr: 2999,
-    durationLabel: '6 Months Plan',
-    monthlyEquivalent: '₹499 / mo equivalent',
-    description: 'Full pastoral concierge, background check facilitation, and private match introductions.',
+    name: '1 YEAR',
+    badge: 'Royal VIP',
+    priceInr: 9999,
+    durationLabel: '/ 1 year',
+    monthlyEquivalent: '₹833 / mo equivalent',
+    description: 'Full year of unlimited matchmaking & pastoral concierge.',
     perks: [
-      'Everything included in Premium',
-      'Dedicated pastoral family steward concierge',
-      'Pastoral background & reference check assistance',
+      'Unlimited profile views',
+      'Unlimited interests',
+      'Unlimited messaging',
+      'View 400 contact details',
+      'Dedicated pastoral concierge & elder assistance',
       'VIP Spotlight badge on Discover directory',
-      'Personalized matrimonial recommendation assistance',
-      'Confidential family contact sharing',
+    ],
+    structuredPerks: [
+      { text: 'Unlimited profile views', included: true },
+      { text: 'Unlimited interests', included: true },
+      { text: 'Unlimited messaging', included: true },
+      { text: 'View 400 contact details', included: true },
+      { text: 'Dedicated Pastoral Concierge & VIP badge', included: true },
     ],
   },
 };
@@ -83,7 +137,7 @@ export const INDIAN_RUPEE_PLANS: Record<'free' | 'premium' | 'elite', PlanDetail
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultPlanId?: 'free' | 'premium' | 'elite';
+  defaultPlanId?: PlanId;
   onSuccess?: (plan: PlanDetails) => void;
 }
 
@@ -99,7 +153,7 @@ export function PaymentModal({
   const currentUserEmail = user?.primaryEmailAddress?.emailAddress || '';
   const currentUserName = user?.fullName || 'Believer Member';
 
-  const [selectedPlanId, setSelectedPlanId] = useState<'free' | 'premium' | 'elite'>(defaultPlanId);
+  const [selectedPlanId, setSelectedPlanId] = useState<PlanId>(defaultPlanId);
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking'>('upi');
   const [upiId, setUpiId] = useState('');
   const [selectedBank, setSelectedBank] = useState('HDFC Bank');
@@ -246,7 +300,7 @@ export function PaymentModal({
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-rose-50 via-white to-amber-50 p-4 rounded-2xl border border-rose-200/80 max-w-md mx-auto text-left space-y-2">
+              <div className="bg-rose-50/40 p-4 rounded-2xl border border-rose-200 max-w-md mx-auto text-left space-y-2">
                 <div className="flex items-center justify-between text-xs pb-2 border-b border-rose-100">
                   <span className="text-slate-500 font-medium">Member Account:</span>
                   <span className="font-bold text-slate-900">{currentUserEmail || currentUserName}</span>
@@ -285,8 +339,8 @@ export function PaymentModal({
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                   Select Membership Tier
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {(['free', 'premium', 'elite'] as const).map((pid) => {
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {(['free', 'starter', 'premium', 'elite'] as const).map((pid) => {
                     const p = INDIAN_RUPEE_PLANS[pid];
                     const isSelected = selectedPlanId === pid;
                     return (
@@ -295,36 +349,36 @@ export function PaymentModal({
                         role="button"
                         tabIndex={0}
                         onClick={() => setSelectedPlanId(pid)}
-                        className={`p-3.5 rounded-2xl border-2 transition cursor-pointer text-left relative flex flex-col justify-between ${
+                        className={`p-3 rounded-2xl border-2 transition cursor-pointer text-left relative flex flex-col justify-between ${
                           isSelected
                             ? 'border-rose-600 bg-rose-50/60 shadow-xs ring-2 ring-rose-500/20'
                             : 'border-slate-200 bg-white hover:border-slate-300'
                         }`}
                       >
                         {pid === 'premium' && (
-                          <span className="absolute -top-2.5 right-3 bg-rose-700 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
+                          <span className="absolute -top-2.5 right-2 bg-rose-700 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
                             Popular
                           </span>
                         )}
                         {pid === 'elite' && (
-                          <span className="absolute -top-2.5 right-3 bg-amber-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
-                            VIP
+                          <span className="absolute -top-2.5 right-2 bg-amber-600 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-0.5">
+                            <Crown size={9} /> VIP
                           </span>
                         )}
 
                         <div>
-                          <div className="text-xs font-extrabold text-slate-900">{p.name}</div>
+                          <div className="text-[11px] font-extrabold text-slate-900">{p.name}</div>
                           <div className="mt-1 flex items-baseline gap-1">
-                            <span className="text-lg font-black text-slate-900">
+                            <span className="text-base font-black text-slate-900">
                               {p.priceInr === 0 ? 'Free' : `₹${p.priceInr.toLocaleString('en-IN')}`}
                             </span>
-                            <span className="text-[10px] text-slate-500">
-                              {p.priceInr === 0 ? 'forever' : `/${pid === 'premium' ? '3 mo' : '6 mo'}`}
+                            <span className="text-[9px] text-slate-500">
+                              {p.durationLabel}
                             </span>
                           </div>
                         </div>
 
-                        <div className="mt-2 text-[10px] text-slate-500 font-medium">
+                        <div className="mt-2 text-[9px] text-slate-500 font-medium truncate">
                           {p.monthlyEquivalent}
                         </div>
                       </div>
@@ -334,7 +388,7 @@ export function PaymentModal({
               </div>
 
               {/* Selected Plan Details Card */}
-              <div className="rounded-2xl border border-rose-100 bg-gradient-to-r from-rose-50/50 via-white to-amber-50/30 p-4">
+              <div className="rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
                 <div className="flex items-center justify-between pb-2 border-b border-rose-100">
                   <div className="flex items-center gap-2">
                     <Award size={18} className="text-rose-700" />
