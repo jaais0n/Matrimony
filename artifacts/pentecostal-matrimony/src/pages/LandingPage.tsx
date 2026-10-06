@@ -606,7 +606,7 @@ export function LandingPage() {
         <div className="pointer-events-none absolute top-1/3 right-10 h-96 w-96 rounded-full bg-amber-200/20 blur-3xl" />
         <div className="pointer-events-none absolute bottom-10 left-10 h-96 w-96 rounded-full bg-rose-200/20 blur-3xl" />
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-               <div className="text-center">
+          <div className="text-center">
             <h2 className="font-serif-fancy text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
               Find the Plan That Fits You
             </h2>
@@ -614,52 +614,24 @@ export function LandingPage() {
             <p className="mx-auto mt-3 text-xs sm:text-sm text-slate-500">
               Transparent, honest plans designed to support serious believers and family stewards.
             </p>
-
-            {isSignedIn && (
-              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-rose-200/80 bg-white/95 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold text-slate-800 shadow-xs">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Signed in as <strong className="text-slate-900">{user?.fullName || 'Believer'}</strong></span>
-                <span className="text-slate-300">•</span>
-                <span>Active Plan:</span>
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
-                  userActivePlan === 'elite'
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                    : userActivePlan === 'premium'
-                    ? 'bg-rose-100 text-rose-900 border border-rose-300'
-                    : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                }`}>
-                  {userActivePlan === 'elite' ? '👑 Elite VIP (₹2,999)' : userActivePlan === 'premium' ? '✨ Premium (₹1,499)' : '✓ Free Basic'}
-                </span>
-              </div>
-            )}
           </div>
 
           <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3 items-stretch">
             
             {/* Free Plan */}
-            <div className={`flex flex-col justify-between rounded-3xl border bg-white/90 backdrop-blur-sm p-8 luxury-card-shadow hover:shadow-xl transition-all duration-300 relative ${
-              isSignedIn && userActivePlan === 'free'
-                ? 'border-2 border-emerald-500 ring-2 ring-emerald-500/20 shadow-lg'
-                : 'border-[#ebdcd0] hover:border-rose-300'
-            }`}>
-              {isSignedIn && userActivePlan === 'free' && (
-                <div className="absolute -top-3.5 left-6 rounded-full bg-emerald-700 px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-md flex items-center gap-1">
-                  <CheckCircle2 size={11} /> Your Current Plan
-                </div>
-              )}
+            <div className="flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/90 backdrop-blur-sm p-8 luxury-card-shadow hover:shadow-xl hover:border-rose-300 transition-all duration-300">
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="font-serif-fancy text-xl font-bold text-slate-900">Free</h3>
-                  <div className="flex items-center gap-1.5">
-                    {isSignedIn && userActivePlan === 'free' && (
-                      <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
-                        <CheckCircle2 size={10} /> Active
-                      </span>
-                    )}
+                  {isSignedIn && userActivePlan === 'free' ? (
+                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                      <Check size={11} className="stroke-[3]" /> Active Plan
+                    </span>
+                  ) : (
                     <span className="rounded-full bg-[#f4ebe3] border border-[#ebdcd0] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
                       Basic
                     </span>
-                  </div>
+                  )}
                 </div>
                 <div className="mt-4 flex items-baseline">
                   <span className="text-3xl font-extrabold text-slate-900">₹0</span>
@@ -694,27 +666,21 @@ export function LandingPage() {
 
               <div className="mt-8 pt-4">
                 {isSignedIn && userActivePlan === 'free' ? (
-                  <button
-                    type="button"
-                    disabled
-                    className="w-full text-center rounded-full border-2 border-emerald-400 bg-emerald-50/80 py-2.5 text-xs font-bold uppercase tracking-wider text-emerald-800 cursor-default flex items-center justify-center gap-1.5 shadow-2xs"
-                  >
-                    <CheckCircle2 size={14} className="text-emerald-600" />
-                    Your Current Plan
-                  </button>
-                ) : isSignedIn ? (
-                  <button
-                    type="button"
-                    disabled
-                    className="w-full text-center rounded-full border border-slate-200 bg-slate-50 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 cursor-default"
-                  >
-                    Included in Your Plan
-                  </button>
+                  <div className="w-full text-center rounded-full border border-emerald-300 bg-emerald-50/70 py-3 text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center justify-center gap-1.5 shadow-2xs">
+                    <Check size={14} className="stroke-[2.5]" /> Current Plan
+                  </div>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setLocation('/onboarding')}
-                    className="w-full text-center rounded-full border border-[#ebdcd0] bg-white py-2.5 text-xs font-bold uppercase tracking-wider text-slate-800 hover:border-rose-400 hover:text-rose-600 transition cursor-pointer"
+                    onClick={() => {
+                      if (isSignedIn) {
+                        setSelectedPlanForModal('free');
+                        setPaymentModalOpen(true);
+                      } else {
+                        setLocation('/onboarding');
+                      }
+                    }}
+                    className="w-full text-center rounded-full border border-[#ebdcd0] bg-white py-3 text-xs font-bold uppercase tracking-wider text-slate-800 hover:border-rose-400 hover:text-rose-600 transition cursor-pointer"
                   >
                     Get Started Free
                   </button>
@@ -723,36 +689,23 @@ export function LandingPage() {
             </div>
 
             {/* Premium Plan (Featured in reference with luxury warm glow) */}
-            <div className={`relative flex flex-col justify-between rounded-3xl border-2 bg-gradient-to-b from-white via-[#fff9f6] to-[#fff2ec] p-8 shadow-2xl shadow-rose-900/10 transform md:-translate-y-2 transition-all duration-300 ${
-              isSignedIn && userActivePlan === 'premium'
-                ? 'border-emerald-500 ring-2 ring-emerald-500/20'
-                : 'border-rose-400/80'
-            }`}>
-              <div className={`absolute -top-3.5 right-6 rounded-full px-4 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-md flex items-center gap-1 ${
-                isSignedIn && userActivePlan === 'premium' ? 'bg-emerald-700' : 'bg-rose-700'
-              }`}>
-                {isSignedIn && userActivePlan === 'premium' ? (
-                  <>
-                    <CheckCircle2 size={11} /> Your Current Plan
-                  </>
-                ) : (
-                  'Popular Choice'
-                )}
+            <div className="relative flex flex-col justify-between rounded-3xl border-2 border-rose-400/80 bg-gradient-to-b from-white via-[#fff9f6] to-[#fff2ec] p-8 shadow-2xl shadow-rose-900/10 transform md:-translate-y-2">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-rose-700 px-4 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-md whitespace-nowrap">
+                Popular Choice
               </div>
 
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="font-serif-fancy text-xl font-bold text-slate-900">Premium</h3>
-                  <div className="flex items-center gap-1.5">
-                    {isSignedIn && userActivePlan === 'premium' && (
-                      <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2 py-0.5 text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
-                        <CheckCircle2 size={10} /> Active
-                      </span>
-                    )}
+                  {isSignedIn && userActivePlan === 'premium' ? (
+                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                      <Check size={11} className="stroke-[3]" /> Active Plan
+                    </span>
+                  ) : (
                     <span className="rounded-full bg-rose-100 border border-rose-200 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 uppercase tracking-wider">
                       3 Months Plan
                     </span>
-                  </div>
+                  )}
                 </div>
                 <div className="mt-4 flex items-baseline">
                   <span className="text-3xl font-extrabold text-rose-600">₹1,499</span>
@@ -796,49 +749,27 @@ export function LandingPage() {
                     setSelectedPlanForModal('premium');
                     setPaymentModalOpen(true);
                   }}
-                  className={`w-full text-center rounded-full py-3 text-xs font-bold uppercase tracking-wider !text-white shadow-md transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 ${
-                    isSignedIn && userActivePlan === 'premium'
-                      ? 'bg-emerald-700 hover:bg-emerald-800'
-                      : 'bg-rose-700 hover:bg-rose-800'
-                  }`}
+                  className="w-full text-center rounded-full bg-rose-700 py-3 text-xs font-bold uppercase tracking-wider !text-white shadow-md hover:bg-rose-800 transition active:scale-95 cursor-pointer"
                 >
-                  {isSignedIn && userActivePlan === 'premium' ? (
-                    <>
-                      <CheckCircle2 size={14} /> Active Plan • Extend / Renew (₹1,499)
-                    </>
-                  ) : isSignedIn ? (
-                    'Upgrade to Premium (₹1,499)'
-                  ) : (
-                    'Choose Premium (₹1,499)'
-                  )}
+                  {isSignedIn && userActivePlan === 'premium' ? 'Current Plan (Extend ₹1,499)' : 'Choose Premium (₹1,499)'}
                 </button>
               </div>
             </div>
 
             {/* Elite Plan */}
-            <div className={`flex flex-col justify-between rounded-3xl border bg-white/90 backdrop-blur-sm p-8 luxury-card-shadow hover:shadow-xl transition-all duration-300 relative ${
-              isSignedIn && userActivePlan === 'elite'
-                ? 'border-2 border-amber-500 ring-2 ring-amber-500/20 shadow-lg'
-                : 'border-[#ebdcd0] hover:border-amber-400/60'
-            }`}>
-              {isSignedIn && userActivePlan === 'elite' && (
-                <div className="absolute -top-3.5 right-6 rounded-full bg-amber-600 px-4 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-md flex items-center gap-1">
-                  <CheckCircle2 size={11} /> Your Current Plan
-                </div>
-              )}
+            <div className="flex flex-col justify-between rounded-3xl border border-[#ebdcd0] bg-white/90 backdrop-blur-sm p-8 luxury-card-shadow hover:shadow-xl hover:border-amber-400/60 transition-all duration-300">
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="font-serif-fancy text-xl font-bold text-slate-900">Elite</h3>
-                  <div className="flex items-center gap-1.5">
-                    {isSignedIn && userActivePlan === 'elite' && (
-                      <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
-                        <CheckCircle2 size={10} /> Active
-                      </span>
-                    )}
+                  {isSignedIn && userActivePlan === 'elite' ? (
+                    <span className="rounded-full bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                      <Check size={11} className="stroke-[3]" /> Active Plan
+                    </span>
+                  ) : (
                     <span className="rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">
                       VIP Steward
                     </span>
-                  </div>
+                  )}
                 </div>
                 <div className="mt-4 flex items-baseline">
                   <span className="text-3xl font-extrabold text-slate-900">₹2,999</span>
@@ -882,23 +813,13 @@ export function LandingPage() {
                     setSelectedPlanForModal('elite');
                     setPaymentModalOpen(true);
                   }}
-                  className={`w-full text-center rounded-full py-2.5 text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  className={`w-full text-center rounded-full py-3 text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
                     isSignedIn && userActivePlan === 'elite'
                       ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-md'
-                      : isSignedIn
-                      ? 'border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-900 shadow-2xs'
                       : 'border border-[#ebdcd0] bg-white text-slate-800 hover:border-amber-400 hover:text-amber-700'
                   }`}
                 >
-                  {isSignedIn && userActivePlan === 'elite' ? (
-                    <>
-                      <CheckCircle2 size={14} /> Active Plan • Extend / Renew (₹2,999)
-                    </>
-                  ) : isSignedIn ? (
-                    'Upgrade to Elite (₹2,999)'
-                  ) : (
-                    'Go Elite (₹2,999)'
-                  )}
+                  {isSignedIn && userActivePlan === 'elite' ? 'Current Plan (Extend ₹2,999)' : 'Go Elite (₹2,999)'}
                 </button>
               </div>
             </div>
