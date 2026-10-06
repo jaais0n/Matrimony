@@ -131,6 +131,17 @@ export default defineConfig({
               return;
             }
 
+            if (pathname === '/api/auth/subscribe') {
+              const { default: handler } = await import('../../api/auth/subscribe.js');
+              let body = '';
+              req.on('data', (chunk) => { body += chunk; });
+              req.on('end', async () => {
+                try { (req as any).body = body ? JSON.parse(body) : {}; } catch { (req as any).body = {}; }
+                await handler(req as any, res as any);
+              });
+              return;
+            }
+
             if (pathname === '/api/reports') {
               const { default: handler } = await import('../../api/reports/index.js');
               if (req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE') {

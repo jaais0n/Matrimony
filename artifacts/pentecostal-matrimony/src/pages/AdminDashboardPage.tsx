@@ -1518,8 +1518,8 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Tier 1</span>
-                    <h4 className="text-base font-extrabold text-slate-900 mt-1">Free Believer</h4>
+                    <span className="text-xs font-bold text-slate-500 uppercase">Tier 1 • ₹0 Free</span>
+                    <h4 className="text-base font-extrabold text-slate-900 mt-1">Free Fellowship</h4>
                     <p className="text-xs text-slate-500 mt-1">Standard registration for all believers</p>
                     <ul className="mt-3 space-y-1 text-xs text-slate-600">
                       <li>• 10 Connection Requests/month</li>
@@ -1530,23 +1530,24 @@ export function AdminDashboardPage({ activeRole }: { activeRole?: string }) {
 
                   <div className="rounded-xl border border-rose-300 p-4 bg-rose-50/40 relative">
                     <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-700 text-white uppercase">Popular</span>
-                    <span className="text-xs font-bold text-rose-700 uppercase">Tier 2</span>
-                    <h4 className="text-base font-extrabold text-slate-900 mt-1">Grace Partner</h4>
+                    <span className="text-xs font-bold text-rose-700 uppercase">Tier 2 • ₹1,499 / 3 mo</span>
+                    <h4 className="text-base font-extrabold text-slate-900 mt-1">Premium Partner</h4>
                     <p className="text-xs text-slate-500 mt-1">Dedicated candidates with verified status</p>
                     <ul className="mt-3 space-y-1 text-xs text-slate-600">
-                      <li>• 100 Connection Requests/month</li>
-                      <li>• Verified Pastoral Badge</li>
+                      <li>• Unlimited Connection Requests</li>
+                      <li>• Verified Pastoral Badge & Phone Access</li>
                       <li>• Direct Contact Sharing</li>
                     </ul>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 p-4 bg-slate-50/50">
-                    <span className="text-xs font-bold text-amber-700 uppercase">Tier 3</span>
-                    <h4 className="text-base font-extrabold text-slate-900 mt-1">Kingdom Blessing</h4>
+                  <div className="rounded-xl border border-amber-300 p-4 bg-amber-50/40 relative">
+                    <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-700 text-white uppercase">VIP</span>
+                    <span className="text-xs font-bold text-amber-700 uppercase">Tier 3 • ₹2,999 / 6 mo</span>
+                    <h4 className="text-base font-extrabold text-slate-900 mt-1">Elite VIP Steward</h4>
                     <p className="text-xs text-slate-500 mt-1">Full pastoral facilitation & confidentiality</p>
                     <ul className="mt-3 space-y-1 text-xs text-slate-600">
-                      <li>• Unlimited Requests</li>
-                      <li>• Featured Candidate Spotlight</li>
+                      <li>• Unlimited Requests & Featured Spotlight</li>
+                      <li>• Dedicated Family Concierge</li>
                       <li>• Personal Match Facilitation</li>
                     </ul>
                   </div>

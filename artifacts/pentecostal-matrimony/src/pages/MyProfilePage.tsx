@@ -43,6 +43,7 @@ import {
 import type { ProfileInput } from '@workspace/api-client-react';
 import { VerificationBadge } from '../components/ui/VerificationBadge';
 import { useUser } from '../auth';
+import { PaymentModal, INDIAN_RUPEE_PLANS } from '../components/ui/PaymentModal';
 import { compressImage, safeSetLocalStorage } from '../utils/storageHelper';
 
 interface ProfilePhotoItem {
@@ -145,6 +146,54 @@ export function MyProfilePage() {
   const [prayerRequest, setPrayerRequest] = useState('');
   const [prayerSent, setPrayerSent] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
+
+  // Membership & Payment states
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [activePlanId, setActivePlanId] = useState<'free' | 'premium' | 'elite'>('free');
+
+  useEffect(() => {
+    const checkPlan = () => {
+      try {
+        const rawAuth = localStorage.getItem('pm_auth_user');
+        if (rawAuth) {
+          const authUser = JSON.parse(rawAuth);
+          if (authUser.planTier === 'elite' || authUser.plan?.toLowerCase().includes('elite')) {
+            setActivePlanId('elite');
+            return;
+          }
+          if (authUser.planTier === 'premium' || authUser.plan?.toLowerCase().includes('premium') || authUser.isVip) {
+            setActivePlanId('premium');
+            return;
+          }
+        }
+        const accountsRaw = localStorage.getItem('pm_registered_accounts');
+        if (accountsRaw && user?.id) {
+          const accounts = JSON.parse(accountsRaw);
+          const matched = accounts.find(
+            (a: any) =>
+              a.id === user.id ||
+              (user.primaryEmailAddress?.emailAddress && a.email?.toLowerCase() === user.primaryEmailAddress.emailAddress.toLowerCase())
+          );
+          if (matched) {
+            if (matched.planTier === 'elite' || matched.plan?.toLowerCase().includes('elite')) {
+              setActivePlanId('elite');
+              return;
+            }
+            if (matched.planTier === 'premium' || matched.plan?.toLowerCase().includes('premium') || matched.isVip) {
+              setActivePlanId('premium');
+              return;
+            }
+          }
+        }
+        setActivePlanId('free');
+      } catch {
+        setActivePlanId('free');
+      }
+    };
+    checkPlan();
+    window.addEventListener('pm:sync', checkPlan);
+    return () => window.removeEventListener('pm:sync', checkPlan);
+  }, [user?.id, user?.primaryEmailAddress?.emailAddress]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -1385,7 +1434,7 @@ export function MyProfilePage() {
                     Plans & Monthly Quotas
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Review your active quota for sending interests, direct messaging, and profile visibility.
+                    Review your active quota in Indian Rupees (₹) for sending interests, direct messaging, and profile visibility.
                   </p>
                 </div>
 
@@ -1393,31 +1442,50 @@ export function MyProfilePage() {
                 <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 via-white to-amber-50/50 p-5 sm:p-6 relative overflow-hidden">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 uppercase tracking-wider">
-                        <Award size={14} /> Active Plan
-                      </span>
-                      <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                        Covenant Believer Plan (Free)
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 uppercase tracking-wider">
+                          <Award size={14} /> Active Plan:
+                        </span>
+                        <span className="rounded-full bg-rose-700 text-white px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider shadow-2xs">
+                          {INDIAN_RUPEE_PLANS[activePlanId].badge}
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-900 mt-1">
+                        {INDIAN_RUPEE_PLANS[activePlanId].name}
                       </h3>
+                      <div className="mt-1 flex items-baseline gap-1.5 text-xs text-slate-600">
+                        <span className="font-extrabold text-slate-900">
+                          {INDIAN_RUPEE_PLANS[activePlanId].priceInr === 0 ? '₹0 Free' : `₹${INDIAN_RUPEE_PLANS[activePlanId].priceInr.toLocaleString('en-IN')}`}
+                        </span>
+                        <span>•</span>
+                        <span>{INDIAN_RUPEE_PLANS[activePlanId].durationLabel}</span>
+                        <span>•</span>
+                        <span className="text-emerald-700 font-semibold">{INDIAN_RUPEE_PLANS[activePlanId].monthlyEquivalent}</span>
+                      </div>
                       <p className="text-xs text-slate-600 mt-1 max-w-md">
-                        Includes full candidate browsing, verified badge verification, and connection messaging.
+                        {INDIAN_RUPEE_PLANS[activePlanId].description}
                       </p>
                     </div>
 
-                    <Link
-                      href="/subscription"
-                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-700 hover:bg-rose-800 text-white px-5 py-2.5 text-xs font-bold shadow-xs transition shrink-0"
+                    <button
+                      type="button"
+                      onClick={() => setPaymentModalOpen(true)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-700 hover:bg-rose-800 text-white px-5 py-2.5 text-xs font-bold shadow-xs transition shrink-0 cursor-pointer"
                     >
-                      View All Plans & VIP →
-                    </Link>
+                      {activePlanId === 'free' ? 'Upgrade Plan (₹ INR) →' : 'Extend / Change Plan →'}
+                    </button>
                   </div>
 
                   {/* Quotas Counter */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-5 border-t border-rose-100">
                     <div className="p-3 bg-white rounded-xl border border-rose-100">
                       <div className="text-[10px] uppercase font-bold text-slate-400">Express Interests</div>
-                      <div className="text-lg font-black text-rose-700 mt-0.5">25 Left</div>
-                      <div className="text-[10px] text-slate-500">Renews on 1st of month</div>
+                      <div className="text-lg font-black text-rose-700 mt-0.5">
+                        {activePlanId === 'free' ? '10 Left' : 'Unlimited'}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {activePlanId === 'free' ? 'Renews on 1st of month' : 'Unmetered VIP Privileges'}
+                      </div>
                     </div>
 
                     <div className="p-3 bg-white rounded-xl border border-rose-100">
@@ -1428,8 +1496,10 @@ export function MyProfilePage() {
 
                     <div className="p-3 bg-white rounded-xl border border-rose-100">
                       <div className="text-[10px] uppercase font-bold text-slate-400">Verification</div>
-                      <div className="text-lg font-black text-blue-700 mt-0.5">100% Free</div>
-                      <div className="text-[10px] text-slate-500">Pastoral background check</div>
+                      <div className="text-lg font-black text-blue-700 mt-0.5">
+                        {activePlanId === 'free' ? 'Standard Review' : 'Priority Review'}
+                      </div>
+                      <div className="text-[10px] text-slate-500">100% Manual pastoral check</div>
                     </div>
                   </div>
                 </div>
@@ -1442,12 +1512,13 @@ export function MyProfilePage() {
                   <p className="text-xs text-slate-600 mb-3">
                     Our pastoral team assists families seeking like-minded Pentecostal partners with personalized guidance and family coordination.
                   </p>
-                  <Link
-                    href="/subscription"
-                    className="text-xs font-bold text-rose-700 hover:underline inline-flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalOpen(true)}
+                    className="text-xs font-bold text-rose-700 hover:underline inline-flex items-center gap-1 cursor-pointer"
                   >
-                    Learn about Assisted Pastoral Matchmaking <ExternalLink size={12} />
-                  </Link>
+                    View All Indian Rupee Plans (₹ INR) <ArrowRight size={12} />
+                  </button>
                 </div>
               </div>
             )}
@@ -1546,10 +1617,19 @@ export function MyProfilePage() {
                 </div>
               </div>
             )}
-
           </div>
         </div>
       </div>
+
+      {/* Payment & Subscription Modal */}
+      <PaymentModal
+        isOpen={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        defaultPlanId={activePlanId === 'free' ? 'premium' : activePlanId}
+        onSuccess={(plan) => {
+          setActivePlanId(plan.id);
+        }}
+      />
     </div>
   );
 }

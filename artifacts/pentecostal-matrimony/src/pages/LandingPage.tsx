@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth, useClerk, useUser } from '../auth';
 import { Footer } from '../components/ui/Footer';
+import { PaymentModal } from '../components/ui/PaymentModal';
 import heroCard1 from '../assets/hero/card1.jpg';
 import heroCard2 from '../assets/hero/card2.jpg';
 import heroCard3 from '../assets/hero/card3.jpg';
@@ -86,6 +87,8 @@ export function LandingPage() {
   const { user } = useUser();
   const { signOut } = useClerk();
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'premium' | 'elite'>('premium');
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPlanForModal, setSelectedPlanForModal] = useState<'free' | 'premium' | 'elite'>('premium');
   const [isSpread, setIsSpread] = useState(false);
   const [activeSection, setActiveSection] = useState<'home' | 'journey' | 'plans' | 'testimonials'>('home');
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
@@ -571,36 +574,51 @@ export function LandingPage() {
                   </span>
                 </div>
                 <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-slate-900">$0</span>
-                  <span className="text-xs text-slate-500 ml-1">/mo</span>
+                  <span className="text-3xl font-extrabold text-slate-900">₹0</span>
+                  <span className="text-xs text-slate-500 ml-1">/forever</span>
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+                  Standard Believer Fellowship
                 </div>
 
                 <div className="mt-6 border-t border-[#ebdcd0]/70 pt-6">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">What you get</p>
                   <ul className="space-y-3 text-xs text-slate-600">
                     <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Create verified profile</span>
+                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
+                      <span>Create verified believer profile</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Send limited daily interests</span>
+                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
+                      <span>10 Express Interests per month</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Basic denomination filters</span>
+                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
+                      <span>Basic denomination & assembly filters</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check size={14} className="text-emerald-600 flex-shrink-0" />
+                      <span>Direct connection messaging</span>
                     </li>
                   </ul>
                 </div>
               </div>
 
               <div className="mt-8 pt-4">
-                <Link
-                  href="/onboarding"
-                  className="block w-full text-center rounded-full border border-[#ebdcd0] bg-white py-2.5 text-xs font-bold uppercase tracking-wider text-slate-800 hover:border-rose-400 hover:text-rose-600 transition"
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isSignedIn) {
+                      setSelectedPlanForModal('free');
+                      setPaymentModalOpen(true);
+                    } else {
+                      setLocation('/onboarding');
+                    }
+                  }}
+                  className="w-full text-center rounded-full border border-[#ebdcd0] bg-white py-2.5 text-xs font-bold uppercase tracking-wider text-slate-800 hover:border-rose-400 hover:text-rose-600 transition cursor-pointer"
                 >
-                  Get Started
-                </Link>
+                  Get Started Free
+                </button>
               </div>
             </div>
 
@@ -613,10 +631,16 @@ export function LandingPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="font-serif-fancy text-xl font-bold text-slate-900">Premium</h3>
+                  <span className="rounded-full bg-rose-100 border border-rose-200 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 uppercase tracking-wider">
+                    3 Months Plan
+                  </span>
                 </div>
                 <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-rose-600">$29</span>
-                  <span className="text-xs text-slate-500 ml-1">/mo</span>
+                  <span className="text-3xl font-extrabold text-rose-600">₹1,499</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 3 mo</span>
+                </div>
+                <div className="text-[11px] text-rose-700 font-semibold mt-1">
+                  ₹499 / mo equivalent • Save 50%
                 </div>
 
                 <div className="mt-6 border-t border-rose-200/60 pt-6">
@@ -624,7 +648,11 @@ export function LandingPage() {
                   <ul className="space-y-3 text-xs text-slate-700">
                     <li className="flex items-center gap-2">
                       <Check size={14} className="text-rose-600 flex-shrink-0" />
-                      <span><strong>Unlimited</strong> daily interests</span>
+                      <span><strong>Unlimited</strong> daily Express Interests</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check size={14} className="text-rose-600 flex-shrink-0" />
+                      <span>View verified contact numbers & email</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check size={14} className="text-rose-600 flex-shrink-0" />
@@ -632,7 +660,7 @@ export function LandingPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <Check size={14} className="text-rose-600 flex-shrink-0" />
-                      <span>Advanced denomination & assembly filters</span>
+                      <span>Advanced denomination, assembly & NRI filters</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check size={14} className="text-rose-600 flex-shrink-0" />
@@ -643,12 +671,16 @@ export function LandingPage() {
               </div>
 
               <div className="mt-8 pt-4">
-                <Link
-                  href="/subscription"
-                  className="block w-full text-center rounded-full bg-rose-700 py-3 text-xs font-bold uppercase tracking-wider !text-white shadow-md hover:bg-rose-800 transition active:scale-95"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPlanForModal('premium');
+                    setPaymentModalOpen(true);
+                  }}
+                  className="w-full text-center rounded-full bg-rose-700 py-3 text-xs font-bold uppercase tracking-wider !text-white shadow-md hover:bg-rose-800 transition active:scale-95 cursor-pointer"
                 >
-                  Choose Premium
-                </Link>
+                  Choose Premium (₹1,499)
+                </button>
               </div>
             </div>
 
@@ -662,8 +694,11 @@ export function LandingPage() {
                   </span>
                 </div>
                 <div className="mt-4 flex items-baseline">
-                  <span className="text-3xl font-extrabold text-slate-900">$59</span>
-                  <span className="text-xs text-slate-500 ml-1">/mo</span>
+                  <span className="text-3xl font-extrabold text-slate-900">₹2,999</span>
+                  <span className="text-xs text-slate-500 ml-1">/ 6 mo</span>
+                </div>
+                <div className="text-[11px] text-amber-800 font-semibold mt-1">
+                  ₹499 / mo equivalent • Full Pastoral Concierge
                 </div>
 
                 <div className="mt-6 border-t border-[#ebdcd0]/70 pt-6">
@@ -675,7 +710,7 @@ export function LandingPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Dedicated family steward assistance</span>
+                      <span>Dedicated pastoral family steward concierge</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <Check size={14} className="text-rose-500 flex-shrink-0" />
@@ -683,19 +718,27 @@ export function LandingPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <Check size={14} className="text-rose-500 flex-shrink-0" />
-                      <span>Exclusive profile highlight badge</span>
+                      <span>Exclusive profile highlight badge & spotlight</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check size={14} className="text-rose-500 flex-shrink-0" />
+                      <span>Personalized matrimonial match assistance</span>
                     </li>
                   </ul>
                 </div>
               </div>
 
               <div className="mt-8 pt-4">
-                <Link
-                  href="/subscription"
-                  className="block w-full text-center rounded-full border border-[#ebdcd0] bg-white py-2.5 text-xs font-bold uppercase tracking-wider text-slate-800 hover:border-amber-400 hover:text-amber-700 transition"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedPlanForModal('elite');
+                    setPaymentModalOpen(true);
+                  }}
+                  className="w-full text-center rounded-full border border-[#ebdcd0] bg-white py-2.5 text-xs font-bold uppercase tracking-wider text-slate-800 hover:border-amber-400 hover:text-amber-700 transition cursor-pointer"
                 >
-                  Go Elite
-                </Link>
+                  Go Elite (₹2,999)
+                </button>
               </div>
             </div>
 
@@ -998,6 +1041,12 @@ export function LandingPage() {
           </div>
         </div>
       )}
+
+      <PaymentModal
+        isOpen={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        defaultPlanId={selectedPlanForModal}
+      />
 
       <Footer />
     </div>
