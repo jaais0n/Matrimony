@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { BlurImage } from '../components/ui/BlurImage';
+import { usePreloadProfileImages } from '../utils/imagePreloader';
 import {
   AlertCircle,
   ArrowRight,
@@ -195,14 +196,52 @@ export function MyProfilePage() {
     return () => window.removeEventListener('pm:sync', checkPlan);
   }, [user?.id, user?.primaryEmailAddress?.emailAddress]);
 
+  const [isProfileDataLoading, setIsProfileDataLoading] = useState(true);
+
+  const applyProfileData = (p: any) => {
+    if (!p) return;
+    setForm({
+      displayName: p.displayName || user?.fullName || '',
+      dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
+      gender: (p.gender as ProfileInput['gender']) || 'woman',
+      heightCm: p.heightCm || ('' as any),
+      weightKg: p.weightKg || null,
+      motherTongue: p.motherTongue || '',
+      maritalStatus: p.maritalStatus || 'Never Married',
+      location: p.location || '',
+      country: p.country || 'India',
+      introduction: p.introduction || '',
+      published: p.published !== undefined ? p.published : true,
+      faith: p.faith || blankProfile.faith,
+      education: p.education || blankProfile.education,
+      career: p.career || blankProfile.career,
+      family: p.family || blankProfile.family,
+      preferences: p.preferences || blankProfile.preferences,
+    });
+
+    if (p.photos && p.photos.length > 0) {
+      const loaded: ProfilePhotoItem[] = p.photos.map((ph: any, idx: number) => ({
+        id: ph.id || `photo_${idx}`,
+        url: ph.url,
+        isPrimary: ph.isPrimary !== undefined ? ph.isPrimary : idx === 0,
+      }));
+      if (!loaded.some((ph) => ph.isPrimary) && loaded.length > 0) {
+        loaded[0].isPrimary = true;
+      }
+      setPhotos(loaded);
+    }
+  };
+
   useEffect(() => {
     if (!user?.id) {
       setForm(blankProfile);
       setPhotos([]);
+      setIsProfileDataLoading(false);
       return;
     }
 
     const currentUserId = user.id;
+    setIsProfileDataLoading(true);
 
     // Reset form immediately on account switch so previous account's details never bleed through
     setForm({
@@ -211,87 +250,63 @@ export function MyProfilePage() {
     });
     setPhotos([]);
 
-    // 1. Database-first fetch for this specific logged-in user
+    // 1. Initial instant load from localStorage if available
+    const userSpecificKey = `pm_user_profile_${currentUserId}`;
+    const rawSaved = localStorage.getItem(userSpecificKey) || localStorage.getItem('pm_my_profile');
+    if (rawSaved) {
+      try {
+        const cached = JSON.parse(rawSaved);
+        if (cached && !isSeedProfile(cached) && (cached.displayName || cached.location || cached.introduction)) {
+          applyProfileData(cached);
+        }
+      } catch {}
+    }
+
+    // 2. Authoritative Database fetch for this specific logged-in user
     fetch(`/api/profiles/me?userId=${encodeURIComponent(currentUserId)}`)
       .then((r) => r.json())
       .then((p) => {
         if (p && !p.notFound && (p.displayName || p.location || p.introduction)) {
-          setForm({
-            displayName: p.displayName || user.fullName || '',
-            dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
-            gender: (p.gender as ProfileInput['gender']) || 'woman',
-            heightCm: p.heightCm || ('' as any),
-            weightKg: p.weightKg || null,
-            motherTongue: p.motherTongue || '',
-            maritalStatus: p.maritalStatus || 'Never Married',
-            location: p.location || '',
-            country: p.country || 'India',
-            introduction: p.introduction || '',
-            published: p.published !== undefined ? p.published : true,
-            faith: p.faith || blankProfile.faith,
-            education: p.education || blankProfile.education,
-            career: p.career || blankProfile.career,
-            family: p.family || blankProfile.family,
-            preferences: p.preferences || blankProfile.preferences,
-          });
-
-          if (p.photos && p.photos.length > 0) {
-            const loaded: ProfilePhotoItem[] = p.photos.map((ph: any, idx: number) => ({
-              id: ph.id || `photo_${idx}`,
-              url: ph.url,
-              isPrimary: ph.isPrimary !== undefined ? ph.isPrimary : idx === 0,
-            }));
-            if (!loaded.some((ph) => ph.isPrimary) && loaded.length > 0) {
-              loaded[0].isPrimary = true;
-            }
-            setPhotos(loaded);
-          }
+          applyProfileData(p);
           return;
         }
 
-        // 2. Fallback to localStorage if server returns empty
-        const userSpecificKey = `pm_user_profile_${currentUserId}`;
-        const rawSaved = localStorage.getItem(userSpecificKey) || localStorage.getItem('pm_my_profile');
+        // Fallback to localStorage if server returns empty
         if (rawSaved) {
           try {
-            const p = JSON.parse(rawSaved);
-            if (p && !isSeedProfile(p) && (p.displayName || p.location || p.introduction)) {
-              setForm({
-                displayName: p.displayName || user.fullName || '',
-                dateOfBirth: p.dateOfBirth ? p.dateOfBirth.slice(0, 10) : '',
-                gender: (p.gender as ProfileInput['gender']) || 'woman',
-                heightCm: p.heightCm || ('' as any),
-                weightKg: p.weightKg || null,
-                motherTongue: p.motherTongue || '',
-                maritalStatus: p.maritalStatus || 'Never Married',
-                location: p.location || '',
-                country: p.country || 'India',
-                introduction: p.introduction || '',
-                published: p.published !== undefined ? p.published : true,
-                faith: p.faith || blankProfile.faith,
-                education: p.education || blankProfile.education,
-                career: p.career || blankProfile.career,
-                family: p.family || blankProfile.family,
-                preferences: p.preferences || blankProfile.preferences,
-              });
-
-              if (p.photos && p.photos.length > 0) {
-                const loaded: ProfilePhotoItem[] = p.photos.map((ph: any, idx: number) => ({
-                  id: ph.id || `photo_${idx}`,
-                  url: ph.url,
-                  isPrimary: ph.isPrimary !== undefined ? ph.isPrimary : idx === 0,
-                }));
-                if (!loaded.some((ph) => ph.isPrimary) && loaded.length > 0) {
-                  loaded[0].isPrimary = true;
-                }
-                setPhotos(loaded);
-              }
+            const cached = JSON.parse(rawSaved);
+            if (cached && !isSeedProfile(cached) && (cached.displayName || cached.location || cached.introduction)) {
+              applyProfileData(cached);
             }
           } catch {}
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        setIsProfileDataLoading(false);
+      });
   }, [user?.id, user?.fullName]);
+
+  // Preload all profile photos so main portrait and gallery load completely before hiding skeleton
+  const profilePhotoUrls = useMemo(() => {
+    const urls: string[] = [];
+    photos.forEach((ph) => {
+      if (ph.url) urls.push(ph.url);
+    });
+    if (user?.imageUrl && !urls.includes(user.imageUrl)) {
+      urls.push(user.imageUrl);
+    }
+    return urls;
+  }, [photos, user?.imageUrl]);
+
+  const profileImagesLoaded = usePreloadProfileImages(
+    profilePhotoUrls,
+    !isProfileDataLoading,
+    5000
+  );
+
+  // Strictly hold loading state until profile data is fetched AND all candidate photos are preloaded
+  const isPageLoading = isProfileDataLoading || (profilePhotoUrls.length > 0 && !profileImagesLoaded);
 
   // Calculate profile completeness score
   const calculateCompleteness = () => {
@@ -540,6 +555,92 @@ export function MyProfilePage() {
       a: 'No. Your phone number and email are kept confidential and are only shared when you mutually accept an interest with another member.',
     },
   ];
+
+  if (isPageLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 pb-24 md:pb-16 text-slate-900 animate-pulse">
+        {/* Top Banner / Account Header Skeleton */}
+        <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-rose-900 text-white pt-8 pb-8 sm:pb-10 px-4 sm:px-6 relative overflow-hidden border-b border-rose-900/40">
+          <div className="pointer-events-none absolute -top-24 left-1/4 h-80 w-80 rounded-full bg-rose-500/10 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 right-10 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl" />
+
+          <div className="mx-auto max-w-5xl relative z-10">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-center gap-4 sm:gap-6">
+                {/* Profile Avatar Skeleton */}
+                <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl bg-white/15 border-2 border-white/20 shrink-0" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-44 rounded-lg bg-white/25" />
+                    <div className="h-5 w-24 rounded-full bg-emerald-500/25" />
+                  </div>
+                  <div className="h-4 w-60 rounded-md bg-white/15" />
+                  <div className="h-3 w-40 rounded-md bg-white/10" />
+                </div>
+              </div>
+              <div className="h-9 w-36 rounded-xl bg-white/15 shrink-0" />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Hub Skeleton */}
+        <div className="mx-auto max-w-5xl px-3 sm:px-6 mt-6 sm:mt-8">
+          {/* Mobile Navigation Tabs Skeleton */}
+          <div className="lg:hidden mb-4 flex gap-2 overflow-hidden p-1.5 bg-white rounded-2xl border border-slate-200">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-8 w-24 rounded-xl bg-slate-100 shrink-0" />
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Sidebar Skeleton (Desktop) */}
+            <div className="hidden lg:block lg:col-span-1">
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-3 space-y-2">
+                <div className="h-3 w-20 rounded bg-slate-200 mb-3" />
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-9 w-full rounded-xl bg-slate-100" />
+                ))}
+              </div>
+            </div>
+
+            {/* Main Content Area Skeleton */}
+            <div className="lg:col-span-3 space-y-6">
+              <div className="rounded-2xl border border-rose-100 bg-white p-6 sm:p-8 space-y-6 shadow-sm">
+                <div className="border-b border-slate-100 pb-4 space-y-2">
+                  <div className="h-4 w-32 rounded-full bg-rose-100" />
+                  <div className="h-6 w-52 rounded-lg bg-slate-200" />
+                  <div className="h-3 w-72 rounded bg-slate-100" />
+                </div>
+
+                {/* Photo slots skeleton */}
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/30 p-5 space-y-4">
+                  <div className="h-4 w-36 rounded bg-slate-200" />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="aspect-[4/5] w-full rounded-2xl bg-gradient-to-br from-slate-200 via-rose-100/40 to-slate-200"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Form fields skeleton */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div key={i} className="space-y-1.5">
+                      <div className="h-3 w-24 rounded bg-slate-200" />
+                      <div className="h-10 w-full rounded-xl bg-slate-100" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 md:pb-16 text-slate-900">

@@ -85,7 +85,7 @@ export function ProfileDetailPage() {
   const detailImagesLoaded = usePreloadProfileImages(
     detailPhotoUrls,
     Boolean(p && !profileQuery.isLoading),
-    2000
+    5000
   );
 
   if (profileQuery.isLoading || (p && !detailImagesLoaded)) {
